@@ -102,6 +102,19 @@ export function TimeDial({
   const [dragging, setDragging] = useState(false);
   const [typing, setTyping] = useState(false);
   const [draft, setDraft] = useState('');
+  /**
+   * Which side of zero a bare number means.
+   *
+   * The parser has always understood "500 BC" — but nothing on screen said so,
+   * so the only way to reach the BC half of the ladder by typing was to already
+   * know that letters were accepted. A visible toggle turns an invisible parsing
+   * rule into a control, and reduces entry to digits.
+   *
+   * It is a DEFAULT, not an override: type "500 BC" and the text still wins, and
+   * the toggle moves to match it. The control tells you how your digits will be
+   * read, and never contradicts what you actually typed.
+   */
+  const [era, setEra] = useState<'BC' | 'AD'>('AD');
   const entryRef = useRef<HTMLInputElement>(null);
   /**
    * What is driving the ribbon. A mechanism is defined by what moves it, and one
@@ -115,8 +128,18 @@ export function TimeDial({
     if (typing) entryRef.current?.focus();
   }, [typing]);
 
+  /** True when the text carries its own era or scale and the toggle must not interfere. */
+  const draftIsExplicit = (text: string) =>
+    /[a-z]/i.test(text);
+
   const commitTyped = () => {
-    const parsed = parseYearInput(draft);
+    const raw = draft.trim();
+    // Bare digits take their sign from the toggle; anything with letters in it
+    // is parsed as written, because the user has said what they mean.
+    const parsed =
+      raw && !draftIsExplicit(raw) && era === 'BC'
+        ? parseYearInput(`${raw} BC`)
+        : parseYearInput(raw);
     setTyping(false);
     if (parsed === null) return;
     // A typed year does NOT route through commit() — the parent maps it to a
@@ -259,7 +282,17 @@ export function TimeDial({
             <input
               ref={entryRef}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDraft(v);
+                // Typed era wins and drags the toggle with it, so the control can
+                // never sit there claiming AD while the field says 500 BC.
+                if (/\bbce?\b/i.test(v) || /(years?\s*ago|\bbp\b|mya|myr|kya|thousand|million)/i.test(v)) {
+                  setEra('BC');
+                } else if (/\b(ad|ce)\b/i.test(v)) {
+                  setEra('AD');
+                }
+              }}
               onBlur={commitTyped}
               onKeyDown={(e) => {
                 e.stopPropagation();
@@ -268,10 +301,40 @@ export function TimeDial({
                   setTyping(false);
                 }
               }}
-              aria-label="Go to year — try 1969, 500 BC, or 66 million years ago"
-              placeholder="1969 · 500 BC · 66 mya"
+              aria-label="Go to year — type digits and pick BC or AD, or write 66 million years ago"
+              placeholder="1969"
+              inputMode="numeric"
               spellCheck={false}
             />
+            <div className="era-toggle" role="radiogroup" aria-label="Era">
+              {(['BC', 'AD'] as const).map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  role="radio"
+                  aria-checked={era === e}
+                  tabIndex={era === e ? 0 : -1}
+                  className={`era-opt${era === e ? ' era-opt--on' : ''}`}
+                  /* onMouseDown, not onClick: the input's onBlur commits, and a
+                     click would fire the commit before the era had changed —
+                     the toggle would appear to do nothing on the first press. */
+                  onMouseDown={(ev) => {
+                    ev.preventDefault();
+                    setEra(e);
+                    entryRef.current?.focus();
+                  }}
+                  onKeyDown={(ev) => {
+                    if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      setEra((cur) => (cur === 'BC' ? 'AD' : 'BC'));
+                    }
+                  }}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
           </form>
         ) : (
           <button
@@ -284,6 +347,10 @@ export function TimeDial({
              */
             onClick={() => {
               setDraft('');
+              // Seeded from the year on screen, so stepping into the field deep
+              // in BC and typing 500 means 500 BC — not a 2,500-year jump across
+              // zero that nobody asked for.
+              setEra(year < 0 ? 'BC' : 'AD');
               setTyping(true);
             }}
             title="Type any year — 1969, 500 BC, 66 mya"

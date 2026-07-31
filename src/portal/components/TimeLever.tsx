@@ -32,7 +32,33 @@ interface Props {
 }
 
 /** Travel of the handle, in px, and the fraction of it that counts as a throw. */
-const TRAVEL = 46;
+const TRAVEL = 54;
+
+/**
+ * The throw is a half turn TOWARDS THE VIEWER.
+ *
+ * Three things had to be true at once, and each earlier attempt got one or two:
+ *
+ *   1. The thrown state is the resting state MIRRORED — head at the top pointing
+ *      up becomes head at the bottom pointing down.
+ *   2. The motion is DOWNWARD, not across.
+ *   3. The shard comes towards you on the way, the way a real lever falls out of
+ *      the panel towards the hand pulling it.
+ *
+ * rotate() satisfied 1 and 2 but swung the head sideways through the plane of
+ * the screen. rotateX about the shard's own centre comes towards the viewer but
+ * flips in place and never travels. rotateX about the PLATE'S MIDLINE does all
+ * three: the axis is horizontal so the shard tips out towards you, and because
+ * that axis sits below the shard, tipping through 180 lands it at the bottom of
+ * the plate, inverted — the mirror.
+ *
+ * Negative, because positive rotateX tips the top AWAY into the screen. Towards
+ * the viewer is the negative direction.
+ */
+const THROW_DEG = -180;
+
+/** Degrees for a given position along the throw. */
+const angleFor = (px: number) => (px / TRAVEL) * THROW_DEG;
 const THROW_AT = 0.55;
 
 export function TimeLever({ armed, busy, onPull, accent, label, retry = false, blockedReason }: Props) {
@@ -46,12 +72,29 @@ export function TimeLever({ armed, busy, onPull, accent, label, retry = false, b
   const startY = useRef(0);
   const pulled = useRef(false);
 
-  // Recoil: after a throw the handle springs back on its own.
+  // Recoil: after a throw the handle springs back on its own — UNLESS a render
+  // picked the throw up, in which case `held` below keeps it down and this
+  // timer stops mattering.
   useEffect(() => {
     if (!engaged) return;
     const t = setTimeout(() => setEngaged(false), 420);
     return () => clearTimeout(t);
   }, [engaged]);
+
+  /**
+   * THE HANDLE STAYS DOWN FOR THE WHOLE RENDER.
+   *
+   * It used to spring back after 420ms and then sit there, idle and identical
+   * to its resting state, through five to thirty seconds of paid work. The one
+   * control that spends money went quiet at the exact moment the money was
+   * being spent, and the only thing left saying so was a caption.
+   *
+   * Now the throw and the wait are one gesture: thrown at the pull, held while
+   * the frame develops, released when it lands. `busy` already means "a
+   * generation is running for this station", so no new state is needed — the
+   * lever simply reads the state the engine was already publishing.
+   */
+  const held = engaged || busy;
 
   const fire = () => {
     if (!armed || busy || pulled.current) return;
@@ -115,7 +158,7 @@ export function TimeLever({ armed, busy, onPull, accent, label, retry = false, b
         <span className="lever-rail" aria-hidden="true" />
         <button
           className="lever-handle"
-          style={{ transform: `translateY(${engaged ? TRAVEL : offset}px)` }}
+          style={{ transform: `rotateX(${angleFor(held ? TRAVEL : offset)}deg)` }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}

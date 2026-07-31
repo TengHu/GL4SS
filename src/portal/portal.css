@@ -3628,6 +3628,11 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  /* The blade stands 38px proud of its socket and is absolutely positioned, so
+     it contributes nothing to layout — it was overflowing upward and crossing
+     the left end of the time ribbon. Reserving the overhang keeps the dial's
+     row clear without moving anything else. */
+  padding-top: 40px;
   padding-bottom: 2px;
   user-select: none;
 }
@@ -3638,41 +3643,196 @@ body {
    the sun was, which is precisely why they read as two styled divs instead of
    two cuts in one billet. */
 .lever-track {
+  /*
+   * THE PLATE — the housing the shard rides in. 42x158, about 1:3.8.
+   *
+   * perspective is load-bearing: the throw is a rotateX, and without a
+   * perspective on the parent that is a vertical squash rather than something
+   * tipping towards you.
+   *
+   * overflow hidden is safe because the throw is a half turn about the plate's
+   * OWN midline — the shard lands inside the plate, so nothing ever needs to
+   * escape it.
+   */
   position: relative;
-  width: 26px;
-  height: 62px;
-  /* Load-bearing: TRAVEL is 46px and the handle sits at top:6px, so at full
-     throw it hangs 12px past the floor and must be clipped. */
+  width: 42px;
+  height: 158px;
+  perspective: 340px;
   overflow: hidden;
   border: 1px solid var(--chrome);
-  /* Stays round. 3px is the rule for raised BODIES; a hole keeps the radius of
-     the cutter that made it. */
-  border-radius: 999px;
-  background: linear-gradient(to bottom, #05070a 0%, #0b0f14 55%, #12171e 100%);
+  border-radius: 8px;
+  background:
+    linear-gradient(to bottom, #04060a 0%, #090c11 52%, #0e131a 100%),
+    repeating-linear-gradient(114deg, rgba(206, 224, 248, 0.02) 0 2px, transparent 2px 5px);
   box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.95),
-    inset 0 -1px 0 rgba(206, 224, 248, 0.1),
+    inset 0 2px 5px rgba(0, 0, 0, 0.96),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.13),
     0 1px 0 rgba(0, 0, 0, 0.6);
+  transition: box-shadow calc(320ms * var(--ritual)) var(--ease-seat);
+}
+
+/* THERE IS A LAMP INSIDE THE MECHANISM.
+ *
+ * Not a rim-light on the slot — a source down in the housing that you only ever
+ * see indirectly, through the gap the handle rides in. It is off until the lever
+ * is thrown, and it burns for exactly as long as the frame takes to develop.
+ *
+ * Deep violet, and FIXED rather than tied to --lever-accent like the rest of the
+ * app. The era accent answers "when are you"; this answers "something is
+ * happening underneath", which is a different question and should not change
+ * colour with the century. Violet also belongs to nothing else on the chassis,
+ * so the moment it appears it can only mean this.
+ */
+.lever-track {
+  --lamp: #7c4dff;
+  --lamp-hot: #c9a7ff;
+}
+
+.lever-track::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  /* Matches the channel it sits behind; a lamp narrower than its own opening
+     leaves the ends of the slot dark for no reason. */
+  width: 28px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  /* Hottest low in the housing, where the handle comes to rest — the light is
+     under the thing that just moved, not spread evenly down a tube. */
+  background: radial-gradient(
+    62% 44% at 50% 74%,
+    var(--lamp-hot) 0%,
+    var(--lamp) 34%,
+    color-mix(in srgb, var(--lamp) 30%, transparent) 62%,
+    transparent 86%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity calc(420ms * var(--ritual)) var(--ease-seat);
+}
+
+/* Lamp behind the blade, blade between, lip in front. */
+.lever-track::before { z-index: 0; }
+/* ---------------------------------------------------------------------------
+   THE HINGE — the axis made visible.
+
+   Not decoration: it sits on the plate's midline, which is exactly the
+   transform-origin the shard turns about. The flip has always pivoted here; the
+   pin just says so. It also explains the resting composition — the shaft ends AT
+   the hinge, so the eye reads "this is where it breaks" before anything moves.
+
+   Drawn ABOVE the shard (z-index 2 against the shard's 1), because a hinge pin
+   passes in FRONT of the arm it carries. Wider than the channel so it reads as
+   seated in the plate rather than floating in the slot.
+--------------------------------------------------------------------------- */
+.lever-track::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 30px;
+  height: 5px;
+  margin-left: -15px;
+  transform: translateY(-50%);
+  z-index: 2;
+  border-radius: 3px;
+  pointer-events: none;
+  /* Lit on top, dark underneath — a cylinder lying across the plate under the
+     same lamp at 168deg as everything else on the chassis. */
+  /* Keyed to the SHARD's own palette, not brighter than it. Its top stop is
+     #2c3644 — the exact core of the handle's body gradient — so the pin's
+     lightest point only ever matches the stone's lightest point and never
+     out-shines the thing it carries. It was #5b6675, which put a brighter
+     object in front of the shard and pulled the eye straight to it. */
+  background: linear-gradient(180deg, #2c3644 0%, #161d26 44%, #05080c 100%);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(206, 224, 248, 0.16);
+}
+
+/* The bearing itself — a small boss at dead centre, so the pin has somewhere to
+   turn rather than being a bar laid across the slot. */
+.lever-rail::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  transform: translateY(-50%);
+  z-index: 3;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 38% 32%, #3a4553 0%, #131a23 55%, #04060a 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+/* Under the lamp the pin picks up the light like everything else in the slot. */
+.lever--busy .lever-track::after {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(206, 224, 248, 0.16),
+    0 0 8px -2px color-mix(in srgb, #7c4dff 55%, transparent);
+}
+
+/* Lighting the lamp must not RESIZE it. This rule had acquired the shard's
+   geometry — top: 8px, width: 34px, height: 100px, margin-left: -17px — so the
+   instant the lamp switched on it was re-sized to the shard's dimensions and
+   shoved 17px to the left, which is exactly why the glow sat off to one side and
+   only while generating. Opacity and the breath, nothing else. */
+.lever--busy .lever-track::before {
+  opacity: 1;
+  animation: slot-breathe calc(2100ms * var(--ritual)) ease-in-out infinite;
+}
+
+/* What escapes past the lips of the slot, and the faint bloom it throws onto the
+   plate around it. Kept low: the dark floor of the channel has to stay readable
+   or the gap stops looking like a gap and starts looking like a lit tube. */
+.lever--busy .lever-track {
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.92),
+    inset 0 0 10px -2px color-mix(in srgb, #7c4dff 52%, transparent),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.16),
+    0 0 22px -5px color-mix(in srgb, #7c4dff 60%, transparent);
+}
+
+/* Breathing, not blinking: a render takes 5-30s and a blink over that long is
+   an alarm. Brightness only, so the hue stays the era's. */
+@keyframes slot-breathe {
+  0%, 100% { filter: brightness(0.9); }
+  50% { filter: brightness(1.18); }
 }
 
 /* THE RAIL — a rod, not a line: a cylinder's specular is a band down its middle,
-   so 2px reads dark / bright / dark across. top:8/bottom:8 makes it exactly 46px
+   so 2px reads dark / bright / dark across. top:8/bottom:28 makes it exactly 46px
    tall, which is TRAVEL in TimeLever.tsx — the charge column and the handle's
    throw measure the same distance on purpose. */
 .lever-rail {
+  /*
+   * THE CHANNEL cut down the plate, and the window the lamp is seen through.
+   * Wider than the shard's shaft so light escapes past it at every position.
+   */
   position: absolute;
   left: 50%;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 2px;
+  top: 14px;
+  bottom: 14px;
+  width: 18px;
+  margin-left: -9px;
+  border-radius: 9px;
   overflow: hidden;
+  /* SYMMETRIC. The ends were 0.7 and 0.55 black — a deliberate asymmetry from
+     when this was a lit ROD, where light comes from one side. It is a channel
+     over a lamp now, and unequal ends tinted the glow darker on the left, which
+     is what read as the light sitting off to one side. Nothing was ever
+     mispositioned; the window over it was uneven. */
   background: linear-gradient(
     to right,
-    rgba(0, 0, 0, 0.7) 0%,
-    rgba(214, 230, 250, 0.26) 50%,
-    rgba(0, 0, 0, 0.55) 100%
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(214, 230, 250, 0.18) 50%,
+    rgba(0, 0, 0, 0.72) 100%
   );
 }
 
@@ -3683,8 +3843,15 @@ body {
 .lever-rail::after {
   content: '';
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  /* The rail used to BE the hairline; it is the channel now, so the charge has
+     to become a line inside it again. Filling all 16px turned the slot into a
+     bar of gold that argued with the violet lamp sharing the same opening. */
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
   background: linear-gradient(
     to top,
     var(--lever-accent, var(--accent)),
@@ -3730,30 +3897,124 @@ body {
    where a thumb rests when it pulls down. Symmetric polish reads as a gradient;
    asymmetric polish reads as a hand. */
 .lever-handle {
+  /*
+   * THE SHARD — obsidian, pentagon head over a slim shaft.
+   *
+   * transform-origin 71px is the whole mechanism: the plate's midline (158/2 =
+   * 79) measured from this element's own top (79 - 8). Turning about THAT point,
+   * rather than about the shard's foot, is what makes the throw land as a
+   * MIRROR — rest spans 8-108, thrown spans 50-150, reflections about the
+   * midline with 8px clear at each end.
+   *
+   * The head is a quarter of the shard's length, not half: the mass belongs in
+   * the point, not the handle.
+   */
   position: absolute;
   left: 50%;
-  top: 6px;
-  margin-left: -15px;
-  width: 30px;
-  height: 22px;
+  top: 8px;
+  bottom: auto;
+  margin-left: -17px;
+  width: 34px;
+  /* 71px, so the shaft ENDS exactly on the plate's midline (8 + 71 = 79 = 158/2)
+     — the very point it pivots about. At rest it fills the top half of the
+     channel with the bottom half open; thrown, they swap. The two states meet on
+     the line instead of overlapping past it. It was 100px, so the shaft ran 29px
+     beyond the midline and looked like it had outgrown its slot. */
+  height: 71px;
+  transform-origin: 50% 71px;
+  z-index: 1;
   padding: 0;
   cursor: grab;
-  border: 1px solid rgba(0, 0, 0, 0.85);
-  border-radius: 2px 2px 3px 3px;
-  /* Confines .lever-grip's mix-blend-mode to this button's own brass. Without
-     it the blend group is whatever is behind the lever — i.e. the photograph. */
+  border: 0;
+  border-radius: 2px;
   isolation: isolate;
+  /* The apex is CUT. A single point at 50% 0% read as a spike — a weapon rather
+     than a handle — and at this size the tip was two pixels wide and aliased
+     badly. A 32%-wide flat across the top makes it a truncated head: still
+     unmistakably a point, but one you could put a thumb on. */
+  /* Symmetric on BOTH axes now. It was already mirrored left-to-right, but the
+     head's slopes did not match: it took 13% to widen at the top and only 6% to
+     shoulder back in at the bottom, which reads as a shape that has slumped.
+     Rise and fall are both 12% here, so the head is a regular hexagon with the
+     shaft hung off it. */
+  /* Shaft widened from 24% to 32% of the body — 8.2px to 10.9px. It now matches
+     the flat of the head exactly (both 34%-66%), so the silhouette reads as one
+     piece with a head knapped onto it rather than a stem holding a lump. Still
+     well inside the 18px channel, so light clears it either side. */
+  clip-path: polygon(
+    34% 0%, 66% 0%, 100% 17%, 100% 36%,
+    66% 53%, 66% 100%, 34% 100%, 34% 53%, 0% 36%, 0% 17%
+  );
+  /*
+   * OBSIDIAN, in layers. Every one is either centred or a mirrored pair, so the
+   * whole stack stays symmetric about the vertical — the shading cannot lean.
+   *
+   *  1  crown light, following the clip so it lands on the real top edge
+   *  2  a mirrored pair of broad flake planes: the two big faces a struck flake
+   *     leaves, and the reason it reads as worked rather than moulded
+   *  3+4 conchoidal ripple at two different periods (7px and 11px). One period
+   *     alone is a bullseye; two beat against each other and give the irregular
+   *     shell pattern real glass fractures with
+   *  5  micro-fracture speckle, very fine, very low alpha
+   *  6  the body across its width — dark rim, lighter core, so it has thickness
+   *  7  vertical falloff into near-black at the foot
+   */
   background:
-    radial-gradient(58% 60% at 50% 63%, rgba(255, 238, 202, 0.3) 0%, transparent 72%),
-    linear-gradient(var(--light-axis), rgba(255, 246, 224, 0.62) 0%, rgba(255, 240, 205, 0.1) 13%, transparent 30%),
-    linear-gradient(var(--light-axis), var(--brass-hi) 0%, var(--brass) 38%, var(--brass-lo) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 250, 235, 0.5),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
-    0 2px 0 rgba(0, 0, 0, 0.75),
-    0 5px 12px -4px rgba(0, 0, 0, 0.8);
+    /* A FALLOFF, not a band. Removing the box-shadow inset and replacing it with
+       `rgba(...) 0 1px` was the same hard 1px line by another route — a stop at
+       exactly 1px is a drawn edge, and at 0.3 on near-black glass it clips to
+       white. Eight pixels of decay at less than half the alpha reads as an edge
+       CATCHING light rather than an edge painted on. */
+    linear-gradient(
+      180deg,
+      rgba(206, 226, 255, 0.13) 0%,
+      rgba(206, 226, 255, 0.04) 3px,
+      transparent 8px
+    ),
+    linear-gradient(128deg, rgba(214, 232, 255, 0.12) 0%, transparent 38%),
+    linear-gradient(232deg, rgba(214, 232, 255, 0.12) 0%, transparent 38%),
+    repeating-radial-gradient(
+      circle at 50% 10%,
+      rgba(233, 244, 255, 0.042) 0 1px,
+      rgba(0, 0, 0, 0.13) 1px 2px,
+      transparent 2px 7px
+    ),
+    repeating-radial-gradient(
+      circle at 50% 10%,
+      rgba(233, 244, 255, 0.035) 0 1px,
+      transparent 1px 11px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(233, 244, 255, 0.04) 0 1px,
+      rgba(0, 0, 0, 0.15) 1px 2px,
+      transparent 2px 6px
+    ),
+    /* Darker core. Seven additive texture layers all lift the midtone, and the
+       body was compensating in the wrong direction — at #47535f it read as
+       brushed pewter. Obsidian is nearly black with SMALL bright glints, so the
+       body drops and the highlights above do the work. */
+    linear-gradient(90deg, #04060a 0%, #141b24 18%, #2c3644 50%, #141b24 82%, #04060a 100%),
+    linear-gradient(180deg, rgba(226, 238, 255, 0.12) 0%, transparent 22%, rgba(0, 0, 0, 0.76) 100%);
+  /*
+   * NO INSET EDGE LIGHTS. box-shadow insets are drawn against the element's
+   * RECTANGULAR box — clip-path does not reshape them. So `inset 0 1px 0` at
+   * 0.55 was painting a hard bright line straight across the top of the box,
+   * which the clip then showed as a white bar sitting on the flat of the head,
+   * with the crown highlight screen-blending another 0.55 on top of it. Blown
+   * out, and in a place the silhouette has no edge.
+   *
+   * Edge light now lives in the background layers, which DO follow the clip, so
+   * every highlight lands on an edge the shape actually has. Only the drop
+   * shadow stays — it is outside the box and unaffected.
+   */
+  box-shadow: 0 5px 14px -4px rgba(0, 0, 0, 0.88);
   transition:
-    transform calc(300ms * var(--ritual)) var(--ease-release),
+    /* 1150ms. A half turn, not a nudge, and the one motion in the app that means
+       money has started being spent — it should take long enough to watch.
+       Weighted rather than springy: slow to leave, decisive through the middle,
+       settling without a bounce. */
+    transform 1150ms cubic-bezier(0.36, 0.02, 0.18, 1),
     box-shadow var(--t-contact) var(--ease-drive),
     filter 140ms var(--ease-drive);
 }
@@ -3772,18 +4033,27 @@ body {
    white comb on top of it. This and nothing else in the app is knurled. If
    profiling ever bites, mix-blend-mode here is the first thing to drop. */
 .lever-grip {
+  /* The struck face, confined to the head. A screen blend over the whole shard
+     washes black glass out to pewter — an arris is an edge, not a wash. */
   position: absolute;
-  inset: 5px 6px;
-  border-radius: 1px;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 250, 236, 0.3) 0 1px,
-    rgba(58, 40, 16, 0.55) 1px 2px,
-    transparent 2px 4px
+  inset: 0 0 72% 0;
+  opacity: 0.5;
+  pointer-events: none;
+  /* Straight down the axis, not across a diagonal — the crown catches the lamp
+     evenly instead of picking a side. */
+  /* Starts BELOW the top edge and at half the old strength. At 0.55 from 0% it
+     screen-blended onto the background's own crown light and the two together
+     clipped to white across the flat. */
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(226, 240, 255, 0.26) 12%,
+    rgba(214, 232, 255, 0.08) 44%,
+    transparent 76%
   );
-  -webkit-mask-image: radial-gradient(78% 86% at 50% 58%, #000 30%, transparent 100%);
-  mask-image: radial-gradient(78% 86% at 50% 58%, #000 30%, transparent 100%);
-  mix-blend-mode: overlay;
+  -webkit-mask-image: radial-gradient(78% 96% at 50% 26%, #000 22%, transparent 100%);
+  mask-image: radial-gradient(78% 96% at 50% 26%, #000 22%, transparent 100%);
+  mix-blend-mode: screen;
 }
 
 /* Arming lights the RAIL and the LABEL and leaves the edge alone. Stated
@@ -5099,4 +5369,128 @@ body {
    still colours the world without hiding it. */
 .portal--home .portal-field {
   opacity: 0.2;
+}
+
+/* ---------------------------------------------------------------------------
+   FILM WARNING — a consent dialog, so it is built to be READ, not skimmed.
+
+   Was four prose bullets running six lines each. A wall of text in front of the
+   most expensive action in the app is a wall nobody reads, which defeats the
+   only reason it exists. Now four labelled rows: the label says which concern
+   this is, the line says the whole of it.
+--------------------------------------------------------------------------- */
+.warn-specs {
+  display: grid;
+  grid-template-columns: 78px 1fr;
+  gap: 12px 16px;
+  margin: 20px 0 4px;
+  align-items: baseline;
+}
+
+.warn-specs dt {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-align: right;
+  /* A hairline tying the label to its line, so the two columns read as rows
+     rather than as two separate lists. */
+  border-right: 1px solid var(--groove);
+  padding-right: 14px;
+}
+
+.warn-specs dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(233, 224, 217, 0.82);
+}
+
+/* The checkbox belongs on the action row, beside the buttons it qualifies —
+   it used to sit alone above them with the label drifting to the far right of
+   its own box. */
+.warn-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.warn-check input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  /* Stacked, because 78px of label plus a sentence is not a two-column layout
+     on a phone — it is a column of orphans. */
+  .warn-specs {
+    grid-template-columns: 1fr;
+    gap: 3px 0;
+  }
+  .warn-specs dt {
+    text-align: left;
+    border-right: 0;
+    padding-right: 0;
+    margin-top: 10px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   ERA TOGGLE — which side of zero a bare number lands on.
+
+   The parser always accepted "500 BC"; nothing on screen ever said so, which
+   made half the ladder unreachable by typing unless you guessed that letters
+   were allowed. Two segments, and the field goes numeric.
+--------------------------------------------------------------------------- */
+.era-toggle {
+  display: inline-flex;
+  margin-left: 8px;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--chrome);
+  vertical-align: middle;
+}
+
+.era-opt {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  padding: 4px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    background 140ms var(--ease-drive),
+    color 140ms var(--ease-drive);
+}
+
+.era-opt + .era-opt {
+  box-shadow: inset 1px 0 0 var(--groove);
+}
+
+.era-opt:hover {
+  color: var(--ink-dim);
+}
+
+/* The selected side is filled, not merely tinted: this control changes the SIGN
+   of what you type, and a low-contrast "on" state on a sign toggle is how you
+   send someone 3,000 years the wrong way without noticing. */
+.era-opt--on {
+  background: var(--accent);
+  color: #10131a;
+}
+
+.era-opt:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }

@@ -54,38 +54,39 @@ export function FilmWarning({ seconds, onConfirm, onCancel }: Props) {
       <div className="gate-card">
         <h2 id="film-warn-title">Render this moment as film</h2>
         <p>
-          A {seconds}-second clip with sound, continuing from the frame you are looking at.
+          {/* "A 8-second clip" — the article follows the SOUND, and eight is the
+              one clip length in the set that starts with a vowel. */}
+          {/^(8|11|18)/.test(String(seconds)) ? 'An' : 'A'} {seconds}-second clip with sound,
+          continuing from the frame on screen.
         </p>
-        <ul className="warn-list">
-          <li>
-            <strong>It takes minutes, not seconds.</strong> Measured on a real Seedance
-            render, a <em>4-second</em> clip took just over 4 minutes; longer clips take
-            longer. A still takes 5–30s. The portal stays usable while it renders.
-          </li>
-          <li>
-            <strong>It costs substantially more than a still</strong>, billed to your own
-            OpenRouter key. Video is the most expensive thing this app can ask for.
-          </li>
-          <li>
-            Clips are <strong>not saved between sessions</strong> — frames are, film is not.
-            Reloading loses it. A 4-second clip is around 3.5&nbsp;MB.
-          </li>
-          <li>
-            The clip normally continues from the frame on screen, but providers moderate
-            that source image separately — if it is refused, you get a fresh take of the
-            same moment instead, and the portal will say so.
-          </li>
-        </ul>
-        <label className="warn-check">
-          <input
-            type="checkbox"
-            checked={dontShowAgain}
-            onChange={(e) => setDontShowAgain(e.target.checked)}
-          />
-          Don&apos;t show this again
-        </label>
+        {/* Four labelled rows rather than four paragraphs. This is a consent
+            dialog standing between someone and the most expensive thing the app
+            does — every extra sentence is a sentence they skim, and a skimmed
+            warning has not warned anyone. Named models and measured timings were
+            removed on purpose: they go stale the moment a default changes, and a
+            warning that is subtly wrong is worse than a shorter one. */}
+        <dl className="warn-specs">
+          <dt>Time</dt>
+          <dd>Minutes, not seconds. The app stays usable while it renders.</dd>
+
+          <dt>Cost</dt>
+          <dd>Far more than a still — the priciest thing here, on your key.</dd>
+
+          <dt>Kept</dt>
+          <dd>Frames are saved. Film is not: a reload loses it.</dd>
+
+          <dt>Source</dt>
+          <dd>If the provider refuses your frame, you get a fresh take of the same moment.</dd>
+        </dl>
         <div className="gate-actions">
-          <span />
+          <label className="warn-check">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+            />
+            Don&apos;t show this again
+          </label>
           <div>
             <button className="ghost-btn" onClick={onCancel}>
               cancel
