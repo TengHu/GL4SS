@@ -4860,3 +4860,225 @@ body {
 .model-opt--on .model-blurb {
   color: rgba(220, 205, 255, 0.6);
 }
+
+/* ---------------------------------------------------------------------------
+   HOME — the map as the empty state.
+
+   `--full` puts the panel at z-index 12, over everything, because you opened it
+   deliberately and it is the only thing you are doing. Home mode is the
+   opposite: you did not ask for it, it is simply what there is to look at until
+   a frame exists. So it drops BENEATH the chrome — under .portal-top (3) and
+   .portal-bottom (4) — and the dial, sundial and lever float over the world
+   exactly the way controls sit over any map. Nothing had to move to make room.
+--------------------------------------------------------------------------- */
+.place-panel--home {
+  z-index: 2;
+  /* No entry animation: this is the state the app opens in, and a panel that
+     slides in on arrival reads as something that appeared rather than the
+     screen you landed on. */
+  animation: none;
+}
+
+/* The controls were drawn for a dark viewport and satellite imagery is not
+   reliably dark — coastlines, ice and desert all blow out the bottom of the
+   frame. These scrims restore the contrast the chrome was designed against,
+   only while the map is what's behind it. */
+/* The controls were drawn for a dark viewport and satellite imagery is not
+   reliably dark — coastlines, ice and desert all blow out the frame. These
+   scrims restore the contrast the chrome was designed against, and only while
+   the map is what is behind it. Hung off the ROOT rather than off the panel:
+   the panel is portalled into <body>, so it is no longer a sibling of anything
+   in the layout. */
+.portal--home .portal-top,
+.portal--home .portal-bottom {
+  position: relative;
+}
+
+.portal--home .portal-top::before,
+.portal--home .portal-bottom::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.portal--home .portal-bottom::before {
+  bottom: 0;
+  top: -40px;
+  background: linear-gradient(to top, rgba(4, 6, 10, 0.92) 38%, rgba(4, 6, 10, 0));
+}
+
+.portal--home .portal-top::before {
+  top: 0;
+  bottom: -48px;
+  background: linear-gradient(to bottom, rgba(4, 6, 10, 0.88) 34%, rgba(4, 6, 10, 0));
+}
+
+.place-panel--home .place-panel-head {
+  border-bottom: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* --- home mode: stacking and fill ----------------------------------------
+   .portal is position:fixed, which opens a stacking context all by itself —
+   so .portal-top (3) and .portal-bottom (4) are sealed inside it and cannot be
+   compared against a body-level sibling. The home map, portalled to <body>,
+   was therefore painting over the ENTIRE app rather than under its chrome.
+   Ranking the two contexts against each other is the fix: portal above map. */
+.portal--home {
+  z-index: 1;
+}
+
+.place-panel--home {
+  z-index: 0;
+  /* The panel's plate would be an opaque rectangle over the world. In home mode
+     there is no panel — only the map and the instrument floating on it. */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+/* `@media (max-width: 880px)` pins .place-map to 250px so a short phone can
+   still reach the map's footer. That is right for a panel and wrong for the
+   home screen, where the map IS the screen — it left a 250px band of world
+   above 550px of black. Class specificity beats the media query's bare
+   element rule, so this holds at every width. */
+.place-panel--home .place-stage,
+.place-panel--home .place-map,
+.place-panel--home .globe {
+  height: 100%;
+  max-height: none;
+}
+
+/* The panel footer repeats the place name and coordinates directly underneath
+   the caption that already states them, and lands behind the dial. */
+.place-panel--home .place-panel-foot {
+  display: none;
+}
+
+/* .portal-view is the plate the photograph develops onto, so it is opaque —
+   correct when there is a frame, and an opaque lid over the world when there
+   is not. Only the solid fill goes: .portal-field's era wash and
+   .portal-glass's veiling glare stay, so the map is seen THROUGH the optic
+   rather than beside it, and the home screen still reads as the instrument. */
+.portal--home .portal-view {
+  background: transparent;
+}
+
+/* --- home mode, final stacking -------------------------------------------
+   Previous attempt put the map UNDER the whole app, which hid its own search
+   field and globe toggle along with it. Inverted: the map panel keeps --full's
+   z-index 12, and .portal is lifted above it. .portal-view then becomes a sheet
+   of glass — transparent, and transparent to the mouse — so the world shows
+   through and every click reaches the map, while the top bar, caption, dial and
+   lever stay on top where they belong. */
+.portal--home {
+  z-index: 20;
+}
+
+.portal--home .portal-view {
+  background: transparent;
+  /* The map is underneath and owns dragging, zooming and clicking. Without
+     this, .portal-view is an invisible pane swallowing every one of them. */
+  pointer-events: none;
+}
+
+/* ...but the controls drawn ON the glass are still controls. */
+.portal--home .portal-top,
+.portal--home .portal-bottom,
+.portal--home .portal-caption,
+.portal--home .caption-cta {
+  pointer-events: auto;
+}
+
+.place-panel--home {
+  z-index: 12;
+}
+
+/* The head is no longer the lid of a panel: it floats over the world, clear of
+   the title bar and the caption above it. */
+.place-panel--home .place-panel-head {
+  position: absolute;
+  top: 116px;
+  left: 30px;
+  right: 30px;
+  z-index: 3;
+  border-radius: 4px;
+  background: rgba(6, 9, 14, 0.86);
+  border: 1px solid var(--chrome);
+}
+
+.place-panel--home .place-results {
+  position: absolute;
+  top: 168px;
+  left: 30px;
+  right: 30px;
+  z-index: 3;
+  max-height: 40vh;
+  overflow-y: auto;
+  border-radius: 0 0 4px 4px;
+  background: rgba(6, 9, 14, 0.94);
+}
+
+.place-panel--home .place-stage {
+  position: absolute;
+  inset: 0;
+  height: auto;
+}
+
+/* The caption is a full-width block ending at ~153px, and it paints inside
+   .portal (z 20) — so anything the map panel floats above 153 is behind it.
+   Measured, not guessed: the search bar clears the caption instead of fighting
+   it, and is capped so it reads as a field on a map rather than a panel lid. */
+.place-panel--home .place-panel-head {
+  top: 166px;
+  right: auto;
+  width: min(420px, calc(100vw - 60px));
+}
+
+.place-panel--home .place-results {
+  top: 224px;
+  right: auto;
+  width: min(420px, calc(100vw - 60px));
+}
+
+/* The caption's BOX is full-width even though its text is not, so leaving it
+   clickable meant a dead strip across the top of the world where drags died.
+   Only the things in it that are actually controls take the mouse. */
+.portal--home .portal-caption {
+  pointer-events: none;
+}
+
+.portal--home .portal-caption .caption-cta,
+.portal--home .portal-caption button,
+.portal--home .portal-caption a {
+  pointer-events: auto;
+}
+
+/* Not legible under the era wash and the veiling glare, and not raisable above
+   them without splitting the panel across two roots. The header's SEARCH button
+   opens the real panel, which lands above everything and carries the globe
+   toggle too. */
+.place-panel--home .place-panel-head,
+.place-panel--home .place-results,
+.place-panel--home .place-searching {
+  display: none;
+}
+
+/* Making .portal-view transparent to the mouse was not enough: a hit that
+   passes through a child still lands on the PARENT, and .portal spans the
+   viewport. Verified with elementFromPoint at screen centre — it returned
+   .portal, and the map underneath received nothing, so the home screen looked
+   draggable and was not. The root goes pass-through and each piece of chrome
+   opts back in. */
+.portal--home {
+  pointer-events: none;
+}
+
+.portal--home .portal-top,
+.portal--home .portal-bottom {
+  pointer-events: auto;
+}

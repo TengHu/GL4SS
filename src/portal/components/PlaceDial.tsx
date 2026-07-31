@@ -25,6 +25,7 @@ import L from 'leaflet';
 import type { Coordinates } from '../../types';
 import { reverseGeocode, searchPlaces } from '../../lib/geocode';
 import type { GeocodeResult } from '../../lib/geocode';
+import { createPortal } from 'react-dom';
 import { GLOBE_ATTRIBUTION } from '../lib/globeTexture';
 
 const GlobeView = lazy(() =>
@@ -37,6 +38,19 @@ interface Props {
   onPick: (coordinates: Coordinates, location: string) => void;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  /**
+   * HOME MODE — the map is the empty state, not a panel you opened.
+   *
+   * With no frame to show, the viewport used to be a blank gradient and the
+   * globe sat three interactions deep: dismiss the key modal, open the place
+   * puck, zoom out past the globe threshold. The first thing a new visitor saw
+   * was a request for an API key over an empty screen. Now the map fills the
+   * stage and the dial sits under it, so the home screen states the proposition:
+   * point at Earth, pick a year, pull the lever.
+   *
+   * It draws BEHIND the chrome rather than over it, so nothing has to move.
+   */
+  home?: boolean;
   accent: string;
 }
 
@@ -92,6 +106,7 @@ export function PlaceDial({
   onPick,
   expanded,
   onExpandedChange,
+  home = false,
   accent,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -280,15 +295,19 @@ export function PlaceDial({
     );
   }
 
-  return (
-    <div className={`place-panel${fullscreen ? ' place-panel--full' : ''}`}>
+  const filling = fullscreen || home;
+
+  const panel = (
+    <div
+      className={`place-panel${filling ? ' place-panel--full' : ''}${home ? ' place-panel--home' : ''}`}
+    >
       <div className="place-panel-head">
         <input
           className="place-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search anywhere on Earth…"
-          autoFocus
+          autoFocus={!home}
           aria-label="Search for a place"
         />
         <button
@@ -299,17 +318,21 @@ export function PlaceDial({
         >
           {view === 'globe' ? 'MAP' : 'GLOBE'}
         </button>
-        <button
-          className="place-view-toggle"
-          onClick={() => setFullscreen((f) => !f)}
-          aria-pressed={fullscreen}
-          title={fullscreen ? 'Shrink the map' : 'Fill the screen — easier to pick a precise point'}
-        >
-          {fullscreen ? '⤡' : '⤢'}
-        </button>
-        <button className="place-close" onClick={() => onExpandedChange(false)} aria-label="Close map">
-          ✕
-        </button>
+        {!home && (
+          <button
+            className="place-view-toggle"
+            onClick={() => setFullscreen((f) => !f)}
+            aria-pressed={fullscreen}
+            title={fullscreen ? 'Shrink the map' : 'Fill the screen — easier to pick a precise point'}
+          >
+            {fullscreen ? '⤡' : '⤢'}
+          </button>
+        )}
+        {!home && (
+          <button className="place-close" onClick={() => onExpandedChange(false)} aria-label="Close map">
+            ✕
+          </button>
+        )}
       </div>
 
       {results.length > 0 && (
@@ -359,4 +382,14 @@ export function PlaceDial({
       </div>
     </div>
   );
+
+  /**
+   * Home mode renders into <body>, not into the control row where PlaceDial
+   * lives. .portal-bottom sets z-index 4 and so opens a stacking context; any
+   * descendant of it paints above .portal-top (3) regardless of its own
+   * z-index, which is the opposite of what home mode wants. Leaving the subtree
+   * is the only way for the map to sit UNDER the chrome. The expanded panel
+   * keeps rendering in place, since it is meant to be on top.
+   */
+  return home ? createPortal(panel, document.body) : panel;
 }

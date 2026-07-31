@@ -26,8 +26,8 @@ import {
 export const DEFAULT_TEXT_MODEL = 'google/gemini-3-flash-preview';
 export const DEFAULT_WIDE_FIELD_MODEL = 'black-forest-labs/flux.2-max';
 export const DEFAULT_CHRONO_SELFIE_MODEL = 'google/gemini-3-pro-image-preview';
-export const DEFAULT_CINEMATIC_VIDEO_MODEL = 'bytedance/seedance-2.0';
-export const DEFAULT_ANIMATE_VIDEO_MODEL = 'bytedance/seedance-2.0-fast';
+export const DEFAULT_CINEMATIC_VIDEO_MODEL = 'x-ai/grok-imagine-video';
+export const DEFAULT_ANIMATE_VIDEO_MODEL = 'x-ai/grok-imagine-video';
 
 export interface ModelOption {
   id: string;
@@ -60,12 +60,14 @@ export const CHRONO_SELFIE_MODELS: ModelOption[] = [
 ];
 
 export const VIDEO_MODELS: ModelOption[] = [
-  { id: 'bytedance/seedance-2.0', label: 'Seedance 2.0', blurb: 'Default — cinematic, with audio' },
+  // Confirmed live against /videos — it accepts a job and returns an id.
+  // Grok Imagine shipped with native audio as a headline feature, so clips are
+  // expected to have sound. Noting only that neither OpenRouter's model page nor
+  // its /models endpoint says so either way — /models lists no video models at
+  // all — so this is on xAI's word rather than the provider's.
+  { id: 'x-ai/grok-imagine-video', label: 'Grok Imagine Video', blurb: 'Default — xAI, fast, with audio' },
+  { id: 'bytedance/seedance-2.0', label: 'Seedance 2.0', blurb: 'Cinematic, with audio' },
   { id: 'bytedance/seedance-2.0-fast', label: 'Seedance 2.0 Fast', blurb: 'Faster, same family' },
-  // Confirmed live against /videos — it accepts a job and returns an id. Listed
-  // beside the other fast tiers rather than as a default, because Seedance is
-  // the only one measured across the full range of eras this app asks for.
-  { id: 'x-ai/grok-imagine-video', label: 'Grok Imagine Video', blurb: 'xAI, fast' },
   { id: 'google/veo-3.1-fast', label: 'Veo 3.1 Fast', blurb: 'Google flagship, native audio' },
   { id: 'google/veo-3.1-lite', label: 'Veo 3.1 Lite', blurb: 'Cheaper Veo tier' },
   { id: 'kwaivgi/kling-v3.0-pro', label: 'Kling 3.0 Pro', blurb: 'Kuaishou flagship' },

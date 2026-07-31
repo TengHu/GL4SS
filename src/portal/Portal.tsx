@@ -273,7 +273,7 @@ export function Portal() {
   }, []);
   /** True exactly when the place panel is drawn over the money lever. */
   const placeCoversLever = narrow && mapExpanded;
-  const [keyGateOpen, setKeyGateOpen] = useState(() => !safeStorage.get(STORAGE_KEY_API));
+  const [keyGateOpen, setKeyGateOpen] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
   /** Free-text modifier behind the CUSTOM chip. */
   const [customStyle, setCustomStyle] = useState(
@@ -962,6 +962,15 @@ export function Portal() {
 
   const status = scene?.status;
   const failure = scene?.failure;
+
+  /**
+   * Nothing developed yet — so show the world instead of a blank gradient. The
+   * map is only the home screen while there is no photograph; the instant one
+   * lands, `displayed` fills and the frame takes the stage back. The app's
+   * thesis, that the generated view is the entire screen, is unchanged; this
+   * fills the hole where there is no view to give.
+   */
+  const homeMode = !displayed && !mapExpanded;
   const stageLabel =
     status === 'queued' ? 'queued'
     : status === 'restoring' ? 'from your archive'
@@ -984,7 +993,7 @@ export function Portal() {
 
   return (
     <div
-      className={`portal${immersive ? ' portal--immersive' : ''}`}
+      className={`portal${immersive ? ' portal--immersive' : ''}${homeMode ? ' portal--home' : ''}`}
       // undefined on mount, so nothing jolts on first paint.
       data-seat={seat.n ? (seat.n % 2 ? 'a' : 'b') : undefined}
       style={{ ['--accent' as string]: accent }}
@@ -1031,6 +1040,15 @@ export function Portal() {
             open={lookOpen}
             onOpenChange={setLookOpen}
           />
+          {/* Home mode hides the map panel's own search field: the panel sits
+              beneath .portal's era wash and veiling glare, where a dark field is
+              simply not legible. Opening the real panel instead is one click,
+              lands it above everything, and brings the globe toggle with it. */}
+          {homeMode && (
+            <button className="ghost-btn" onClick={() => setMapExpanded(true)}>
+              search
+            </button>
+          )}
           <button className="ghost-btn" onClick={() => setGalleryOpen(true)}>
             journeys
           </button>
@@ -1239,8 +1257,9 @@ export function Portal() {
           coordinates={coordinates}
           location={location}
           onPick={pickPlace}
-          expanded={mapExpanded}
+          expanded={mapExpanded || homeMode}
           onExpandedChange={setMapExpanded}
+          home={homeMode}
           accent={accent}
         />
         <SunDial phaseId={phaseId} onChange={setPhaseId} accent={accent} />
