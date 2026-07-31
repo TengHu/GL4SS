@@ -1,0 +1,27 @@
+{
+  // Cloudflare Workers deployment config.
+  //
+  // This app has no server: it is a static bundle that talks to OpenRouter
+  // directly from the browser. So there is no `main` entry point here — this is
+  // an assets-only Worker, which Cloudflare supports natively and which is the
+  // successor to the old Pages flow.
+  //
+  // Its whole reason to exist is that `npx wrangler deploy` — the command
+  // Cloudflare's setup screen fills in for you by default — fails without it.
+  // With this file present, the default build and deploy commands both work
+  // unmodified and nothing has to be configured in the dashboard.
+  "name": "gl4ss",
+  "compatibility_date": "2026-07-31",
+
+  "assets": {
+    // `npm run build` (tsc -b && vite build) writes here. `public/_headers` is
+    // copied into it by Vite, which is how the CSP reaches production — the
+    // policy is code in this repo, not dashboard state that can be lost.
+    "directory": "./dist",
+
+    // One page, no client-side router: every path should land on the portal
+    // rather than a 404. Anyone who trims a shared ?lat=&lng=&year= link back
+    // to a bare path still gets the app.
+    "not_found_handling": "single-page-application"
+  }
+}
