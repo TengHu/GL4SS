@@ -183,6 +183,35 @@ export function neighbourContrast(year: number): { earlier: number; later: numbe
  * you a format it will not read is just rude. Deliberately unbounded: callers
  * snap the result to the ladder, and clamping is the caller's business.
  */
+/**
+ * Where a year sits on the ribbon, INCLUDING years that are not stations.
+ *
+ * stationCentre() answers for the 284 rungs. This answers for everything in
+ * between by interpolating across the gap the year falls in — so a typed 2077,
+ * which sits between the 2075 and 2080 stations, puts the needle two fifths of
+ * the way along that gap rather than lying about being 2075.
+ *
+ * The gaps are wildly unequal (five years here, twenty-five million there), so
+ * the interpolation has to be per-gap rather than global. Fractional positions
+ * exist only for typed years; scrubbing and stepping still land on rungs, which
+ * is what keeps the cache meaningful.
+ */
+export function centreForYear(year: number): number {
+  const i = nearestStationIndex(year);
+  const here = STATIONS[i]!;
+  if (year === here) return stationCentre(i);
+
+  const j = year > here ? i + 1 : i - 1;
+  if (j < 0 || j >= STATIONS.length) return stationCentre(i);
+
+  const there = STATIONS[j]!;
+  const span = there - here;
+  if (span === 0) return stationCentre(i);
+
+  const t = Math.max(0, Math.min(1, (year - here) / span));
+  return stationCentre(i) + t * (stationCentre(j) - stationCentre(i));
+}
+
 export function parseYearInput(raw: string): number | null {
   const text = raw.trim().toLowerCase().replace(/,/g, '');
   if (!text) return null;

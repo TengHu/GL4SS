@@ -224,6 +224,27 @@ export function Portal() {
   const jump = nav.jump;
 
   /**
+   * A TYPED YEAR IS EXACT.
+   *
+   * The ladder is what makes the cache work, and scrubbing and stepping should
+   * keep landing on its rungs. But typing "2077" is not browsing — it is a
+   * request for a specific year, and snapping it to 2075 answers a question
+   * nobody asked. Worse, it was silent: the caption then said 2075 and the image
+   * model was told 2075, so the frame really was the wrong year.
+   *
+   * So an exact year rides ALONGSIDE the index rather than replacing it. The
+   * index still says which rung we are nearest — the dial needs it for the
+   * ribbon and the neighbours — while this is the year everything downstream
+   * actually uses. Any move along the ladder clears it (see setIndex), so the
+   * exception cannot leak into ordinary navigation.
+   */
+  const [exactYear, setExactYear] = useState<number | null>(() => {
+    const y = initialUrl.year;
+    if (y === undefined) return null;
+    return STATIONS.includes(y) ? null : y;
+  });
+
+  /**
    * Moving records where the journey STARTED, not the size of the last step.
    *
    * The character was computed per setIndex call, so twelve rapid Shift+Left
@@ -234,6 +255,10 @@ export function Portal() {
    * describes the trip actually taken.
    */
   const setIndex = useCallback((next: number | ((current: number) => number)) => {
+    // Stepping or scrubbing is ladder navigation, so it ends any exact year the
+    // user typed. Done here, at the single choke point every move goes through,
+    // rather than at each call site where one would eventually be forgotten.
+    setExactYear(null);
     setNav((cur) => {
       const target = typeof next === 'function' ? next(cur.index) : next;
       if (target === cur.index) return cur;
@@ -353,7 +378,11 @@ export function Portal() {
     },
   );
 
-  const year = STATIONS[index]!;
+  /* The exact year wins when there is one; otherwise the rung we are on. This
+     single line is what the caption, the scene key, the prompt and the archive
+     all read, so there is no path by which the UI and the image model can
+     disagree about which year is being generated. */
+  const year = exactYear ?? STATIONS[index]!;
   const accent = eraAccent(year);
 
   /**
@@ -1263,10 +1292,17 @@ export function Portal() {
         <SunDial phaseId={phaseId} onChange={setPhaseId} accent={accent} />
         <TimeDial
           index={index}
+          exactYear={exactYear}
           onIndexChange={setIndex}
           statusByYear={statusByYear}
           onScrubbingChange={setScrubbing}
-          onYearEntry={(y) => setIndex(nearestStationIndex(y))}
+          onYearEntry={(y) => {
+            // Index for the ribbon's position and the neighbour lookups; the
+            // exact year for everything that matters. setExactYear runs second
+            // because setIndex clears it.
+            setIndex(nearestStationIndex(y));
+            setExactYear(STATIONS.includes(y) ? null : y);
+          }}
           seat={seat}
           pinIndex={activePin ? activePin.index : null}
           pinAccent={pinnedYear !== undefined ? eraAccent(pinnedYear) : accent}

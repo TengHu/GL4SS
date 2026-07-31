@@ -21,6 +21,7 @@ import {
   splitYear,
   stationAtCentre,
   stationCentre,
+  centreForYear,
   stationLeft,
   stationOrder,
   stationRunWidth,
@@ -48,6 +49,8 @@ interface Props {
   index: number;
   /** Jump to an arbitrary year typed by the user; snapped to the nearest station. */
   onYearEntry?: (year: number) => void;
+  /** A typed year that is not on the ladder; the needle points between rungs. */
+  exactYear?: number | null;
   onIndexChange: (index: number) => void;
   statusByYear: Map<number, SceneStatus>;
   onScrubbingChange: (scrubbing: boolean) => void;
@@ -89,6 +92,7 @@ const BAND_WIDTHS = bandWidths();
 export function TimeDial({
   index,
   onYearEntry,
+  exactYear = null,
   onIndexChange,
   statusByYear,
   onScrubbingChange,
@@ -247,7 +251,11 @@ export function TimeDial({
     commit(index + (dominant > 0 ? 1 : -1));
   };
 
-  const year = STATIONS[index]!;
+  /* The readout must agree with the caption, the URL and the prompt. It was
+     reading the RUNG, so typing 2077 left the dial insisting on 2075 while
+     everything else had already moved — the one place the old snap was still
+     visible after the rest was fixed. */
+  const year = exactYear ?? STATIONS[index]!;
   const accent = eraAccent(year);
   // Split once per render, not twice inside JSX: fig and unit must always come
   // from the same call so they can never disagree about which side of a
@@ -256,7 +264,10 @@ export function TimeDial({
   // stationCentre() is the single source of truth for where a tick sits, and
   // everything that must line up with one — the needle, the pin fiducial, the
   // comparison span, the drag — reads it rather than recomputing from a width.
-  const offset = width / 2 - stationCentre(index);
+  /* centreForYear() interpolates across whichever gap the year falls in, so an
+     off-ladder year parks the ribbon between its two rungs instead of lying
+     about being one of them. On a rung it returns exactly stationCentre(). */
+  const offset = width / 2 - (exactYear === null ? stationCentre(index) : centreForYear(exactYear));
 
   // The mounted window. Clamped to the ends so the spacers never go negative.
   const first = Math.max(0, index - WINDOW);

@@ -750,11 +750,39 @@ export async function generateSceneDirection(
       `response head: ${text.slice(0, 220)}`,
   );
 
-  return buildFallbackDirection(
-    text || 'A moment frozen in time awaits your observation.',
-    location,
-    salvagedHabitation,
-  );
+  /*
+   * NEVER hand the raw response through as prose.
+   *
+   * This branch used to pass `text` straight in as the narrative. When the
+   * failure is malformed or truncated JSON — which is the documented way this
+   * call fails — that means the user is shown the model's raw output as if it
+   * were writing: `{ "habitation": "` sitting in the caption where two
+   * sentences of scene-setting belong. A parse failure is an internal problem
+   * and should never surface as content.
+   *
+   * Same salvage trick as habitation above: the narrative is usually still
+   * there in plain text even when JSON.parse cannot touch the object, so pull
+   * it out with a regex and unescape it. Only if that fails too do we fall back
+   * to a written sentence — and the raw text is discarded either way.
+   */
+  const narrativeMatch = /"narrative"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text);
+  let salvagedNarrative: string | undefined;
+  if (narrativeMatch) {
+    try {
+      salvagedNarrative = JSON.parse(`"${narrativeMatch[1]!}"`) as string;
+    } catch {
+      salvagedNarrative = narrativeMatch[1];
+    }
+  }
+
+  const looksStructured = /^\s*[{[]/.test(text) || /"(habitation|narrative|centerSubject)"\s*:/.test(text);
+  const prose =
+    salvagedNarrative?.trim() ||
+    (looksStructured || !text.trim()
+      ? 'A moment frozen in time awaits your observation.'
+      : text.trim());
+
+  return buildFallbackDirection(prose, location, salvagedHabitation);
 }
 
 // (export the field list mainly to silence "unused" if needed; might surface in UI later)
