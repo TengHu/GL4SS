@@ -154,9 +154,7 @@ own, and those restore instantly and for free.
 
 **AGPL-3.0-or-later.** See [LICENSE](LICENSE).
 
-**Section 13 is the point.** This is a program people reach through a network, so if you run a modified copy
-on a server you owe its users the corresponding source — not just whoever you hand a binary to. Host it,
-link it. That's the deal. 🐉
+🐉
 
 ```
                  FORTES FORTUNA IUVAT
