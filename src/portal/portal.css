@@ -1,0 +1,4862 @@
+/* ==========================================================================
+   THE LOOKING GLASS — portal v2
+   Plain CSS on purpose: this is one bespoke cinematic surface, not a component
+   library, and utility classes were making v1's markup unreadable.
+   ========================================================================== */
+
+/* ---------- tokens ------------------------------------------------------ */
+:root {
+  /* FROZEN — measured. Do not lower, retune, or "tighten". */
+  --ink: #f2f5f8;
+  --ink-dim: #c2cdd8;
+  --ink-faint: #93a1ae;
+  --readable-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 10px rgba(0, 0, 0, 0.7);
+  --nums: tabular-nums;
+  --accent: #ffd166;
+  --font-display: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Spectral', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* THE LAMP */
+  --light-axis: 168deg;
+
+  /* EDGE PHYSICS — --chrome/--chrome-strong FLIP from white to a cut edge.
+     This alone rewrites ~25 existing `border: 1px solid var(--chrome)` rules. */
+  --chrome: rgba(0, 0, 0, 0.66);
+  --chrome-strong: rgba(0, 0, 0, 0.82);
+  --facet-lit: rgba(206, 224, 248, 0.14);
+  --facet-lit-side: rgba(206, 224, 248, 0.055);
+  --facet-shade: rgba(0, 0, 0, 0.78);
+  --facet-shade-side: rgba(0, 0, 0, 0.42);
+  --groove: rgba(0, 0, 0, 0.6);
+  --groove-lit: rgba(206, 224, 248, 0.06);
+
+  /* MATERIAL */
+  --steel-hi: #1d232b;
+  --steel: #12171e;
+  --steel-lo: #090c11;
+  --steel-sheen: rgba(190, 214, 240, 0.1);
+  --brass-hi: #c9a464;
+  --brass: #8a6a37;
+  --brass-lo: #3f3019;
+  --body:
+    linear-gradient(var(--light-axis), var(--steel-sheen) 0%, rgba(190,214,240,0.02) 16%, transparent 34%),
+    linear-gradient(var(--light-axis), var(--steel-hi) 0%, var(--steel) 46%, var(--steel-lo) 100%);
+  --pane: linear-gradient(var(--light-axis), #171c23 0%, #10141a 55%, #0b0e13 100%);
+
+  /* PRIMITIVES — every element declares raised or recessed; nothing is flat. */
+  --raise:
+    inset 0 1px 0 var(--facet-lit), inset 1px 0 0 var(--facet-lit-side),
+    inset -1px 0 0 var(--facet-shade-side), inset 0 -1px 0 var(--facet-shade);
+  --recess:
+    inset 0 1px 3px rgba(0, 0, 0, 0.92), inset 0 3px 7px -3px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 var(--facet-lit);
+  --seat: 0 1px 0 rgba(0, 0, 0, 0.9), 0 6px 16px -8px rgba(0, 0, 0, 0.8);
+  --seat-fine: 0 1px 0 rgba(0, 0, 0, 0.85);
+
+  /* ENGRAVING. --engraved is for labels ON METAL only, never over a frame.
+     --incise-* compose --readable-shadow BY REFERENCE: delete the leading stop
+     and you are byte-identical to the measured value. Never copy its stops. */
+  --engraved: 0 -1px 0 rgba(0, 0, 0, 0.92), 0 1px 0 rgba(214, 230, 250, 0.07);
+  --incise-fine: 0 -1px 0 rgba(0, 0, 0, 0.62), var(--readable-shadow);
+  --incise-deep: 0 1px 0 rgba(255, 244, 224, 0.26), 0 -1px 0 rgba(0, 0, 0, 0.62), var(--readable-shadow);
+
+  /* MARKS over the photograph. Two strokes, one lit, one shadowed, ZERO BLUR:
+     over a white sky only the dark reads, over night only the light does. */
+  --rule-lit: rgba(255, 255, 255, 0.44);
+  --rule-shade: rgba(0, 0, 0, 0.62);
+  --rule-groove: 0 1px 0 var(--rule-shade);
+  --rule-groove-v: 1px 0 0 var(--rule-shade);
+  --mark-minor: rgba(255, 255, 255, 0.3);
+  --mark-major: rgba(255, 255, 255, 0.62);
+
+  /* OPTICS. Dispersion appears in exactly three places: the bezel rim, the
+     comparison seam, the dial needle. Never in the centre of the field. */
+  --disp-cool: rgba(120, 200, 255, 0.3);
+  --disp-warm: rgba(255, 168, 96, 0.24);
+  --haze: rgba(150, 158, 172, 0.11);
+  --mount-clear: 62%;
+
+  /* DIAL GRADUATION — four orders, no fifth. */
+  --grad-minor: 7px;
+  --grad-major: 13px;
+  --grad-rung: 22px;
+  --grad-index: 25px;
+  --band-rail: 2px;
+  --plate: 4px;
+
+  /* MOTION. One gate. Never DIVIDE by --ritual (division by zero). */
+  --ritual: 1;
+  --ease-detent: cubic-bezier(0.2, 1.42, 0.34, 1);
+  --ease-seat: cubic-bezier(0.16, 0.9, 0.22, 1);
+  --ease-flywheel: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-strike: cubic-bezier(0.55, 0, 1, 0.42);
+  --ease-release: cubic-bezier(0.16, 0.9, 0.2, 1.12);
+  --ease-drive: linear; /* means POWERED, never "I did not choose" */
+  --t-contact: 90ms;
+  --t-detent: 210ms;
+  --t-seat: 340ms;
+  --t-coast: 760ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ritual: 0;
+    --ease-detent: linear;
+    --ease-release: linear;
+    --ease-flywheel: linear;
+    --ease-strike: linear;
+  }
+}
+
+/* Era-derived tokens MUST live here, not on :root. Portal.tsx:760 sets
+   --accent on .portal, and a var() inside a custom-property declaration is
+   substituted at the DECLARING element — on :root these would bake in the
+   default amber forever and the era system would silently stop working. */
+.portal {
+  --bezel: color-mix(in srgb, var(--accent) 7%, #04050a);
+  --rim-lit: color-mix(in srgb, var(--accent) 45%, #f6f8fb);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #05060a;
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.portal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  /*
+   * An explicit minmax(0, 1fr) column. With rows declared and no column, the
+   * implicit `auto` track is floored at the MIN-CONTENT width of its widest
+   * child — and .portal-top is a nowrap flex row whose items default to
+   * min-width: auto. On a phone that pushed the whole grid wider than the
+   * viewport and carried the top-right controls off-screen, which is where the
+   * only route back to the key dialog lives.
+   */
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---------- the chassis ------------------------------------------------- */
+
+/* THE RAISED CONTROL. One recipe, every size. 3px not 999px: a fully round
+   edge has no straight run for a specular to sit on. backdrop-filter removed
+   — metal is not translucent, and this deletes six live blur passes from the
+   moment a fullscreen shader runs and a multi-megabyte photo decodes. */
+.ghost-btn, .caption-cta, .look-trigger, .place-puck, .place-view-toggle,
+.portal-sound, .place-close, .immersive-exit {
+  border: 1px solid var(--chrome-strong);
+  border-radius: 3px;
+  background: var(--body);
+  background-color: var(--steel);
+  box-shadow: var(--raise), var(--seat);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  text-shadow: var(--incise-fine);
+  transition: filter 140ms var(--ease-drive), border-color var(--t-contact) var(--ease-drive),
+              box-shadow 120ms var(--ease-drive), transform 180ms var(--ease-release);
+}
+
+/* Hover = the object tilts into the light, not = a border turns amber.
+   filter: brightness() creates a containing block for position:fixed
+   descendants — it is applied ONLY to leaf controls. Never let it migrate to
+   .portal, .portal-bottom, or any ancestor of .place-panel--full or .gate. */
+.ghost-btn:hover, .caption-cta:hover:not(:disabled), .look-trigger:hover,
+.look-trigger--open, .place-puck:hover, .place-view-toggle:hover,
+.portal-sound:hover, .place-close:hover, .immersive-exit:hover {
+  filter: brightness(1.26) saturate(1.04);
+}
+
+/* Press: DOWN in 55ms because you drive it, UP in 180ms because the spring
+   does. That asymmetry describes a switch better than any bevel. */
+.ghost-btn:active:not(:disabled), .caption-cta:active:not(:disabled),
+.look-trigger:active, .place-puck:active, .place-view-toggle:active,
+.portal-sound:active, .solid-btn:active:not(:disabled), .seg-option:active,
+.look-option:active, .disclosure:active {
+  box-shadow: var(--recess);
+  transform: translateY(0.5px);
+  filter: none;
+  transition-duration: 55ms;
+  transition-timing-function: var(--ease-strike);
+}
+.film-go:active:not(:disabled) { transform: translateY(1.2px); }
+
+/* Dead, not ghostly. Replaces opacity: 0.4 / 0.45 / 0.5, which let the
+   photograph through a disabled button and smeared it over a bright sky. */
+.solid-btn:disabled, .caption-cta:disabled, .film-go:disabled {
+  opacity: 1;
+  filter: saturate(0.12) brightness(0.5);
+}
+
+/* THE LIT ACTUATOR — a domed push-cap with a lamp behind it. */
+.solid-btn, .film-go {
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, #000);
+  border-radius: 3px;
+  background:
+    linear-gradient(var(--light-axis), rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.1) 16%, transparent 46%),
+    linear-gradient(to top, rgba(255,255,255,0.16) 0 2px, transparent 2px),
+    linear-gradient(var(--light-axis), color-mix(in srgb, var(--accent) 90%, #fff) 0%,
+      var(--accent) 44%, color-mix(in srgb, var(--accent) 70%, #241703) 100%);
+  color: #0a0b0e;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(0,0,0,0.35),
+    0 1px 0 rgba(0,0,0,0.9), 0 0 20px -5px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* KEYCAPS. They currently have NO background at all — a transparent outline
+   over an arbitrary photograph. */
+.portal-hints kbd, .immersive-exit kbd {
+  border: 1px solid var(--chrome);
+  border-radius: 2px;
+  background: var(--body);
+  background-color: var(--steel);
+  box-shadow: inset 0 1px 0 rgba(206, 224, 248, 0.13), var(--seat-fine);
+  text-shadow: var(--engraved);
+}
+
+/* PANELS — opaque milled bodies. Kills blur(18px) x2 and blur(10px), and
+   raises text contrast inside them. The `liner` inset ring one pixel inside
+   the edge is what reads as machined thickness. */
+.place-panel, .look-menu, .gate-card, .film {
+  background: var(--pane);
+  border: 1px solid var(--chrome-strong);
+  border-radius: 4px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow:
+    inset 0 1px 0 var(--facet-lit), inset 0 0 0 1px rgba(206,224,248,0.03),
+    inset 1px 0 0 var(--facet-lit-side), inset -1px 0 0 var(--facet-shade-side),
+    inset 0 -1px 0 var(--facet-shade),
+    0 1px 0 rgba(0,0,0,0.9), 0 26px 56px -20px rgba(0,0,0,0.88);
+}
+
+/* WELLS — fields are holes in the plate, not raised cards. */
+.look-custom, .place-search, .gate-card input, .prompt-editor textarea {
+  background: linear-gradient(to bottom, #05070a 0%, #0a0e13 60%, #0e131a 100%);
+  border: 1px solid var(--chrome);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.95), inset 0 -1px 0 rgba(206,224,248,0.09);
+  caret-color: var(--accent);
+}
+.look-custom:focus, .place-search:focus, .gate-card input:focus,
+.prompt-editor textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 70%, #000);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.95), inset 0 -1px 0 rgba(206,224,248,0.09),
+    inset 0 0 14px -3px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+/* GROOVES, not lines. Dark cut on top, lit lip below — always, whichever
+   element owns the border. Needed because --chrome going dark would
+   otherwise erase every divider inside a panel. */
+.place-panel-head, .place-results, .place-searching {
+  border-bottom: 1px solid var(--groove);
+  box-shadow: 0 1px 0 var(--groove-lit);
+}
+.place-panel-foot { border-top: 1px solid var(--groove); box-shadow: inset 0 1px 0 var(--groove-lit); }
+
+/* A brass thumb in a milled groove. A default scrollbar is the single
+   loudest `this is a web page` tell in any faux-object UI. */
+.place-results, .gate, .prompt-editor textarea {
+  scrollbar-width: thin;
+  scrollbar-color: #55432a rgba(0, 0, 0, 0.55);
+}
+.place-results::-webkit-scrollbar, .gate::-webkit-scrollbar,
+.prompt-editor textarea::-webkit-scrollbar { width: 8px; }
+.place-results::-webkit-scrollbar-track, .gate::-webkit-scrollbar-track,
+.prompt-editor textarea::-webkit-scrollbar-track {
+  background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0.4));
+  box-shadow: inset 1px 0 0 rgba(0,0,0,0.9), inset -1px 0 0 rgba(206,224,248,0.05);
+}
+.place-results::-webkit-scrollbar-thumb, .gate::-webkit-scrollbar-thumb,
+.prompt-editor textarea::-webkit-scrollbar-thumb {
+  border-radius: 1px;
+  background: linear-gradient(to right, var(--brass-lo), var(--brass) 45%, var(--brass-lo));
+  box-shadow: inset 0 1px 0 rgba(255,246,224,0.28), inset 0 -1px 0 rgba(0,0,0,0.6);
+}
+
+::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); color: #fff; }
+
+/* THE SEAT SHOCK. One station seating is registered by four parts at three
+   delays. You do not perceive four animations; you perceive one rigid object
+   of a certain size taking a hit, and you learn its extent by watching the
+   shock cross it. Amplitudes are WHOLE PIXELS on purpose — a sub-pixel
+   translate re-rasterises text and reads as shimmer, not as mass. The far
+   end is distinguished by DELAY and DURATION, not by a smaller amplitude.
+   Two byte-identical keyframes: swapping animation-name is the only way CSS
+   can replay an animation without a remount or any JS. */
+@keyframes strike-a {
+  0%   { transform: translate3d(0, var(--seat-y, 0px), 0); }
+  62%  { transform: translate3d(0, calc(var(--seat-y, 0px) * -0.34), 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes strike-b {
+  0%   { transform: translate3d(0, var(--seat-y, 0px), 0); }
+  62%  { transform: translate3d(0, calc(var(--seat-y, 0px) * -0.34), 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+.portal[data-seat] .dial-readout, .portal[data-seat] .caption-head,
+.portal[data-seat] .brand-mark, .portal[data-seat] .portal-hints {
+  animation-timing-function: var(--ease-seat);
+  animation-fill-mode: both;
+  will-change: transform;
+}
+.portal[data-seat='a'] .dial-readout, .portal[data-seat='a'] .caption-head,
+.portal[data-seat='a'] .brand-mark, .portal[data-seat='a'] .portal-hints { animation-name: strike-a; }
+.portal[data-seat='b'] .dial-readout, .portal[data-seat='b'] .caption-head,
+.portal[data-seat='b'] .brand-mark, .portal[data-seat='b'] .portal-hints { animation-name: strike-b; }
+.portal[data-seat] .dial-readout { --seat-y: 1.5px; animation-duration: calc(150ms * var(--ritual)); }
+.portal[data-seat] .caption-head { --seat-y: 1px; animation-duration: calc(190ms * var(--ritual)); animation-delay: calc(40ms * var(--ritual)); }
+.portal[data-seat] .brand-mark   { --seat-y: 1px; animation-duration: calc(210ms * var(--ritual)); animation-delay: calc(55ms * var(--ritual)); }
+.portal[data-seat] .portal-hints { --seat-y: 1px; animation-duration: calc(230ms * var(--ritual)); animation-delay: calc(70ms * var(--ritual)); }
+
+/* ---------- the view ---------------------------------------------------- */
+
+.portal-view {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #05060a;
+}
+
+.portal-field {
+  position: absolute;
+  inset: 0;
+  transition: background 900ms ease;
+}
+
+.portal-frame {
+  position: absolute;
+  inset: -2%;
+  background-size: cover;
+  background-position: center;
+  will-change: opacity, transform;
+}
+
+/* The plain arrival: opacity only, NO transform. This is what a COMPARED frame
+   uses, and .portal-pinned has no transform either — putting a scale here would
+   misregister the two sides of the seam, which is the one thing a wipe cannot
+   survive. The focus-pull lives on --drift alone, below. */
+.portal-frame--in {
+  opacity: 0;
+  animation: frame-in 900ms var(--ease-seat) forwards;
+}
+
+.portal-frame--out {
+  opacity: 1;
+  animation: frame-out 900ms var(--ease-strike) forwards;
+}
+
+/* Slow drift gives a still image a sense of being a live view. Paused while
+   scrubbing so the motion doesn't fight the dial.
+   frame-settle, not frame-in: it ends at exactly the scale @keyframes drift
+   STARTS from. frame-in leaves transform at identity while drift begins at
+   1.02, so a cached frame visibly jumped 2% at t=900ms. The two animations
+   hand off cleanly because drift is later in the list and therefore owns
+   transform from 900ms on, while frame-settle's `forwards` keeps owning
+   opacity (drift never declares it). */
+.portal-frame--drift {
+  animation: frame-settle 900ms var(--ease-seat) forwards,
+             drift 38s ease-in-out 900ms infinite alternate;
+}
+
+@keyframes frame-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* HOLDS LIT TO 55%, THEN CLOSES. Both layers ran a 900ms ease and the incoming
+   one paints ON TOP with no z-index, so the composite at t=0.5 was
+   0.5*new + 0.25*old + 0.25*field: every scrub between two cached stations
+   visibly dimmed through the middle. Holding the outgoing layer fully opaque
+   under the incoming one keeps the composite opaque for the whole first half.
+   Do not "simplify" this back to from/to. */
+@keyframes frame-out {
+  0%, 55% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+
+/* The focus pull, in the only form that survived review: geometry, not blur.
+   1.055 -> 1.02 is a 3.5% settle over 900ms. The end value is not a taste
+   decision — it is drift's `from`, and the two must stay byte-identical. */
+@keyframes frame-settle {
+  from { opacity: 0; transform: scale(1.055); }
+  to   { opacity: 1; transform: scale(1.02); }
+}
+
+@keyframes drift {
+  from { transform: scale(1.02) translate3d(0, 0, 0); }
+  to   { transform: scale(1.09) translate3d(-1.4%, -1%, 0); }
+}
+
+/* ---------- the seam ---------------------------------------------------- */
+
+/* Registering --seam is what makes it interpolable: unregistered custom
+   properties are strings and jump. Registered, one transition here drives all
+   three consumers at once — .portal-pinned's clip-path, .portal-scan's
+   clip-path, and .seam's own `left` — so they can never fall out of step. */
+@property --seam {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 50%;
+}
+
+.portal-view {
+  --seam: 50%;
+  transition: --seam calc(420ms * var(--ritual)) var(--ease-seat);
+}
+
+/* NON-NEGOTIABLE, BOTH OF THEM. PortalView.tsx:96-99 built the Space blink as a
+   HARD CUT on purpose: a blink comparator only works if the two images land on
+   the same retinal position with nothing in between, and 420ms of easing turns
+   it back into the wipe it was written to escape. The drag is the same problem
+   from the other end — an eased seam lags the finger by most of half a second.
+   Ship both exceptions or drop the @property entirely; there is no half. */
+.portal-view--dragging,
+.portal-view[data-peek='on'] {
+  transition: none;
+}
+
+/* The photograph itself is the drag surface — no handle exists. */
+.portal-view--comparing {
+  cursor: ew-resize;
+}
+
+.portal-pinned {
+  /* Above the live layer so that when the live station has no picture yet the
+     held frame simply fills the screen and the new era develops into the wedge. */
+  z-index: 1;
+  animation: none;
+  opacity: 1;
+}
+
+/* A refracting edge, not a divider. The cool/warm pair either side of a single
+   lit pixel IS the dispersion — one of the only three places in the app allowed
+   to have it (bezel rim, this, dial needle). Cool goes on the older side, warm
+   on the newer. The 2px black is contact shadow so the edge reads as a physical
+   thing laid over the frame rather than a line drawn into it. */
+.seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 1px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--seam-accent) 62%, transparent);
+  box-shadow:
+    -1px 0 0 var(--disp-cool),
+     1px 0 0 var(--disp-warm),
+     0 0 2px rgba(0, 0, 0, 0.72),
+     0 0 20px color-mix(in srgb, var(--seam-accent) 18%, transparent);
+}
+
+/* Under the finger the edge is being driven, so the halo widens and warms:
+   18% at 20px -> 28% at 26px. The dispersion pair and the contact shadow do
+   NOT change — the edge does not become a different object when touched. */
+.seam--dragging {
+  box-shadow:
+    -1px 0 0 var(--disp-cool),
+     1px 0 0 var(--disp-warm),
+     0 0 2px rgba(0, 0, 0, 0.72),
+     0 0 26px color-mix(in srgb, var(--seam-accent) 28%, transparent);
+}
+
+/* The tick is a MARK over an arbitrary photograph, so it is the two-stroke
+   zero-blur groove and not era colour: a lit stroke with a shadow under it
+   reads over a blown-out sky and over night, which a 62%-alpha accent does not. */
+.seam-tick {
+  position: absolute;
+  top: 34%;
+  left: 0;
+  width: 16px;
+  height: 1px;
+  background: var(--rule-lit);
+  box-shadow: var(--rule-groove);
+}
+
+/* ERA COLOUR OFF THE LETTERFORM AND INTO THE RULE BENEATH IT. An era key can be
+   #dff2ff or #f3ead9 — 10px of that over a blown-out sky is the weakest
+   contrast case in the app. Pigment in a cut line can be any hue and never
+   fails a contrast check, so the text goes to --ink and the accent becomes a
+   1px underline with a dark lip under it.
+   MEASURED STACK: 10px/normal is ~13px, +2px padding +1px rule puts the rule at
+   about 34% + 9px and .seam-delta's cap height at about 34% + 10.5px. That
+   ~1.5px is the whole clearance — do not add leading to the label or move the
+   delta up. */
+.seam-label {
+  position: absolute;
+  top: calc(34% - 7px);
+  left: 18px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  text-shadow: var(--incise-fine);
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--seam-accent);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+/* The number that matters most in a comparison appears exactly during the
+   gesture and vanishes when you let go. Promoted from --ink-faint to --ink-dim:
+   this is the figure the entire comparison exists to produce, and it was the
+   dimmest text in the app. Tabular figures because the sign and the digit count
+   both change while you drag, and a reflowing readout is unreadable in motion. */
+.seam-delta {
+  position: absolute;
+  top: calc(34% + 8px);
+  left: 18px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-dim);
+  text-shadow: var(--incise-fine);
+  font-variant-numeric: var(--nums);
+}
+
+/* THE OPTIC. Veiling glare, edge haze, the mount, then the reading scrims. */
+.portal-glass {
+  position: absolute;
+  inset: 0;
+  /* THE FIX. It had no z-index at all while .pano, .portal-pinned, .portal-video
+     and .warp all set z-index: 1 — positive z paints above z-auto regardless of
+     DOM order, so the lens was INVISIBLE during the panorama, the held frame,
+     film playback and the wormhole: the app's four most cinematic states were
+     the four with no optic. .seam is z-index 2 and later in DOM so it stays
+     above this; .portal-scan is z-auto, so the mount now correctly darkens the
+     developing sweep at the edges — the sweep happens inside the optic.
+     .portal-sound is z-index 4 and remains a control, above the glass. */
+  z-index: 2;
+  pointer-events: none;
+  background:
+    /* Veiling glare, placed to agree with eraFieldCss()'s key at 22% 18% — one
+       lamp, so the flare has to come from where the light already is. */
+    radial-gradient(72% 56% at 24% 16%,
+      color-mix(in srgb, var(--accent) 12%, transparent) 0%,
+      color-mix(in srgb, var(--accent) 4%, transparent) 34%, transparent 64%),
+    /* Edge haze — in a real optic saturation and contrast fall off before
+       brightness does, so this is a neutral grey veil, not a darkening. */
+    radial-gradient(66% 72% at 50% 46%, transparent 0 50%, var(--haze) 86%, transparent 100%),
+    /* THE MOUNT. Replaces `inset 0 0 110px rgba(0,0,0,0.45)`, a uniform halo on
+       all four sides — vignette-as-filter. Radii 58%/63% offset to 50% 43% put
+       the side mid-edges at r~0.86, the bottom at ~0.90, the top at ~0.68 and
+       the corners past 1.0: deeper at the bottom than the top, deeper top and
+       bottom than the sides. That asymmetry is what makes it a machined plate
+       rather than a card. It also darkens exactly where .portal-hints, the
+       top-right controls and the caption live, which is why the frozen text
+       tokens still hold over a white sky. */
+    radial-gradient(58% 63% at 50% 43%, transparent 0 var(--mount-clear),
+      color-mix(in srgb, var(--bezel) 40%, transparent) 78%,
+      color-mix(in srgb, var(--bezel) 82%, transparent) 91%, var(--bezel) 100%),
+    /* READING SCRIMS — alphas UNCHANGED and measured. Everything above is
+       strictly additive to them; nothing here is a licence to lower them. */
+    /* The top stop reaches further down than it used to (transparent at 42%, was
+       20%) because the caption moved up under the wordmark and is ~230px tall;
+       the old ramp ran out halfway through the prose. Every alpha here is equal
+       to or GREATER than the measured value it replaces — the bottom stop, which
+       carries the dial, is byte-identical. */
+    linear-gradient(to bottom, rgba(4, 5, 9, 0.62) 0%, rgba(4, 5, 9, 0.34) 22%,
+      transparent 42%, transparent 50%, rgba(4, 5, 9, 0.82) 100%);
+  box-shadow: none;
+}
+
+/* THE RIM. One hairline, and the entire reason the photograph stops reading as
+   a desktop background. It is DIRECTIONAL — lit top and left from the same key
+   as the glare, occluded bottom and right — so it is a bevel, not a stroke. And
+   it deliberately does NOT coincide with the edge of the image: the frame keeps
+   going past it and dies optically further out, which is how a real mount sits
+   in front of a wider field.
+   The 2px cool inset ring has its outer pixel covered by the four bevel
+   shadows, leaving exactly 1px of cool just inside the edge and 1px of warm
+   just outside: transverse chromatic aberration on the highest-contrast edge on
+   screen. THIS IS THE ONLY OWNER OF THE CHROMATIC EDGE IN THE APP — a second
+   frame-edge element produces a double hairline where the two overlap. */
+.portal-glass::before {
+  content: '';
+  position: absolute;
+  inset: clamp(10px, 2.2vmin, 24px);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--rim-lit) 32%, transparent),
+    inset 1px 0 0 color-mix(in srgb, var(--rim-lit) 17%, transparent),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    inset -1px 0 0 rgba(0, 0, 0, 0.4),
+    inset 0 0 0 2px var(--disp-cool),
+    0 0 0 1px var(--disp-warm),
+    0 0 22px 6px rgba(0, 0, 0, 0.32);
+}
+
+/* ---------- time travel ------------------------------------------------- */
+
+/*
+ * The wait, given direction and distance.
+ *
+ * Generating a frame takes 5-30s and used to look identical whether you had
+ * nudged one decade or fallen into the Cretaceous. Four characters now:
+ * FORWARD streaks fly outward, BACK streaks fall inward, and FAR is faster,
+ * denser and more saturated than NEAR. Built from two gradient layers rather
+ * than a canvas — it is a waiting state, not a centrepiece, and it must not
+ * compete with the image for GPU while the image is what we are waiting for.
+ *
+ * The tunnel now also ARRIVES and DEPARTS. It used to snap on at full
+ * intensity and get cut mid-frame on unmount, so the most expensive visual
+ * moment in the app both began and ended on a hard cut.
+ */
+.warp {
+  position: absolute;
+  inset: 0;
+  /* z-index !== auto on a positioned element makes this a stacking context,
+     which is what isolates .warp-gl's mix-blend-mode: screen to this group.
+     Do not remove it in the name of "the parent already stacks". */
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  animation: warp-open calc(420ms * var(--ritual)) var(--ease-flywheel) both;
+}
+
+@keyframes warp-open {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.warp-streaks,
+.warp-wash {
+  position: absolute;
+  inset: -25%;
+  display: block;
+}
+
+/* Fine radial spokes, masked to a ring so the centre stays readable. */
+.warp-streaks {
+  background: repeating-conic-gradient(
+    from 0deg,
+    transparent 0deg 1.5deg,
+    var(--warp-line) 1.5deg 1.9deg
+  );
+  -webkit-mask-image: radial-gradient(circle, transparent 14%, #000 42%, #000 68%, transparent 88%);
+  mask-image: radial-gradient(circle, transparent 14%, #000 42%, #000 68%, transparent 88%);
+  will-change: transform, opacity;
+}
+
+.warp-wash {
+  background: radial-gradient(circle at 50% 50%, transparent 30%, var(--warp-wash) 100%);
+  mix-blend-mode: screen;
+  animation: warp-breathe 2.6s ease-in-out infinite;
+}
+
+/* Forward: cool, electric, flying outward — the future rushing at you. */
+.warp--forward {
+  --warp-line: rgba(150, 220, 255, 0.5);
+  --warp-wash: rgba(60, 130, 255, 0.16);
+}
+
+/* Back: warm, dusty, falling inward — sinking into deep time. */
+.warp--back {
+  --warp-line: rgba(255, 200, 130, 0.45);
+  --warp-wash: rgba(190, 110, 40, 0.18);
+}
+
+.warp--forward .warp-streaks {
+  animation: warp-out 1.9s linear infinite;
+}
+
+.warp--back .warp-streaks {
+  animation: warp-in 2.3s linear infinite;
+}
+
+/* Distance turns it up: faster, brighter, and a second offset spoke layer. */
+.warp--far.warp--forward {
+  --warp-line: rgba(190, 235, 255, 0.72);
+  --warp-wash: rgba(90, 90, 255, 0.26);
+}
+
+.warp--far.warp--back {
+  --warp-line: rgba(255, 190, 110, 0.66);
+  --warp-wash: rgba(210, 90, 30, 0.28);
+}
+
+.warp--far.warp--forward .warp-streaks {
+  animation-duration: 0.95s;
+}
+
+.warp--far.warp--back .warp-streaks {
+  animation-duration: 1.25s;
+}
+
+.warp--far .warp-wash {
+  animation-duration: 1.4s;
+}
+
+@keyframes warp-out {
+  from { transform: scale(0.35) rotate(0deg); opacity: 0; }
+  35%  { opacity: 1; }
+  to   { transform: scale(2.6) rotate(9deg); opacity: 0; }
+}
+
+@keyframes warp-in {
+  from { transform: scale(2.6) rotate(0deg); opacity: 0; }
+  40%  { opacity: 1; }
+  to   { transform: scale(0.35) rotate(-9deg); opacity: 0; }
+}
+
+@keyframes warp-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+
+/* THE DEPARTURE. Same two properties, opposite sign, and the difference is
+   legible without a word being read: the tunnel expanding forward PAST you
+   means you arrived; it collapsing inward AWAY from you means you did not.
+   Both must be declared after the base .warp rule — equal specificity, so
+   source order is the only thing that lets them replace warp-open.
+   Only transform and opacity animate, so this composites; the fill is
+   `forwards` because the element is expected to be unmounted at the end and
+   must not flash back to full strength on the last frame before it goes. */
+.warp--closing {
+  animation: warp-close calc(400ms * var(--ritual)) var(--ease-strike) forwards;
+}
+
+.warp--failing {
+  animation: warp-fail calc(420ms * var(--ritual)) var(--ease-seat) forwards;
+}
+
+@keyframes warp-close {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(2.1); }
+}
+
+@keyframes warp-fail {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.82); }
+}
+
+/* Hold the residue still. When the shader canvas unmounts, the CSS fallback
+   layers underneath it reappear — mid-departure that reads as the tunnel
+   RESTARTING unless their loops are stopped. They are the remains, not a
+   second beginning. */
+.warp--closing .warp-streaks,
+.warp--failing .warp-streaks {
+  animation: none;
+  opacity: 0.5;
+}
+
+.warp--closing .warp-wash,
+.warp--failing .warp-wash {
+  animation: none;
+}
+
+/* A slow sweep while a frame is developing — the portal "focusing".
+ *
+ * THE CARRIAGE. This used to animate `background-position` on a full-viewport
+ * element, which is a full-screen REPAINT every frame — at the exact moment a
+ * fragment shader is running and a multi-megabyte photograph is decoding, i.e.
+ * the one moment in the app's life with no headroom to spare. The gradient now
+ * lives on a child that translates: identical light, zero paint.
+ *
+ * THE PARENT MUST KEEP `inset: 0`. PortalView.tsx:328-341 sets an inline
+ * clip-path in percentages OF THIS ELEMENT to confine the sweep to the live
+ * side of a comparison seam; shrink the box and the sweep clips to the wrong
+ * wedge.
+ *
+ * z-index: 2 is load-bearing — .portal-glass sits at 2, and a z-auto scan
+ * would develop underneath the glass instead of through it. */
+.portal-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  background: none;
+  opacity: 0;
+  transition: opacity 500ms var(--ease-flywheel);
+}
+
+.portal-scan::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 60%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    color-mix(in srgb, var(--accent) 14%, transparent) 50%,
+    transparent 100%
+  );
+  /* Promotes the carriage to its own layer BEFORE the animation starts, so the
+     first sweep does not pay for a rasterisation while the frame is decoding. */
+  transform: translate3d(0, 0, 0);
+}
+
+.portal-scan--active {
+  opacity: 1;
+}
+
+.portal-scan--active::before {
+  animation: carriage 2.6s var(--ease-drive) infinite;
+}
+
+/* -60% to +100% of the PARENT is 160% of the parent; translate percentages
+   resolve against the ELEMENT's own width, which is 60% of the parent, so the
+   travel is 160/60 = 267%. Change the width and you must change this number. */
+@keyframes carriage {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(267%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The sweep moved from the element to its ::before, and the stop in the
+     motion-preferences section still names `.portal-scan--active` — a
+     pseudo-element is not matched by its host's selector, so without this the
+     carriage would run forever for precisely the people who asked it not to.
+     Kept next to the rule it guards rather than at the bottom of the file. */
+  .portal-scan--active::before {
+    animation: none;
+  }
+}
+
+/* ---------- top bar ----------------------------------------------------- */
+
+/* 30px of side padding, not 22px. The bezel rim sits ~20px in from the edge on
+   a 900px-tall viewport and the brand text started at x=22 — the wordmark was
+   crossing the optic's edge. ~8px of clearance is the difference between a
+   label engraved on the plate and type laid over the rim. The extra 4px at the
+   top (22/18) keeps the row optically centred in the band the rim leaves. */
+.portal-top {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 30px 18px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* THE ERA LIGHT IN A STEEL BEZEL — no longer a glowing logo dot.
+   The ring is dark, like every other edge in the app, and the colour lives
+   INSIDE it: --accent appears only as light in the glass and as the halo that
+   light throws, never as the ring's own fill. That is the whole reason the era
+   reads as something the instrument is SHOWING rather than as a brand-colour
+   swap. Layers, front to back: the 38%/30% specular is the lamp at
+   --light-axis caught on the cover glass; the middle stop is the lamp burning
+   behind it; the base is the dark glass itself.
+   The first box-shadow stop is a zero-blur dark ring OUTSIDE the border — over
+   a blown-out sky the mark would otherwise lose its silhouette entirely, since
+   everything else here is dark-on-dark. The two 1px insets are the same
+   lit-lip-over-shaded-underside pair the chassis gives every raised object, at
+   the only scale a 15px circle can carry it.
+   Only box-shadow transitions: the halo must travel with the era over 600ms,
+   but the transform belongs to the chassis's seat shock — a transform
+   transition here would interpolate against strike-a/strike-b and damp the
+   jolt into a wobble. Border-color no longer transitions because the ring is
+   now a fixed cut edge. */
+.brand-mark {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.85);
+  background:
+    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.5) 0 14%, transparent 44%),
+    radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--accent) 55%, transparent) 0%, transparent 70%),
+    radial-gradient(circle at 50% 50%, #0a0e13 0%, #05070b 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    inset 0 1px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.7),
+    0 0 12px color-mix(in srgb, var(--accent) 38%, transparent);
+  transition: box-shadow 600ms var(--ease-drive);
+}
+
+/* One wide soft blur spreads too thin to hold an edge: against a white sky the
+   12px stop is a grey bloom and the stems lose their outline inside it. The
+   tight 3px stop is ADDED and nothing is removed — near stop for the glyph
+   edge, far stop for the field it sits in. */
+.brand-text {
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 1px 12px rgba(0, 0, 0, 0.9);
+}
+
+/* --ink-faint is a midtone, so this subtitle is the first thing a bright frame
+   eats. --incise-fine composes --readable-shadow BY REFERENCE and adds one
+   dark stop above the glyph, which cuts the word into the plate instead of
+   floating it — additive to the measured shadow, never a reduction of it. */
+.brand-text em {
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: var(--ink-faint);
+  margin-left: 9px;
+  text-shadow: var(--incise-fine);
+}
+
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Type and metrics ONLY. Everything that used to make these look like buttons
+   — the 999px pill, the translucent fill, backdrop-filter: blur(8px), and
+   `transition: all 160ms ease` — is now the chassis's. It is deleted here
+   rather than left harmlessly in place because this section cascades AFTER the
+   chassis: a single surviving `border-radius: 999px` would silently win and
+   the chassis would appear to do nothing. */
+.ghost-btn,
+.solid-btn {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 7px 13px;
+  cursor: pointer;
+}
+
+.ghost-btn {
+  color: var(--ink-dim);
+}
+
+/* The chassis's hover is a brightness tilt, which on a ~27px-tall dark control
+   sitting over a blown-out sky is very close to invisible. The edge taking the
+   era colour is the reliable confirmation that the pointer is on the object,
+   so it stays. No transition declared: the chassis already drives border-color
+   at --t-contact. */
+.ghost-btn:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+/* Weight only. The lit actuator — cap fill, cut edge, dark ink, lamp glow — is
+   the chassis's recipe, shared with .film-go so the two primary commits in the
+   app are visibly the same part. */
+.solid-btn {
+  font-weight: 700;
+}
+
+/* `opacity: 0.4` deleted. It let the photograph through a dead button and
+   smeared a bright sky across its label; the chassis desaturates and darkens
+   the object instead, so a disabled control stays opaque metal. */
+.solid-btn:disabled {
+  cursor: not-allowed;
+}
+
+/* ---------- caption ----------------------------------------------------- */
+
+.portal-caption {
+  position: relative;
+  z-index: 3;
+  /*
+   * TOP-LEFT, under the wordmark, rather than bottom-left above the dial.
+   *
+   * The caption is the tallest block of chrome in the app — a year line, two or
+   * three lines of prose, and up to two controls — and at the bottom it stacked
+   * directly on top of the year dial, so the two heaviest things on screen were
+   * in the same corner and the photograph got what was left. Reading top-down
+   * from the wordmark also matches the order you actually use them in: what am I
+   * looking at, then what can I do with it, then where do I go next.
+   *
+   * align-self: start rather than end, and the 30px side gutter is unchanged —
+   * the bezel rim is drawn INSIDE the view's edge, and at less than 30px the
+   * first glyph sits in the rim's falloff and the block reads as printed on the
+   * housing instead of laid over the picture.
+   */
+  align-self: start;
+  max-width: min(620px, 46vw);
+  padding: 4px 0 30px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.caption-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* THE HALO THAT WAS MISSING. Every child of .caption-head shipped with no
+   text-shadow at all over an arbitrary generated photograph: 11px mono in
+   near-white on a noon sky is simply gone. --incise-fine is --readable-shadow
+   BY REFERENCE with one dark stop in front, so this is additive to the frozen
+   measured value, never a substitute for it. */
+.caption-place {
+  color: var(--ink);
+  text-shadow: var(--incise-fine);
+  /* A place name is a NAME, not a legend. The uppercase inherited from
+     .caption-head mangles every accented toponym Nominatim returns (Ålesund,
+     İzmir, Đà Nẵng), and dotted I has no correct uppercase mapping in CSS. */
+  text-transform: none;
+}
+
+.caption-sep {
+  color: var(--ink-faint);
+  text-shadow: var(--incise-fine);
+}
+
+/* Was --ink-faint. The era band names WHEN you are, beside a place and a year
+   that both read at --ink: --ink-dim is the difference between reading it and
+   inferring it. */
+.caption-era {
+  color: var(--ink-dim);
+  text-shadow: var(--incise-fine);
+}
+
+/* THE ERA COLOUR COMES OFF THE LETTERFORM AND GOES INTO A CUT LINE.
+   13.5px of era-tinted display type over an arbitrary photograph was the worst
+   contrast in the app — deep-time green landing on a forest, bronze on a
+   desert, and no way to predict either because the backdrop is generated. The
+   year is now plain --ink with the deep incision and the pigment is a 1px rule
+   under it, sitting in its own black groove. The hue still tracks the era;
+   nothing legible depends on it. Portal.tsx sets --shown-accent on
+   .caption-head — the FRAME's era, which is not always the dial's — and the
+   fallback keeps the rule drawn rather than invisible if it is ever absent. */
+.caption-year {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  font-variant-numeric: var(--nums);
+  color: var(--ink);
+  text-shadow: var(--incise-deep);
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--shown-accent, var(--accent));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+  /* Same 600ms crossfade; only what it drives has moved. Linear because a hue
+     crossfade is POWERED, not sprung. */
+  transition: border-bottom-color 600ms var(--ease-drive);
+}
+
+/* The 18px halo is measured and is UNTOUCHED — this adds a second, tight stop
+   in front of it. An 18px blur alone is a cloud: it darkens the region behind
+   17px serif text without ever holding the edge of a stem, so over a bright sky
+   the letterforms still dissolve into it. 2px edges the glyph, 18px keeps the
+   region. Neither is a licence to lower the other.
+   The entry is ONE move on the whole paragraph: the sentence arrived from one
+   model response all at once, so a per-word reveal would be a lie about that as
+   well as motion-only presentation of the longest text in the app. */
+.caption-prose {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.66;
+  letter-spacing: 0.005em;
+  color: rgba(242, 245, 248, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.92), 0 1px 18px rgba(0, 0, 0, 0.95);
+  text-wrap: pretty;
+  animation: strip calc(420ms * var(--ritual)) var(--ease-seat) both;
+}
+
+/* MULTIPLIED by --ritual, never divided (that is a division by zero). At
+   --ritual: 0 this is a 0ms animation that lands on its `to` frame immediately,
+   which is why the fill mode is `both`. transform and opacity only — a
+   multi-megabyte photograph is decoding while this plays. */
+@keyframes strip {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.caption-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Was nowrap-by-default in a flex row; a long provider error ran off-screen. */
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-shadow: var(--readable-shadow);
+}
+
+.caption-stage--error {
+  color: #ff8f8f;
+}
+
+.caption-stage--degraded {
+  color: #e0b24a;
+}
+
+/*
+ * FIVE ENGINE STATES, FIVE SHAPES.
+ *
+ * This was ONE circle pulsing at 1.5s for queued, restoring, directing,
+ * rendering and degraded alike — and the motion-preferences block further down
+ * kills that pulse, so a user who asks for less motion was handed five
+ * identical static dots on the app's only progress readout. A live WCAG 1.4.1
+ * failure: the state was carried by animation and hue and by nothing else.
+ *
+ * State is now the FIGURE inside a 6px square, which survives reduced motion,
+ * a screenshot and a monochrome display. Colour still arrives from the era
+ * accent — Portal.tsx sets `color`, not `background`, so currentColor is the
+ * ink the figure is drawn in — but no state is distinguished by hue.
+ */
+.stage-pip {
+  width: 6px;
+  height: 6px;
+  /* A fixed-size flex item still shrinks. Squeezed to 4px by a long error
+     string the figure stops being readable, and the figure is now the signal. */
+  flex: none;
+  border-radius: 0;
+  background: transparent;
+  /* Two strokes, zero blur, per the mark rule: inner ring is the accent, outer
+     pixel is shade, so the pip keeps an edge over a blown sky AND over night. */
+  box-shadow: inset 0 0 0 1px currentColor, 0 0 0 1px var(--rule-shade);
+  /* The shape carries it; the pulse does not. */
+  animation: none;
+}
+
+/* EMPTY — accepted, nothing has started yet. */
+.caption-stage[data-stage='queued'] .stage-pip {
+  background: transparent;
+}
+
+/* HATCHED — read back off your disk, not generated. */
+.caption-stage[data-stage='restoring'] .stage-pip {
+  background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 2px);
+}
+
+/* A CENTRE — a scene is being composed: a subject exists, a picture does not. */
+.caption-stage[data-stage='directing'] .stage-pip {
+  background: radial-gradient(circle at 50% 50%, currentColor 0 1.4px, transparent 1.4px);
+}
+
+/* HALF FILLED — the frame is developing. The only state with a fill boundary,
+   because it is the only one where something is physically arriving. */
+.caption-stage[data-stage='rendering'] .stage-pip {
+  background: linear-gradient(90deg, currentColor 0 50%, transparent 50%);
+}
+
+/* Error is not a stage of the same process, so it gets a different FIGURE — a
+   cross — and a fixed red rather than the era accent. The ring comes off,
+   because a cross does not sit in a box; the dark stroke it still needs over a
+   bright frame is carried by a drop-shadow on the mark instead. Cheap: this is
+   a 6px element, not a layer. */
+.caption-stage--error .stage-pip {
+  background:
+    linear-gradient(45deg,  transparent 42%, #ff8f8f 42% 58%, transparent 58%),
+    linear-gradient(-45deg, transparent 42%, #ff8f8f 42% 58%, transparent 58%);
+  box-shadow: none;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.92));
+}
+
+/* Degraded is a good frame with a caveat: it keeps the ring and only changes
+   its ink. Stated literally rather than left to currentColor because these pips
+   are amber whichever era the dial is standing on. */
+.caption-stage--degraded .stage-pip {
+  box-shadow: inset 0 0 0 1px #e0b24a, 0 0 0 1px var(--rule-shade);
+}
+
+.stage-detail {
+  color: var(--ink-faint);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 10px;
+  /* Provider error bodies are long and arrive unwrapped. Bound and wrap them so
+     a failure reads as a message rather than a line running off the screen. */
+  flex-basis: 100%;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* The chassis owns this button's edge, radius, body, seat, hover, press and
+   disabled treatment; what is left is only what a CTA in the caption needs that
+   a ghost button does not. Gone: the 999px pill (a fully round edge has no
+   straight run for a specular), the blur(8px) backdrop (one more live blur pass
+   removed from the moment the shader is hot), `transition: all`, and
+   `opacity: 0.5` when disabled — which let the photograph through the button
+   and smeared it across a bright sky. */
+.caption-cta {
+  align-self: flex-start;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+/* The only disabled case here is "widening…" — work already in flight, not a
+   refusal. The cursor says wait; the chassis says dead metal. */
+.caption-cta:disabled {
+  cursor: progress;
+}
+
+/* ---------- bottom control cluster -------------------------------------- */
+
+.portal-bottom {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  /* place · sundial · year dial · lever · hints */
+  grid-template-columns: auto auto 1fr auto auto;
+  align-items: end;
+  gap: 18px;
+  /* 30/24 is the app-wide bezel clearance, the same figure the top bar and the
+     caption use. The rim drawn by .portal-glass::before lands ~20px in from the
+     viewport edge, so the old 22/20 put the puck and the hints ON the rim
+     instead of inside it — chrome crossing the edge of its own housing. */
+  padding: 0 30px 24px;
+}
+
+/* Explicit placement is load-bearing on the wide layout. When the place panel
+   expands it becomes position:fixed, which takes it out of flow so it is no
+   longer a grid item — without pinning columns the dial slides into track 1 and
+   gets crushed to the puck's width behind the panel.
+   Scoped to the three-column layout: applying these unconditionally forced the
+   dial into a phantom column 2 on the single-column mobile grid, squeezing it to
+   ~145px and wrapping the year readout onto two lines. */
+@media (min-width: 881px) {
+  .place-puck {
+    grid-column: 1;
+  }
+
+  /* Where you are standing, then what hour it is there, then which year — the
+     two small readouts sit together to the left of the long scale. */
+  .sundial {
+    grid-column: 2;
+  }
+
+  .dial {
+    grid-column: 3;
+  }
+
+  /* The lever sits between the dial and the hints — it is the thing you reach
+     for right after choosing a year, so it belongs next to the year. */
+  .lever {
+    grid-column: 4;
+  }
+
+  .portal-hints {
+    grid-column: 5;
+  }
+}
+
+/* The hints sit directly on an arbitrary generated photograph with no plate
+   under them. Every other text surface over the frame carries the measured
+   shadow; this one was missed, so over a blown-out sky --ink-faint #93a1ae
+   vanished into the sky at 9.5px. Purely ADDITIVE — the token is frozen and is
+   referenced, never restated.
+   Deliberately NO transform and NO animation here: the chassis's seat shock
+   drives this element (--seat-y, strike-a/strike-b), and a transform declared
+   further down the file would be what the animation interpolates away from. */
+.portal-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: var(--readable-shadow);
+}
+
+/* Geometry and type only. The chassis owns the cap itself — border,
+   border-radius, background, box-shadow, text-shadow — and this section sits
+   BELOW it, so re-declaring any of them here would win on cascade order and
+   restore the transparent 1px outline the keycaps used to be. */
+.portal-hints kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  margin-right: 2px;
+  font-family: inherit;
+  font-size: 9px;
+  color: var(--ink-dim);
+}
+
+/* IN FLIGHT — real state: how many frames the app is fetching right now.
+   It used to be --accent-coloured 9.5px type, which is the one thing that
+   cannot work over an arbitrary photograph: at this size hue carries almost no
+   luminance contrast, so amber-on-sunlit-sky is unreadable no matter what the
+   shadow does. The pigment therefore comes off the glyphs and goes under them.
+   The type reverts to --ink (protected by the inherited --readable-shadow) and
+   the era colour becomes one pixel of rule, sat on one pixel of black — the
+   same two-stroke, zero-blur logic as --rule-groove, with --accent as the lit
+   stroke, so the mark survives both a white sky and a night scene.
+   The 2px pad is the gap between baseline and rule; these spans are flex items
+   and therefore blockified, so it costs 3px of column height and nothing else. */
+.hint-busy {
+  color: var(--ink);
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--accent);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+/* What you own — frames survive reload, so this is standing state, not a debug
+   readout. Tabular figures because the count ticks upward while the row is
+   right-aligned: proportional digits make the whole line twitch sideways as
+   9 kept becomes 10 kept. */
+.hint-archive {
+  color: var(--ink-dim);
+  font-variant-numeric: var(--nums);
+}
+
+/* ---------- time dial --------------------------------------------------- */
+
+.dial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The readout stacks now: figure above, era beneath. It is also one of the
+   four parts the chassis's seat shock drives, so never declare `transform`,
+   `animation` or `will-change` here — .portal[data-seat] owns them. */
+.dial-readout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* THE PRIMARY READOUT. formatYear() returns prose, so "66 million years ago"
+   set at 34px is ~430px of display type: the app's largest number was
+   resizing by a factor of six as you scrubbed, and the whole bottom cluster
+   reflowed with it. TimeDial splits it into .fig + .unit and only the figure
+   is cut at display size, so adjacent stations differ by a character or two.
+   The colour is FIXED — an engraved figure does not change colour; the era
+   arrives below, as pigment in a cut line. */
+.dial-year {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: text;
+  color: var(--ink);
+  /* Strictly ADDITIVE to the frozen measured shadow, and by reference, never
+     by copying its stops: 34px glyphs over an arbitrary sky need a wider
+     halo than body text, so one deep stop is added BEHIND --readable-shadow.
+     Delete the added stop and you are byte-identical to the measurement. */
+  text-shadow: var(--readable-shadow), 0 2px 24px rgba(0, 0, 0, 0.9);
+}
+
+.dial-year .fig {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  /* 0.94 not 1: the figure is the optical anchor of the cluster and the seat
+     shock moves it 1.5px — leading slack here reads as the number floating. */
+  line-height: 0.94;
+  font-variant-numeric: var(--nums);
+}
+
+/* The unit is a legend on the same plate, not part of the number. Bounded so
+   MILLION YEARS AGO wraps to two short lines instead of widening the cluster
+   by 130px when you cross into the deep past. */
+.dial-year .unit {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+  max-width: 116px;
+  text-align: left;
+  padding-bottom: 0.3em;
+  color: var(--ink-dim);
+}
+
+/* This button is the double-click target for direct year entry, so it must
+   still show where the keyboard is. Same ring as .dial-track: two focus
+   states of one control should read as one control. */
+.dial-year:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* The era label sits BELOW the figure, on a rule filled with that era's
+   light. Colour that must survive an arbitrary photograph cannot be carried
+   by type — as a 2px inlay it can be any hue and never fails contrast. */
+.dial-era {
+  position: relative;
+  margin-top: 8px;
+  padding-top: 7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-shadow: var(--incise-fine);
+}
+
+.dial-era::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 46px;
+  height: 2px;
+  margin-left: -23px;
+  background: var(--accent);
+  /* Cut, then filled: dark on the top lip, lit on the bottom one, so the
+     pigment sits IN the metal rather than on it. */
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* Direct year entry, opened by double-clicking the readout. It replaces the
+   figure in place, so it is sized to sit in the readout's own space. */
+.dial-entry input {
+  width: 13ch;
+  font-variant-numeric: var(--nums);
+  background: rgba(255, 255, 255, 0.06);
+  /* 2px, and a darkened accent rather than the raw one: a lit hairline at
+     full accent is the only edge in the app that would out-glow the lamp. */
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, #000);
+  border-radius: 2px;
+  padding: 2px 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.dial-entry input:focus {
+  outline: none;
+}
+
+/* THE SLOT. Recessed, not raised: the old gradient was LIGHTER at the top,
+   which is the lighting of a raised surface applied to a hole, and it
+   disagreed with .lever-track 1200 lines away. Floored at 0.58 alpha at the
+   bottom on purpose — the ribbon floating over the photograph is the one
+   place the app feels like a window, and a fully opaque full-width slot is
+   how a cinematic app grows a toolbar. */
+.dial-track {
+  position: relative;
+  width: 100%;
+  height: 56px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  border: 1px solid var(--chrome);
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(6, 8, 12, 0.9) 0%,
+    rgba(6, 8, 12, 0.74) 45%,
+    rgba(6, 8, 12, 0.58) 100%
+  );
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.95), inset 0 3px 8px -3px rgba(0, 0, 0, 0.65),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.11), 0 1px 0 rgba(0, 0, 0, 0.7);
+}
+
+/* Focus fills the slot with the era's light instead of only ringing it: the
+   outline alone is easy to lose against a bright frame edge. */
+.dial-track:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.95), inset 0 -1px 0 rgba(206, 224, 248, 0.11),
+    inset 0 0 16px -2px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.dial-track--dragging {
+  cursor: grabbing;
+}
+
+/* FOUR COUPLING MODES. A mechanism is defined by what is driving it, and one
+   120ms ease-out could not tell the difference between your finger, an arrow
+   key and a 3,000px jump. TimeDial sets data-mode; the base value is the
+   detent so a ribbon rendered before the attribute exists still steps. */
+.dial-ribbon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  transition: transform var(--t-detent) var(--ease-detent);
+  will-change: transform;
+}
+
+/* Rigidly coupled: 70ms linear is the shortest smoothing that survives a
+   dropped frame without the ribbon appearing to lag the finger. */
+.dial-ribbon[data-mode='drag'] { transition: transform 70ms var(--ease-drive); }
+/* One station: the detent overshoots 5.7%, which at SPACING=54 is a 3.1px
+   ring — a click, not a bounce. It is used on exactly two things, this and
+   the tick. Do not spread it. */
+.dial-ribbon[data-mode='step'] { transition: transform var(--t-detent) var(--ease-detent); }
+/* Crossing the ladder: a flywheel coasts to rest, it does not snap. */
+.dial-ribbon[data-mode='fly']  { transition: transform var(--t-coast) var(--ease-flywheel); }
+
+/* The station itself no longer animates ANYTHING. `transition: opacity 200ms`
+   here started up to 146 transitions on every needle move — over 3,000 during
+   a fast scrub — to express a falloff that belongs to the aperture. */
+.dial-station {
+  position: relative;
+  flex: 0 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding-bottom: 6px;
+  transition: none;
+}
+
+/* THE GRADUATION. The dial used to draw 146 evenly-spaced identical ticks
+   across a ladder whose adjacent stations are 25 million years apart at one
+   end and five years apart at the other. Four orders, no fifth, and
+   monochrome: a scale in twenty-one colours is a texture, not a hierarchy —
+   the era colour moved to .dial-rail, which is a separate readout.
+   position: relative is load-bearing — without it the rung's head serif
+   anchors to .dial-station and lands 26px left of its own tick. */
+.dial-tick {
+  position: relative;
+  width: 1px;
+  height: var(--grad-index);
+  opacity: 1;
+  background: var(--mark-minor);
+  box-shadow: var(--rule-groove-v);
+  transform-origin: 50% 100%;
+  /* scaleY, not height. `transition: height` was a LAYOUT animation on up to
+     146 flex children per needle move; it also read as a pin extending out of
+     the deck rather than a bar being stretched. The box stays --grad-index
+     tall at every order, so nothing above it ever reflows. */
+  transform: scaleY(calc(var(--grad-minor) / var(--grad-index)));
+  transition: transform var(--t-detent) var(--ease-detent),
+              background var(--t-contact) var(--ease-drive);
+}
+
+.dial-station[data-order='major'] .dial-tick {
+  transform: scaleY(calc(var(--grad-major) / var(--grad-index)));
+  background: var(--mark-major);
+}
+
+/* The ELEVEN places the ladder's step size actually changes gear. Full
+   weight, and the only tick with a head serif — the universal "the scale
+   steps here" mark. "A new era begins" and "the scale steps here" are
+   different facts and must not share a mark, which is why the old
+   .dial-station--era-start tick sizing is gone; the era now owns the rail. */
+.dial-station[data-order='rung'] .dial-tick {
+  width: 2px;
+  transform: scaleY(calc(var(--grad-rung) / var(--grad-index)));
+  background: var(--mark-major);
+}
+
+/* The serif is a child of the tick, so it inherits the tick's scaleY and
+   `top: 0` stays glued to the VISUAL head of the bar at every order — which
+   is the whole reason the length is expressed as a transform. */
+.dial-station[data-order='rung'] .dial-tick::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 1px;
+  background: var(--mark-major);
+  box-shadow: var(--rule-groove);
+}
+
+/* SPECIFICITY, not source order alone: `.dial-station[data-order='rung']
+   .dial-tick` is (0,3,0) and would otherwise beat a plain --active rule at
+   (0,2,0), leaving the active rung short and white. The first selector keeps
+   the active mark working if data-order is ever absent from the markup. */
+.dial-station--active .dial-tick,
+.dial-station--active[data-order] .dial-tick {
+  transform: scaleY(1);
+  background: var(--accent);
+}
+
+.dial-station--active[data-order='rung'] .dial-tick::before {
+  background: var(--accent);
+}
+
+/* THE ERA AS A FIELD. A continuous rail along the foot of the slot, painted
+   one 54px slice per station out of that station's own --band: monochrome
+   scale, coloured field, two orthogonal readouts on one ribbon and no extra
+   geometry to make the colour change at a boundary. */
+.dial-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--band-rail);
+  background: var(--band, var(--ink-faint));
+  opacity: 0.85;
+  box-shadow: 0 -1px 0 var(--rule-shade);
+  pointer-events: none;
+}
+
+/* Where one era gives way to the next, drawn up the division itself. */
+.dial-station--era-start::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  bottom: 0;
+  width: 1px;
+  background: var(--band, var(--ink-faint));
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+/* A graduated scale with no figures is a comb. TimeDial renders these only
+   for data-order != minor within distance <= 14 — a RENDER-time gate, not
+   display:none, or the DOM cost stays — so about six exist at a time. They
+   hang to the RIGHT of their own division, clear of the rung's head serif. */
+.dial-numeral {
+  position: absolute;
+  top: 13px;
+  left: 50%;
+  padding-left: 5px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  font-variant-numeric: var(--nums);
+  color: var(--mark-major);
+  text-shadow: var(--incise-fine);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Same specificity arithmetic as the tick: the rung rule is (0,3,0). */
+.dial-station[data-order='rung'] .dial-numeral { color: var(--ink-dim); }
+.dial-station--active .dial-numeral,
+.dial-station--active[data-order] .dial-numeral { color: var(--accent); }
+
+/* The band label hangs off its own division too — it sat at `left: 6px`,
+   which is 21px LEFT of the tick it labels, so every era name pointed at the
+   wrong station. */
+.dial-band-label {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  padding-left: 5px;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-shadow: var(--incise-fine);
+  white-space: nowrap;
+  pointer-events: none;
+  /* max-width is set inline from the band's station span; ellipsis rather than
+     clip so a truncated name still reads as a truncated name. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* CACHE STATE AS SHAPE. Colour-plus-pulse failed twice: the pulse is removed
+   under prefers-reduced-motion, which left `pending` indistinguishable from
+   `nothing`, and a coloured dot over an arbitrary photograph is not a
+   reliable channel. Empty is now a blank plate, pending a hollow ring, ready
+   a seated lamp and error a cross — four shapes, no motion required. */
+.dial-dot {
+  width: var(--plate);
+  height: var(--plate);
+  border-radius: 0;
+  margin-top: 4px;
+  background: transparent;
+  box-shadow: none;
+  transition: background var(--t-contact) var(--ease-drive),
+              box-shadow var(--t-contact) var(--ease-drive);
+}
+
+/* Ready = a filled cut, with a jewelled cabochon highlight so it reads as a
+   lamp seated in metal rather than a glowing dot pasted on the frame. */
+.dial-station--ready .dial-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.85) 0 20%, transparent 55%),
+    radial-gradient(circle at 50% 58%, var(--accent) 0 58%,
+      color-mix(in srgb, var(--accent) 42%, #000) 100%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75);
+}
+
+/* An empty socket: the frame is on its way but nothing is seated yet. No
+   animation at any setting — the shape carries the state. */
+.dial-station--pending .dial-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--ink-faint), 0 0 0 1px var(--rule-shade);
+  animation: none;
+}
+
+.dial-station--error .dial-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 3px;
+  background:
+    linear-gradient(45deg,  transparent 43%, #ff8f8f 43% 57%, transparent 57%),
+    linear-gradient(-45deg, transparent 43%, #ff8f8f 43% 57%, transparent 57%);
+  box-shadow: none;
+}
+
+/* The held station. `outline: 1px solid currentColor` resolved currentColor
+   from the inherited body ink, so the ring was near-white instead of the
+   pin's own accent; TimeDial now sets --pin-accent on .dial-ribbon.
+   Deliberately does NOT re-declare border-radius or box-shadow: the base
+   .dial-dot already zeroes both, and re-zeroing them here would square the
+   cabochon and strip its seating ring on the commonest case of all — a
+   pinned station you have already generated. */
+.dial-station--pinned .dial-dot {
+  outline: 1px solid var(--pin-accent, var(--ink));
+  outline-offset: 2px;
+}
+
+/* THE NEEDLE. 1px, because a 2px needle cannot sit on a 1px division. z-index
+   is load-bearing: the fades are rendered AFTER the needle in TimeDial, so
+   without it the aperture paints over the one mark that must never dim.
+   TimeDial supplies `background` inline and no longer supplies boxShadow, so
+   the dispersion fringes below are not clobbered. This is one of exactly
+   three places dispersion is allowed to appear. */
+.dial-needle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  margin-left: -0.5px;
+  z-index: 3;
+  pointer-events: none;
+  transition: background var(--t-contact) var(--ease-drive);
+  box-shadow:
+    -1px 0 0 var(--disp-cool), 1px 0 0 var(--disp-warm),
+    0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* Filled fiducials, top and bottom: a line tells you where the needle is; a
+   pair of opposed points tells you what it is POINTING AT. */
+.dial-needle::before,
+.dial-needle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 0;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.85));
+}
+
+.dial-needle::before { top: 0;    border-top: 6px solid var(--accent); }
+.dial-needle::after  { bottom: 0; border-bottom: 6px solid var(--accent); }
+
+/* The second, travelling index: where the held frame lives on the ribbon.
+   OPEN where the live one is filled — the cartographic distinction between an
+   observed position and a reference one. ::after is the hollow, a smaller
+   triangle in the slot's own dark punched out of the ::before. */
+.dial-ghost-needle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  opacity: 1;
+  pointer-events: none;
+  box-shadow: var(--rule-groove-v);
+}
+
+.dial-ghost-needle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 0;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--pin-accent, var(--ink));
+}
+
+.dial-ghost-needle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 0;
+  margin-left: -3px;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid #06090d;
+}
+
+/* The dimension between the two indices, drawn as a dimension is drawn: a
+   rule with end serifs, lifted clear of the graduation so it reads as a
+   measurement across the scale rather than as another mark on it. */
+.dial-span {
+  position: absolute;
+  bottom: 22px;
+  height: 1px;
+  opacity: 1;
+  pointer-events: none;
+  box-shadow: var(--rule-groove);
+}
+
+/* `inherit` picks up the gradient TimeDial sets inline, so each serif is
+   struck in the colour of the era at its own end of the span. */
+.dial-span::before,
+.dial-span::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  width: 1px;
+  height: 7px;
+  background: inherit;
+}
+
+.dial-span::before { left: 0; }
+.dial-span::after  { right: 0; }
+
+/* THE HOLLOW DETENT. A contact closing — white, mechanical, not a spark — and
+   it fires ONLY when you land on a station whose frame you already own.
+   Within a minute you are reading your own archive by feel. Keyed on the seat
+   counter in TimeDial, so it needs no a/b keyframe pair to replay. */
+.dial-contact {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 2;
+  width: 2px;
+  height: 18px;
+  margin-left: -1px;
+  pointer-events: none;
+  transform-origin: 50% 100%;
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0));
+  animation: contact calc(130ms * var(--ritual)) var(--ease-strike) both;
+}
+
+@keyframes contact {
+  0%   { opacity: 1; transform: scaleY(1); }
+  100% { opacity: 0; transform: scaleY(0.55); }
+}
+
+/* THE APERTURE DOES THE FADING. Deleting TimeDial's per-station inline
+   opacity moved the falloff from up to 146 animated parts to the two things
+   you actually look through. The parts do not change; what you see them
+   through does. 30% of the track is up to four 54px stations at either end,
+   so the ribbon reads as continuous depth rather than as a list that stops;
+   the 90px floor keeps at least one full station in the falloff on mobile. */
+.dial-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: clamp(90px, 30%, 240px);
+  pointer-events: none;
+}
+
+/* One pixel of jamb where the aperture meets the ribbon: the left return
+   catches the lamp, the right one is in shadow, so the opening reads as a cut
+   with thickness instead of two gradients laid on the glass. */
+.dial-fade--left {
+  left: 0;
+  background: linear-gradient(
+    to right,
+    rgba(5, 6, 10, 0.95) 0%,
+    rgba(5, 6, 10, 0.62) 28%,
+    rgba(5, 6, 10, 0.28) 58%,
+    transparent 100%
+  );
+  box-shadow: inset -1px 0 0 rgba(206, 224, 248, 0.055);
+}
+
+.dial-fade--right {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    rgba(5, 6, 10, 0.95) 0%,
+    rgba(5, 6, 10, 0.62) 28%,
+    rgba(5, 6, 10, 0.28) 58%,
+    transparent 100%
+  );
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.65);
+}
+
+/* ---------- place dial -------------------------------------------------- */
+
+/* THE PUCK IS A LABELLED READOUT, not a pill with a name inside it. Two rows —
+   what the figure IS on top, what it SAYS underneath — which is how every
+   instrument legend is set. The chassis owns border, radius, body, raise, seat,
+   text-shadow and transition; re-declaring any of them here would quietly cut
+   the puck out of a different billet from every other raised control. */
+.place-puck {
+  position: relative;
+  display: grid;
+  /* 22px is the plate. minmax(0, 1fr), never a bare 1fr: a bare 1fr floors at
+     the label's min-content width, which defeats the ellipsis and lets one long
+     place name shove the puck straight through its own max-width. */
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 1px;
+  padding: 6px 13px 6px 8px;
+  cursor: pointer;
+  max-width: 240px;
+  text-align: left;
+}
+
+/* The one border in the app still allowed to warm on hover. Elsewhere hover is
+   the object tilting into the lamp; here the amber also says WHICH object — the
+   puck is the only control holding the standing point, and --accent is already
+   the standing point's own colour on the plate two pixels away. The chassis
+   brightness tilt still applies on top; this adds identity, not feedback. */
+.place-puck:hover {
+  border-color: var(--accent);
+}
+
+/* The plate spans both rows: legend and name are read AGAINST it, not beside
+   two separate things. overflow stays visible because at the south pole the fix
+   sits ON the limb (r=10 in a 22 viewBox) and its 1.5 radius would be clipped. */
+.place-plate {
+  grid-row: 1 / span 2;
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+}
+
+.place-puck-legend {
+  grid-column: 2;
+  grid-row: 1;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  color: var(--ink-faint);
+  text-shadow: var(--incise-fine);
+}
+
+.place-puck-label {
+  grid-column: 2;
+  grid-row: 2;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  /* Was uppercase. A place name is a NAME: "Reykjavík" is not "REYKJAVÍK", and
+     forcing caps also strips the only cue that this row is data, not a label. */
+  text-transform: none;
+  color: var(--ink);
+  text-shadow: var(--incise-fine);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* THE GRATICULE. A real polar azimuthal plate drawn by PlaceDial from the live
+   coordinates: latitude is RADIUS (north pole dead centre, equator at exactly
+   half, south pole on the limb) and longitude is BEARING with 0 degrees at
+   twelve o'clock. It replaces a 4px crosshatch that encoded nothing and a dot
+   pinned at left:19px/top:18px no matter where on Earth you were standing —
+   decoration pretending to be a readout, which is worse than decoration.
+   These are plain white alphas rather than the --rule-* mark pair because the
+   plate sits on the puck's own opaque steel, never over the photograph; only
+   the limb — the plate's edge — takes the lit mark stroke. */
+.place-plate .plate-limb,
+.place-plate .plate-ring,
+.place-plate .plate-equator,
+.place-plate .plate-meridian {
+  fill: none;
+}
+
+.plate-limb {
+  stroke: var(--rule-lit);
+  stroke-width: 1;
+}
+
+/* Two parallels either side of the equator, so a fix has something to be
+   between. Faint on purpose: the reading is the fix, not the graticule. */
+.plate-ring {
+  stroke: rgba(255, 255, 255, 0.13);
+  stroke-width: 0.6;
+}
+
+/* The only circle that means a specific thing, so it is the only one you can
+   read at a glance: the fix is north of it or south of it. */
+.plate-equator {
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 0.8;
+}
+
+.plate-meridian {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 0.6;
+}
+
+/* Amber against everything else on the plate being white — the fix is the one
+   mark carrying state. The dark stroke keeps it legible where it crosses a
+   meridian or lands on the limb. */
+.plate-fix {
+  fill: var(--accent);
+  stroke: rgba(0, 0, 0, 0.72);
+  stroke-width: 0.8;
+}
+
+/* The panel is an opened compartment in the same body, not a card floating over
+   it. Chassis owns background, border, radius and the machined edge stack. */
+.place-panel {
+  position: fixed;
+  left: 30px;
+  bottom: 24px;
+  width: min(420px, calc(100vw - 44px));
+  /* Without a bound the panel grows upward off the top of a short window and the
+     search field becomes unreachable. */
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 6;
+  /* It grows out of the puck's corner, so it is hinged there. */
+  transform-origin: 0 100%;
+  animation: drawer calc(var(--t-seat) * var(--ritual)) var(--ease-seat) both;
+}
+
+/* TRANSLATE ONLY — NO SCALE. Leaflet measures its container on a 220ms timeout
+   that fires inside this animation, and a scaling container hands it the wrong
+   size: the map comes back with half a viewport of grey until something else
+   invalidates it. A translate leaves offsetWidth/offsetHeight untouched. */
+@keyframes drawer {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.place-panel-head {
+  display: flex;
+  gap: 8px;
+  padding: 11px;
+}
+
+.place-search {
+  flex: 1;
+  /* Flex items floor at min-content; without this a long query widens the head
+     and pushes the toggles off the panel. */
+  min-width: 0;
+  padding: 8px 11px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.place-close {
+  color: var(--ink-dim);
+  width: 34px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* Colour only. The border no longer moves on hover — the chassis tilts the whole
+   cap into the light instead, and two hover languages on one control reads as a
+   bug rather than as emphasis. */
+.place-close:hover {
+  color: var(--ink);
+}
+
+.place-results {
+  list-style: none;
+  margin: 0;
+  padding: 5px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.place-results button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.place-results button:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.place-results strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.place-results span {
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Inside an opaque panel, so this is engraving on metal — never the frame
+   shadow, which exists for text sitting over the photograph. */
+.place-searching {
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  text-shadow: var(--engraved);
+}
+
+.place-searching--failed {
+  color: #e0b24a;
+}
+
+/* THE MAP, SEATED IN THE CASE. Both renderers fill the stage, so the globe/map
+   handover does not resize. The seat is held in a local custom property because
+   it has to be painted twice — see ::after below for why. */
+.place-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 120px;
+  height: 250px;
+  background: #05070c;
+  --stage-seat:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.8),
+    inset 0 2px 5px -1px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.07);
+  box-shadow: var(--stage-seat);
+}
+
+/* The same rebate again, this time ABOVE the tiles. An inset shadow is painted
+   with its own element's background — that is, UNDER every child — and both
+   .place-map and .globe cover the stage edge to edge, so the seat above is
+   invisible the instant a renderer mounts. z-index 700 clears Leaflet's tile
+   (200), overlay (400) and marker (600) panes and stays under its controls
+   (800), so the zoom buttons and attribution are never dimmed. pointer-events:
+   none is load-bearing: the map must still take every drag, click and wheel. */
+.place-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 700;
+  pointer-events: none;
+  box-shadow: var(--stage-seat);
+}
+
+.place-map {
+  position: absolute;
+  inset: 0;
+  background: #0a0c10;
+}
+
+.globe {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* A hint of space behind the planet rather than flat black. */
+  background:
+    radial-gradient(120% 90% at 50% 40%, rgba(60, 110, 180, 0.16) 0%, transparent 60%),
+    #04060c;
+}
+
+.globe canvas {
+  display: block;
+}
+
+.globe-status {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-shadow: var(--readable-shadow);
+  pointer-events: none;
+}
+
+.globe-status--error {
+  color: #e0b24a;
+}
+
+/* Fullscreen: picking a precise point out of a 420x250 box is genuinely hard.
+   It is THE SAME PANEL taking the whole frame, not a second drawer — so the
+   hinge does not re-run. Replaying a 340ms rise over a live map canvas is both
+   wrong (nothing opened) and expensive (the whole map recomposites). */
+.place-panel--full {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: auto;
+  max-height: none;
+  border-radius: 0;
+  border: 0;
+  z-index: 12;
+  animation: none;
+  /* Dropping the border above dropped every edge cue with it, leaving a flat
+     rectangle. The bezel language comes back as insets, which need no border. */
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.92),
+    inset 0 2px 0 -1px rgba(206, 224, 248, 0.085),
+    inset 0 -16px 30px -22px rgba(0, 0, 0, 0.85);
+}
+
+.place-panel--full .place-stage {
+  height: auto;
+}
+
+.place-view-toggle {
+  color: var(--ink-dim);
+  padding: 0 10px;
+  min-width: 34px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+}
+
+.place-view-toggle:hover {
+  color: var(--ink);
+}
+
+/* Latched. Colour alone, because the border is now a cut edge in the steel and
+   a cut edge does not change colour when a switch is thrown. */
+.place-view-toggle[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.place-panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+  text-shadow: var(--engraved);
+}
+
+/* --ink-dim, not --ink-faint: this is drawing DATA — the actual fix, to four
+   decimal places — and the faint tier is for legends. Tabular figures and the
+   tighter tracking keep the two numbers from shifting as you drag the marker. */
+.place-coords {
+  color: var(--ink-dim);
+  font-variant-numeric: var(--nums);
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+/* Leaflet marker (built with divIcon, so styled here). */
+.place-marker {
+  position: relative;
+}
+
+.place-marker-ring,
+.place-marker-core {
+  position: absolute;
+  border-radius: 50%;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* A SURVEY STATION, NOT A BEACON. The pulsing ring was a two-and-a-half second
+   infinite animation running on top of a live tile layer and encoding nothing
+   at all — the point does not move, so nothing should. What is left is the mark
+   a topographic sheet uses for a fixed point: a hard ring, ticked at the
+   cardinals, black-lined inside and out so it survives snow, sea and desert
+   equally. opacity is 1 because a survey mark is either there or it is not. */
+.place-marker-ring {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--accent);
+  opacity: 1;
+  animation: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+  background:
+    linear-gradient(var(--accent) 0 0) no-repeat 50% -4px / 1px 5px,
+    linear-gradient(var(--accent) 0 0) no-repeat 50% calc(100% + 4px) / 1px 5px,
+    linear-gradient(var(--accent) 0 0) no-repeat -4px 50% / 5px 1px,
+    linear-gradient(var(--accent) 0 0) no-repeat calc(100% + 4px) 50% / 5px 1px;
+}
+
+/* Square, and no glow. The 12px amber bloom was the marker's only "precision"
+   cue and it was the least precise thing on the map — it smeared the fix across
+   a dozen pixels of imagery. One hard black line does the separating instead. */
+.place-marker-core {
+  width: 5px;
+  height: 5px;
+  border-radius: 0;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+
+/* Leaflet chrome, darkened to match. The default control panel is where the
+   illusion breaks: two white rounded buttons with a #333 plus sign, sitting on
+   the one surface in the app the user is told is a machined instrument. */
+.leaflet-container {
+  background: #0a0c10 !important;
+  font-family: var(--font-mono) !important;
+}
+
+/* Everything here needs !important because Leaflet's own .leaflet-bar a rules
+   are more specific than a single class. `color` is NOT optional: without it
+   Leaflet's #333 glyphs land on near-black steel and the zoom buttons read as
+   empty. background-color follows the `background` shorthand deliberately —
+   the shorthand resets it, and --body's gradients need an opaque bed under
+   them or the tiles show through the cap. */
+.leaflet-control-zoom a {
+  background: var(--body) !important;
+  background-color: var(--steel) !important;
+  color: var(--ink-dim) !important;
+  border-color: rgba(0, 0, 0, 0.85) !important;
+  box-shadow: inset 0 1px 0 var(--facet-lit), var(--seat-fine);
+  text-shadow: var(--engraved);
+}
+
+/* Killing Leaflet's #f4f4f4 hover above also killed the only feedback these
+   buttons had. Same tilt-into-the-lamp the chassis gives every other control. */
+.leaflet-control-zoom a:hover {
+  filter: brightness(1.26) saturate(1.04);
+}
+
+.leaflet-control-attribution {
+  background: rgba(5, 6, 10, 0.7) !important;
+  color: var(--ink-faint) !important;
+  font-size: 8.5px !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--ink-dim) !important;
+}
+
+/* ---------- key gate ---------------------------------------------------- */
+
+/* The ONE blur that survives the purge, and the only one of the ten that was
+   ever materially correct: the case is closed and you are looking at the app
+   through the instrument's own ground glass. Ground glass SCATTERS and DIMS —
+   it does not merely soften — so saturate(0.55) brightness(0.52) are the two
+   values that separate ground glass from a 2015 frosted-panel effect. It is
+   affordable here and nowhere else: the gate is modal, it appears alone, and
+   nothing is competing for the compositor while it is up. */
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 5, 9, 0.72);
+  backdrop-filter: blur(9px) saturate(0.55) brightness(0.52);
+  -webkit-backdrop-filter: blur(9px) saturate(0.55) brightness(0.52);
+  padding: 24px;
+  /* body is overflow:hidden, so at high browser zoom the dialog was clipped by
+     the viewport with no way to reach its buttons. The overlay scrolls instead. */
+  overflow-y: auto;
+  align-items: start;
+  padding-top: max(24px, 8vh);
+  animation: gate-fade calc(180ms * var(--ritual)) var(--ease-drive) both;
+}
+
+/* Multiply by --ritual, never divide: at --ritual 0 this is a 0ms animation
+   with fill `both`, which lands on the `to` frame immediately. */
+@keyframes gate-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The chassis panel recipe owns background, border, border-radius and
+   box-shadow for .place-panel/.look-menu/.gate-card/.film — every one of
+   those declarations was deleted from here, because a local re-declaration
+   would silently win over the chassis and this card would stay a 12px-radius
+   translucent box while the rest of the app went to milled steel.
+   What is genuinely local: the measure, the padding, and the arrival. The
+   card is LOWERED onto the ground glass rather than popped or scaled up out
+   of nothing — 10px of travel along the axis gravity works, on --t-seat so it
+   is the same "part seating" every other assembly in the app uses. The 60ms
+   delay lets the glass exist for a beat before something lands on it. */
+.gate-card {
+  /* 560, not 430. The old width left the custom-style placeholder clipped
+     mid-word and squeezed a sixteen-row meta-prompt textarea into a column
+     narrower than the prose it edits. --wide is applied only while the editor is
+     open, so the common case stays a compact dialog rather than a page. */
+  width: min(560px, 100%);
+  padding: 30px 32px;
+  transition: width 260ms var(--ease-seat);
+  transform-origin: 50% 0;
+  animation: lower calc(var(--t-seat) * var(--ritual)) var(--ease-seat)
+    calc(60ms * var(--ritual)) both;
+}
+
+@keyframes lower {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.gate-card h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  /* The nameplate is cut into the card, not printed on it. --engraved is legal
+     here because this text sits on opaque metal — it must never be used over
+     the photograph, where only the two-stroke groove reads. */
+  text-shadow: var(--engraved);
+}
+
+.gate-card p {
+  margin: 0 0 18px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.gate-card code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink);
+}
+
+/* The well recipe (background, border, border-radius, the inset shadow and
+   the amber caret) is declared once in the chassis for
+   .look-custom/.place-search/.gate-card input/.prompt-editor textarea. Only
+   the geometry and the type are local. `.gate-card input:focus` was deleted
+   outright — the chassis focus ring is a lit rim plus a 3px halo, and the old
+   `border-color: var(--accent)` rule would have overwritten half of it. */
+.gate-card input {
+  width: 100%;
+  padding: 11px 13px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.gate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gate-actions > div {
+  display: flex;
+  gap: 8px;
+}
+
+/* The transparent border is load-bearing, not decoration: flex BLOCKIFIES its
+   items, so an `a` in here is a block box and a border that only exists on
+   hover would add 1px to its height and shunt the label half a pixel upward
+   every time the pointer crossed it. Reserve it, then colour it. */
+.gate-actions a {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  text-shadow: var(--engraved);
+}
+
+/* Pigment in the rule, not in the letters. Amber type at 10.5px on a dark
+   panel is a contrast loss; amber under type that has just gone to full --ink
+   is a gain in both directions. */
+.gate-actions a:hover {
+  color: var(--ink);
+  border-bottom: 1px solid var(--accent);
+}
+
+/* Settings.tsx renders .field-label, .field-hint, .disclosure, .prompt-editor,
+   .prompt-note, .prompt-error and .prompt-tokens. Until now portal.css had no
+   rule for any of them, and no other stylesheet ships, so the
+   highest-leverage text in the app — the meta-prompt that decides what every
+   frame looks like — rendered as raw browser defaults inside an otherwise
+   finished modal. Everything below is new. */
+
+.field-label {
+  display: block;
+  margin: 16px 0 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-shadow: var(--engraved);
+}
+
+/* The maker speaks in sentence case; only the instrument's own legends are cut
+   in caps. This rule is what stops the dialog reading as a wine list. The hint
+   is nominally LARGER than the legend beside it (11.5 against 9.5) because a
+   serif italic at 11.5px and tracked mono caps at 9.5px have roughly the same
+   apparent size — the numbers differ so the two voices do not.
+   text-shadow: none is deliberate: it resets the --engraved this span would
+   otherwise inherit from .field-label and .disclosure, which reads as grime
+   under an italic serif rather than as a cut. */
+.field-hint {
+  margin-left: 9px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-faint);
+  text-shadow: none;
+}
+
+/* A milled tab that opens a compartment. It is not in the chassis raised-
+   control list (it is full-width and left-aligned, not a chip), so it declares
+   the recipe itself — background shorthand first, background-color second, or
+   the shorthand resets the fallback colour out from under it.
+   NOTE FOR THE NEXT PERSON: .disclosure is a <button> carrying aria-expanded
+   and .prompt-editor is a conditionally-rendered SIBLING, not a child. There
+   is no <details> here: `.disclosure[open]` and `.disclosure[open]
+   .prompt-editor` match nothing and must never be written. */
+.disclosure {
+  display: block;
+  width: 100%;
+  margin: 4px 0 14px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--chrome);
+  border-radius: 3px;
+  background: var(--body);
+  background-color: var(--steel);
+  box-shadow: var(--raise), var(--seat-fine);
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: var(--engraved);
+  /* transform is transitioned so the chassis press rule keeps its asymmetry:
+     the chassis drives .disclosure:active DOWN in 55ms, and the spring brings
+     it back UP over 180ms. Without transform listed here the release snaps. */
+  transition: filter 140ms var(--ease-drive), box-shadow 120ms var(--ease-drive),
+    transform 180ms var(--ease-release);
+}
+
+/* :not(:active) is a cascade fix, not a flourish. The chassis press rule sets
+   `filter: none` on .disclosure:active at the same specificity as a bare
+   :hover — and this section sits BELOW the chassis, so a plain
+   `.disclosure:hover` would win while the tab is held down and the press would
+   stay lit instead of going dark under the finger. */
+.disclosure:hover:not(:active) {
+  filter: brightness(1.26);
+}
+
+/* Open is a LATCHED state, not a hover: the tab stays pressed into the plate
+   for as long as the compartment beneath it is open. */
+.disclosure[aria-expanded='true'] {
+  box-shadow: var(--recess);
+  color: var(--ink);
+}
+
+/* The opened compartment, sunk into the card. It has its own floor so the
+   textarea well inside it reads as a second depth rather than as a hole
+   punched straight through the front plate. */
+.prompt-editor {
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #07090d, #0b0f15);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.07);
+}
+
+.prompt-note {
+  margin: 0 0 10px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+/* The chassis owns this textarea's well and its brass scrollbar. display:block
+   kills the inline-block baseline gap, which was adding an unowned ~4px under
+   the field and making the error message's 8px offset read as 12px. */
+.prompt-editor textarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  padding: 10px 11px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+/* A validation error was inheriting ordinary --ink and rendering in the body
+   serif, which made "your template is broken" visually identical to the
+   paragraph explaining how templates work. Mono plus a red that still clears
+   contrast on this panel; the message itself states the fault, so nothing here
+   is carried by colour alone. */
+.prompt-error {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: #ff8f8f;
+  text-shadow: var(--engraved);
+}
+
+.prompt-tokens {
+  margin-top: 10px;
+}
+
+.prompt-tokens summary {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  text-shadow: var(--engraved);
+}
+
+.prompt-tokens ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+
+/* Accent as pigment on type only. It never becomes a fill on this surface. */
+.prompt-tokens code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* The reset button is the last thing in the compartment and is an inline-block
+   button directly after a block <details> — without this it sits flush against
+   the placeholder list. */
+.prompt-editor .ghost-btn {
+  margin-top: 12px;
+}
+
+/* ---------- responsive -------------------------------------------------- */
+
+@media (max-width: 880px) {
+  /* Gutters GROW on the small layout, they do not shrink. The mount is a
+     fraction of the VIEWPORT, so its inner edge lands far closer to the text on
+     a 375px screen than on a 1440px one; 22/20 here and 18/16 below keep the
+     caption and the control cluster clear of the rim instead of tucking them
+     underneath it. */
+  .portal-caption {
+    max-width: none;
+    padding: 0 22px 20px;
+  }
+
+  .caption-prose {
+    font-size: 14px;
+  }
+
+  .portal-bottom {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 0 18px 16px;
+  }
+
+  .portal-hints {
+    display: none;
+  }
+
+  /* Puck above the dial, both full width. */
+  .place-puck {
+    justify-self: start;
+    max-width: 100%;
+  }
+
+  /* The readout is a figure/unit pair, and only the FIGURE carries the size: the
+     unit is a label, and scaling it with the numeral is what pushed "66 MILLION
+     YEARS AGO" out past the gutter. Capped at 92px so the longest unit resolves
+     inside its own column rather than widening the whole readout.
+     Scoped through .dial-readout on purpose: there is a SECOND .dial-year block
+     further down the file (the button reset for direct year entry), and an
+     unscoped font-size here would lose to it the moment anyone adds type to it.
+     A responsive override must not depend on source order to hold.
+     The bare size is the floor for the same value, so a build in which the pair
+     has not been split still gets a 24px readout rather than a 34px one. */
+  .dial-readout .dial-year {
+    font-size: 24px;
+  }
+  .dial-readout .dial-year .fig {
+    font-size: 24px;
+  }
+  .dial-readout .dial-year .unit {
+    font-size: 8px;
+    max-width: 92px;
+  }
+
+  /* The readout must never wrap — "100 AD" breaking across two lines was the
+     most visible symptom of the phantom-column bug. */
+  .dial-readout {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  .dial-track {
+    height: 48px;
+  }
+
+  /* 48px of track cannot carry two lines of band legend, a 22px graduation AND a
+     numeral. The numeral is the order that goes: the needle points at exactly
+     one station and the readout above it already names that station's year, so
+     the numeral is the only mark down here that repeats something. */
+  .dial-station[data-order='major'] .dial-numeral {
+    display: none;
+  }
+
+  /* The ladder is shortened with the track it is cut into. All four orders move
+     together — the RATIOS between minor/major/rung/index are what make the
+     graduation read as one ruler, and cutting only the tall ones would collapse
+     four orders into two. */
+  .dial {
+    --grad-minor: 5px;
+    --grad-major: 11px;
+    --grad-rung: 18px;
+    --grad-index: 21px;
+  }
+
+  /* 90px of fade is a quarter of a 375px track — it was swallowing the stations
+     immediately either side of the needle. Proportional to the track instead,
+     floored so it still hides the ribbon's cut ends and capped so a tablet keeps
+     its middle. The percentage resolves against .dial-track, which is the
+     positioned ancestor. */
+  .dial-fade {
+    width: clamp(60px, 26%, 150px);
+  }
+
+  /* The mount is viewport-proportional, so the same fraction eats far more of a
+     375px photograph than of a 1440px one. OPEN THE APERTURE rather than weaken
+     the housing: every edge of the bezel survives at full strength, it simply
+     sits further out. The photograph is the product; the frame is not. */
+  .portal-glass {
+    --mount-clear: 71%;
+  }
+
+  .place-panel {
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+    width: auto;
+  }
+
+  /* A short landscape phone must still be able to reach the map's footer. */
+  .place-map {
+    height: min(250px, 32vh);
+  }
+}
+
+/* ---------- motion preferences ------------------------------------------ */
+
+/* --ritual: 0 in the token block already collapses every
+   calc(Nms * var(--ritual)) duration to zero, which covers the seat shock and
+   everything else that opted into the gate. (Never calc(X / var(--ritual)): a
+   division by zero invalidates the whole declaration and the animation then
+   runs at its default — the exact opposite of what was asked for.)
+   This block is belt-and-braces for the animations still declared with literal
+   durations, and — the actual rule it encodes — the place where each of those
+   animations hands its INFORMATION over to a static state. Nothing in here is
+   allowed to merely go blank. */
+@media (prefers-reduced-motion: reduce) {
+  /* Keeps frame-in, which is opacity only, and drops the scale move. Declaring
+     the animation rather than switching it off is also what preserves
+     registration with .portal-pinned: a settling frame and a held frame must
+     occupy the same rectangle, or the comparison seam lies about what is on
+     either side of it. */
+  .portal-frame--drift {
+    animation: frame-in 300ms ease forwards;
+  }
+
+  .warp-streaks,
+  .warp-wash {
+    animation: none;
+  }
+
+  /* A full-screen rotating spoke field is exactly what this setting is for.
+     The colour wash stays — it still signals direction — but it holds still. */
+  .warp-streaks {
+    display: none;
+  }
+
+  .portal-field,
+  .dial-ribbon {
+    transition: none;
+  }
+
+  /* The one exception, and it is not decoration: with no transition at all a
+     dragged ribbon teleports between pointer samples and the ladder stops
+     feeling like a thing you are pushing. 60ms linear is below the threshold at
+     which this reads as animation and above the one at which the drag reads as
+     broken. */
+  .dial-ribbon[data-mode='drag'] {
+    transition: transform 60ms linear;
+  }
+
+  .portal[data-seat] .dial-readout, .portal[data-seat] .caption-head,
+  .portal[data-seat] .brand-mark, .portal[data-seat] .portal-hints,
+  .caption-prose, .place-panel, .look .look-menu, .gate-card, .gate {
+    animation: none;
+  }
+
+  /* ...but the contact still HAPPENS. Solid versus hollow is a real fact about
+     your archive, not an ornament on the seat, so it must not be motion-only:
+     it becomes a standing mark for as long as you are parked on a station you
+     own, and its absence is equally readable on one you do not. */
+  .dial-contact {
+    animation: none;
+    opacity: 1;
+    transform: scaleY(0.7);
+  }
+
+  /* The sweep stops; the fact that a frame is developing does not. A lit scrim
+     at half strength is still plainly distinguishable from a finished frame,
+     which is the whole job the sweep was doing. */
+  .portal-scan--active::before {
+    animation: none;
+  }
+  .portal-scan--active {
+    opacity: 0.5;
+  }
+
+  /* Indeterminate must stay indeterminate: a full dimmed bar says "working, no
+     percentage available", where a frozen 38% sliver would be a false reading
+     of a job that reports no percentage at all.
+     Scoped through .film because .film-bar span's animation is declared BELOW
+     this block — an equal-specificity reset here would lose to it on source
+     order, and a reduced-motion guard that depends on where it sits in the file
+     is not a guard. */
+  .film .film-bar span {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+
+  .warp, .warp--closing, .warp--failing {
+    animation: none;
+  }
+
+  /* Same reason as the film bar: the caret lives in a section further down the
+     file, so the reset is scoped through .look to outrank whatever it declares
+     there. The glyph itself already flips ▾/▴, so the open state survives with
+     no motion at all. */
+  .look .look-caret {
+    transition: none;
+  }
+}
+
+/* ---------- film ---------------------------------------------------------- */
+
+/* Above the still, so a clip that fails or is removed reveals the photograph
+   underneath rather than a black rectangle. z-index: 1 is load-bearing and must
+   stay: .portal-glass is now promoted to z-index 2, so the film sits UNDER the
+   optic and takes the mount, the rim and the reading scrims exactly as a still
+   does. A clip painting over the glass would be the one surface in the app with
+   no housing. */
+.portal-video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The sound toggle is a machined chip. The chassis owns its body, its cut edge,
+   its 3px radius and its seat — and took the backdrop-filter: blur(8px) with
+   them. That blur sat directly over a decoding video frame, which is the single
+   most expensive place in the app to ask the compositor for one.
+   right: 30px, not 22px. The rim lands at inset clamp(10px, 2.2vmin, 24px):
+   2.2vmin reaches 22px at vmin 1000px and clamps to 24px past vmin ~1091px, so
+   on any ordinary desktop the old 22px put the chip's right edge ON the bevel,
+   and on a large display the rim cut 2px into it. 30px clears the clamp's
+   ceiling by 6px at every size.
+   z-index: 4 keeps it above .portal-glass (z-index 2). It is the only control
+   that lives INSIDE the frame, so it must not be dimmed by the mount or
+   swallowed by the rim's outer shadow. */
+.portal-sound {
+  position: absolute;
+  top: 76px;
+  right: 30px;
+  z-index: 4;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+/* Sound ON is the era's light in the type and nowhere else. The amber
+   border-color is gone: the chip's edge is an EDGE — one cut of the same steel
+   whichever way the switch is thrown — and a lit rim here would be a second
+   owner of the lit edge that the bezel already is. */
+.portal-sound[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+/* THE FILM WARNING. Everything below is deliberately plain. It tells someone
+   what a clip will cost them in minutes and in money billed to their own key,
+   and a warning about spending somebody's money is not a place to be
+   atmospheric. No uppercase, no tracking, no size reduction: the wording and
+   the 12.5px both stand. */
+.warn-list {
+  margin: 0 0 18px;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.warn-list li {
+  margin-bottom: 8px;
+}
+
+/* The lead clause of each bullet is the thing being agreed to. --ink over the
+   list's --ink-dim is the entire emphasis — it reads at a glance without
+   inventing a second type treatment for a dialog you see once. */
+.warn-list strong {
+  color: var(--ink);
+}
+
+/* --engraved, not --incise-*: this label sits on the panel's metal and never
+   over the photograph, so it takes the cut-into-steel shadow rather than the
+   over-frame halo. */
+.warn-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-shadow: var(--engraved);
+  cursor: pointer;
+}
+
+/* ---------- the look control --------------------------------------------- */
+
+.look {
+  position: relative;
+}
+
+/* The chassis owns this button's body, edge, radius, seat and press (the
+   raised-control recipe). What survives here is only what is specific to THIS
+   control: its internal layout, the legend's type, and the tap target. The old
+   999px radius and blur(10px) are gone with them — a fully round edge has no
+   straight run for the lamp to sit on, and metal is not translucent. */
+.look-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+/* Hover and open both raise the ink and nothing else. The amber `border-color`
+   that used to live here is deleted: the chassis tilts the whole object into
+   the light instead, and an accent outline on a closed picker was competing
+   with .solid-btn — the one thing on screen allowed to say "act". */
+.look-trigger:hover,
+.look-trigger--open {
+  color: var(--ink);
+}
+
+/* A legend stamped on the plate beside the chip, so it is cut in caps like the
+   other legends. The OPTION labels in the menu are deliberately left alone:
+   thirteen tracked all-caps names in a two-column grid is a wine list, not an
+   instrument. Declared on the legend rather than inherited from the trigger so
+   the trigger's type block can change without silently lowercasing it. */
+.look-name {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* THE COLOUR CHIP — a lacquer fill set into the plate, not a bulb.
+   This was `box-shadow: 0 0 8px currentColor`, and currentColor on this span
+   resolves from .look-trigger / .look-option's `color: var(--ink-dim)` — never
+   from the inline `background` LookPicker sets (LookPicker.tsx:79, :109). So
+   the one element in the app whose entire job is to show a colour was haloed
+   grey in all thirteen slots. The colour arrives inline; every declaration
+   below is the edge cut around it — a hard black rebate, a lit top lip and a
+   shaded bottom, which read on a #f1f5f9 (Noir) chip and a #ff00aa
+   (Cyberpunk) one alike. Zero blur, so nothing here is a glow. */
+.look-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  flex: 0 0 auto;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* The caret is a hinge indicator, so it TURNS: one object rotating reads as
+   this control moving, where swapping the character reads as the text
+   changing. inline-block because `transform` does not apply to a bare inline
+   box. The glyph is pinned in the ::before because LookPicker.tsx:82 still
+   swaps ▾ for ▴ on open — left as-is, the swap and the rotation cancel and the
+   caret appears frozen in both states. Pin and rotation are both correct once
+   the component renders ▾ unconditionally; the ::before can go then. */
+.look-caret {
+  color: var(--ink-faint);
+  display: inline-block;
+  font-size: 0;
+  transform-origin: 50% 50%;
+  transition: transform calc(180ms * var(--ritual)) var(--ease-detent);
+}
+
+.look-caret::before {
+  content: '▾';
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.look-trigger--open .look-caret {
+  transform: rotate(180deg);
+}
+
+/* The chassis panel recipe owns the menu's body, edge, radius and shadow —
+   background, border, border-radius, backdrop-filter and box-shadow are all
+   deleted from here, including a second blur(18px) pass. Position and size
+   stay: they are this menu's, not the recipe's. */
+.look-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 8;
+  width: min(340px, calc(100vw - 32px));
+  padding: 10px;
+  /* Origin is the whole statement. A panel that scales from its own centre is
+     a dialog that happened to appear; one hinged at the corner of the control
+     that opened it is part of the same object. Multiplied by --ritual, never
+     divided: at --ritual: 0 the duration is 0ms and `both` lands the panel on
+     its final frame immediately. Transform and opacity only — no layout
+     property is touched while the shader is hot. */
+  transform-origin: 100% 0;
+  animation: hinge calc(200ms * var(--ritual)) var(--ease-seat) both;
+}
+
+@keyframes hinge {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.look-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+/* Options are keys in a block, not chips: 2px, not the old 7px, because a
+   seven-pixel radius at nine pixels of padding is a rounded rectangle
+   pretending to be a button. The transparent border is load-bearing — it holds
+   the pressed state's dark rebate in the box model so selecting an option does
+   not shift the label by a pixel. --engraved is legal here: this text sits on
+   an opaque milled panel, never over the frame. */
+.look-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  padding: 8px 9px;
+  border-radius: 2px;
+  cursor: pointer;
+  text-align: left;
+  text-shadow: var(--engraved);
+  /* The chassis lists .look-option:active but this element declared no
+     transition at all, so the chassis' 55ms press had no property to drive.
+     Down is 55ms (the chassis overrides duration on :active), up is these —
+     you drive it in, the spring brings it back. */
+  transition: background-color 120ms var(--ease-drive),
+              box-shadow 120ms var(--ease-drive),
+              color 120ms var(--ease-drive),
+              transform 180ms var(--ease-release);
+}
+
+/* :not(:active) is not decoration. This rule sits BELOW the chassis and has
+   the same specificity as its `.look-option:active { box-shadow: var(--recess) }`,
+   so a plain :hover would win under the pointer — which is exactly when a
+   press happens — and silently delete the press recess on every mouse click. */
+.look-option:hover:not(:active) {
+  background: rgba(206, 224, 248, 0.05);
+  box-shadow: inset 0 1px 0 rgba(206, 224, 248, 0.08);
+  color: var(--ink);
+}
+
+/* SELECTED = pressed IN and lit from behind, which is a state a key can be in.
+   The old treatment was an amber outline on a rounded box — a border colour is
+   not a position. The rebate goes black rather than accent so the mark is the
+   depth; --accent appears only as the light leaking out from under the cap,
+   never as a fill. Placed after :hover on purpose: hovering the chosen option
+   must not lift it back out. */
+.look-option--on {
+  border-color: rgba(0, 0, 0, 0.75);
+  color: var(--ink);
+  background: linear-gradient(to bottom, #06090d, #0d1219);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.85),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.09),
+    inset 0 0 12px -3px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+/* A hole in the plate — the chassis well recipe owns its background, edge,
+   radius and focus ring, so all of those and the whole .look-custom:focus rule
+   are deleted from here. Only the field's own size and type remain. */
+.look-custom {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 10px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* ---------- the film control --------------------------------------------- */
+
+/* Its own block, because it costs minutes and money — a control should look
+   like what it costs, and this used to be a text link beside "widen".
+   The BODY of the block is the chassis panel recipe (.place-panel, .look-menu,
+   .gate-card, .film): background, border, radius, the machined liner and the
+   removal of blur(10px) all live up there. Re-declaring any of them here would
+   win on source order and silently undo the chassis, so only geometry stays. */
+.film {
+  align-self: flex-start;
+  min-width: min(340px, 100%);
+  padding: 10px 12px;
+}
+
+/* The finished state renders dot, title and meta as DIRECT children of .film —
+   FilmControl.tsx:57-61 has no .film-head there to lay them out. Without a flex
+   context the 6px dot is an inline box of zero width, so the one mark that says
+   the film is actually playing never draws at all. */
+.film--done {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.film-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* THE STATE DOT — the same shape notation as the dial station dot and the
+   caption pip, so the app's three state marks read as one vocabulary rather
+   than three unrelated circles. Square, and DRAWN rather than filled: idle is
+   an aperture with a lit rim and a shaded lip, and arriving state is what puts
+   something behind it. The rings never move; only the fill changes. The outer
+   --rule-shade stroke is the shaded lip, and it is what keeps a 6px mark
+   readable if the panel ever sits over a bright frame. */
+.film-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 1px var(--rule-shade);
+  align-self: center;
+}
+
+/* Busy is half the aperture lit — a shutter caught mid-travel. This replaces
+   the `pip` opacity pulse deliberately: fading a 6px mark down to 0.25 opacity
+   is the one treatment guaranteed to make it unreadable, and the transport
+   below is already the moving part of this state. @keyframes pip stays defined
+   in the caption section for .stage-pip and .dial-station--pending, which still
+   use it — the reference is dropped here, not the keyframes. */
+.film--busy .film-dot {
+  background: linear-gradient(90deg, var(--accent) 0 50%, transparent 50%);
+  animation: none;
+}
+
+/* Done: lamp full on. Green, not --accent, because "the film exists" is a
+   different fact from "this is the era you are in". */
+.film-dot--done {
+  background: #7ee0a0;
+  box-shadow: inset 0 0 0 1px #7ee0a0, 0 0 0 1px var(--rule-shade);
+}
+
+/* --engraved, not --readable-shadow: these labels sit on an opaque milled
+   panel, so they are cut into metal that is genuinely there. --engraved must
+   never be used over the photograph, and here it never is. */
+.film-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: var(--engraved);
+}
+
+.film-meta {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-shadow: var(--engraved);
+}
+
+.film-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+/* THE SELECTOR SWITCH. The old rule had the physics inverted: the SELECTED
+   length was the lighter tint — rgba(255,255,255,0.1) — which is what a raised
+   key looks like, not a pressed one. Here the strip is a well milled into the
+   plate, the unselected lengths are raised steel keys standing in it, and the
+   chosen one is pushed in and lit from behind, which is how a real transport
+   control reads and is far more legible than a 10% white wash.
+   overflow is VISIBLE, not hidden: each key carries its own seat shadow, and
+   clipping at the well's edge shaved the relief off the first and last key. */
+.seg {
+  display: flex;
+  padding: 1px;
+  gap: 1px;
+  overflow: visible;
+  border: 1px solid var(--chrome);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #05070a, #0c1015);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(206, 224, 248, 0.08);
+}
+
+.seg-option {
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  background: var(--body);
+  background-color: var(--steel);
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 6px 11px;
+  text-shadow: var(--engraved);
+  box-shadow: inset 0 1px 0 var(--facet-lit), inset 0 -1px 0 rgba(0, 0, 0, 0.7), var(--seat-fine);
+  transition: filter 140ms var(--ease-drive), box-shadow 120ms var(--ease-drive),
+              transform 180ms var(--ease-release);
+}
+
+/* Hover tilts an UNSELECTED key into the light. Both :not()s are load-bearing,
+   not tidiness: `.seg-option:hover` is (0,2,0), so it outranks the `filter:
+   none` on the selected key below AND the chassis press rule, and without them
+   the key that is already pressed brightens under the cursor and every key pops
+   on mousedown — both exactly backwards. */
+.seg-option:hover:not(.seg-option--on):not(:active) {
+  filter: brightness(1.26);
+}
+
+.seg-option--on {
+  background: linear-gradient(to bottom, #06080b, #0d1219);
+  color: var(--accent);
+  filter: none;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(206, 224, 248, 0.09),
+    inset 0 0 11px -2px color-mix(in srgb, var(--accent) 34%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent),
+               0 -1px 0 rgba(0, 0, 0, 0.9);
+}
+
+/* The chassis lit-actuator rule owns this cap entirely — the dome, the amber,
+   the dark legend, the lamp behind it, and the 1.2px press that makes it the
+   deepest travel in the app because it is the most expensive thing to ask for.
+   All that belongs here is that it sits at the far end of the row: margin-left
+   pins it away from the length keys so committing is never a mis-click. */
+.film-go {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+/* Indeterminate on purpose: the provider reports coarse states, not a
+   percentage, and a bar that stalls at 90% is a lie. So this is not a bar being
+   filled — it is a lamp travelling behind a slot cut in the plate, which claims
+   only what is true, that the machine is still running. */
+.film-bar {
+  margin-top: 10px;
+  height: 3px;
+  border-radius: 1px;
+  overflow: hidden;
+  background: linear-gradient(to bottom, #04060a, #0a0e13);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.95), inset 0 -1px 0 rgba(206, 224, 248, 0.08);
+}
+
+/* --ease-drive is linear, and that is the whole point: a transport runs at one
+   speed. An indeterminate bar that accelerates and decelerates at each end
+   reads as breathing — something alive and waiting — instead of a machine
+   under power. The soft ends are in the gradient, not in the easing. */
+.film-bar span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, var(--accent) 34%, var(--accent) 66%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+  animation: film-sweep 1.9s var(--ease-drive) infinite;
+}
+
+/* transform only. A slot that animated its own width or offset would relayout
+   the panel every frame, for minutes, while a multi-megabyte photograph decodes
+   and the shader runs. */
+@keyframes film-sweep {
+  from { transform: translateX(-110%); }
+  to   { transform: translateX(360%); }
+}
+
+/* ---------- the widened panorama ----------------------------------------- */
+
+/*
+ * Three frames edge to edge. The peripheral subjects were always generated as
+ * "left edge of a wider panorama" and "right edge" — this is finally the layout
+ * those prompts were written for.
+ */
+.pano {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  animation: frame-in 700ms ease forwards;
+}
+
+.pano span {
+  display: block;
+  background-size: cover;
+  background-position: center;
+}
+
+/* Soften the two joins so it reads as one wide view rather than three tiles. */
+.pano span:first-child {
+  -webkit-mask-image: linear-gradient(to right, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 82%, transparent 100%);
+}
+
+.pano span:last-child {
+  -webkit-mask-image: linear-gradient(to left, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to left, #000 82%, transparent 100%);
+}
+
+/* The shader canvas. Sits under the CSS fallback layers so that when WebGL is
+   present it dominates, and when it is not there is still something there.
+
+   HIDDEN BY DEFAULT. A canvas with no live drawing buffer — no WebGL, a failed
+   compile, a lost context — does not composite as transparent, it composites as
+   undefined, which is an opaque white sheet across the viewport. So the element
+   only becomes visible once Warp.tsx has a working pipeline and sets data-live. */
+.warp-gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  mix-blend-mode: screen;
+}
+
+.warp-gl[data-live] { display: block; }
+
+/* With the shader actually running, the old gradient layers would double the
+   effect — they exist for the case where it is absent, so they must stand down
+   for a LIVE canvas, never for a merely present one. */
+.warp:has(.warp-gl[data-live]) .warp-streaks { display: none; }
+.warp:has(.warp-gl[data-live]) .warp-wash { animation: none; opacity: 0.3; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Must match the [data-live] selector's specificity or it loses to it and the
+     tunnel keeps churning for exactly the people who asked it not to. */
+  .warp-gl,
+  .warp-gl[data-live] { display: none; }
+}
+
+/* ---------- aim notice ---------------------------------------------------- */
+
+/* Shown when the dial has been moved off the frame on screen. The viewport keeps
+   showing where you ARE; this says where you are POINTED, so holding the picture
+   during a scrub never becomes a claim that the picture is the tuned year. */
+.caption-aim {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-shadow: var(--readable-shadow);
+  /* MULTIPLIED by --ritual, never divided — dividing is a division by zero under
+     reduced motion. At 0ms, `both` simply lands the element on the end state. */
+  animation: aim-in calc(260ms * var(--ritual)) var(--ease-seat) both;
+}
+
+/* The aimed year is WHITE TYPE OVER A COLOURED RULE, not coloured type. Portal.tsx
+   sets --aim-accent on .caption-aim instead of colouring this element inline, so
+   the era arrives as an inlay UNDER the word while the word itself keeps the full
+   measured contrast of --ink over an arbitrary photograph — a saturated era colour
+   as the text fill is the first thing a blown-out sky eats.
+   The rule is a two-stroke zero-blur groove: the era colour on top, one black
+   pixel below it. Over a white sky the shadow carries the mark, over a night scene
+   the colour does. The fallback is not decorative — Portal.tsx:812 already sets
+   --accent on .portal from the AIMED year, so the rule is still the right colour
+   if the inline custom property is ever dropped. */
+.caption-aim strong {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: var(--nums);
+  color: var(--ink);
+  text-shadow: var(--incise-deep);
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--aim-accent, var(--accent));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+.aim-arrow {
+  color: var(--ink-faint);
+  transform: translateY(1px);
+  /* --incise-fine ADDS a dark top stroke to --readable-shadow by reference; the
+     measured halo underneath it is untouched. */
+  text-shadow: var(--incise-fine);
+}
+
+.aim-hint {
+  color: var(--ink-faint);
+  letter-spacing: 0.16em;
+  text-shadow: var(--incise-fine);
+}
+
+@keyframes aim-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------- immersive ----------------------------------------------------- */
+
+/* Everything retracts except the photograph. Visibility rather than display:none
+   so nothing reflows on the way in or out, and so the panels keep their layout
+   and scroll positions for when the controls come back. */
+.portal--immersive .portal-top,
+.portal--immersive .portal-caption,
+.portal--immersive .portal-bottom {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(var(--retract, 0));
+  transition:
+    opacity 320ms ease,
+    transform 420ms cubic-bezier(0.22, 0.68, 0.32, 1),
+    visibility 0s linear 320ms;
+}
+
+.portal--immersive .portal-top { --retract: -14px; }
+.portal--immersive .portal-bottom { --retract: 18px; }
+.portal--immersive .portal-caption { --retract: 10px; }
+
+/* The return trip: visibility must come back on frame one or the fade in plays
+   against an element that is still not rendered. */
+.portal-top,
+.portal-caption,
+.portal-bottom {
+  transition:
+    opacity 260ms ease,
+    transform 380ms cubic-bezier(0.22, 0.68, 0.32, 1),
+    visibility 0s;
+}
+
+/* The one control that survives immersive mode, and therefore the only piece of
+   chrome standing in the picture: a machined chip. Its edge, body and seat are the
+   chassis's — a 999px pill, a translucent fill and a blur(8px) pass all came out,
+   the last of those precisely because this element is on screen while the shader
+   runs and nothing else is.
+   30/24 rather than 22/20 so the chip clears the frame's bezel and the bottom
+   vignette instead of being half-swallowed by them. */
+.immersive-exit {
+  position: fixed;
+  right: 30px;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  /* Recedes on its own so it is not sitting in the picture, but never below the
+     point of being findable — the first hover or focus brings it straight back.
+     This is one escape control restoring on input, NOT a timed dimming of the
+     chrome on an idle clock: do not extend the idea to anything else.
+     `transition` is a shorthand, so declaring it here at all would silently drop
+     the chassis's contact transitions on this one control. The recede is composed
+     WITH them rather than replacing them — delete the leading stop and this is the
+     chassis list verbatim. */
+  opacity: 0.28;
+  transition:
+    opacity 400ms var(--ease-seat),
+    filter 140ms var(--ease-drive),
+    border-color var(--t-contact) var(--ease-drive),
+    box-shadow 120ms var(--ease-drive),
+    transform 180ms var(--ease-release);
+}
+
+.immersive-exit:hover,
+.immersive-exit:focus-visible {
+  opacity: 1;
+}
+
+/* The keycap has a body now — the chassis gives every kbd a steel fill, an edge
+   and an engraved label. Without padding that fill closes on the glyph and the cap
+   reads as a printing error, so this supplies the dimensions .portal-hints kbd
+   already carried. Border, radius, fill and text-shadow stay the chassis's. */
+.immersive-exit kbd {
+  display: inline-block;
+  padding: 2px 5px;
+  font-family: inherit;
+  font-size: 9px;
+  line-height: 1.15;
+  color: var(--ink-dim);
+}
+
+/* One glyph instead of a word, so the side room comes in: 10px keeps the cap
+   close to square without the icon touching the cut edge. */
+.ghost-btn--icon {
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Engaged is a LIT GLYPH, not an amber outline. Every edge in the app is cut
+   steel under the one lamp; tinting this single border was the old way of saying
+   `on`, and it made this control's outline disagree with its neighbours for the
+   few hundred milliseconds the top bar is still on screen. */
+.ghost-btn--icon[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+/* ---------- the lever ----------------------------------------------------- */
+
+/*
+ * Generation used to fire on a 480ms timeout after scrubbing stopped, which made
+ * pausing to think a billable event. The lever makes committing physical: the
+ * dial browses for free, and this is the only thing that spends.
+ *
+ * Which also makes it the only part of the app a thumb actually GRIPS — so it is
+ * the only brass besides the scrollbar thumb, and the only surface that shows
+ * wear. The chassis declares no `.lever-*` selector, so nothing below is fighting
+ * it; every rule here is specific to this one object.
+ *
+ * At year 2050 --accent is #ff5fd2. Warm brass under a magenta glow goes muddy
+ * unless the mitigation is structural, so it is: the brass mid-tone is held at
+ * low chroma (--brass #8a6a37) and the accent only ever meets brass as GLOW
+ * — box-shadow, border, a rail beside it — never as a fill or a blend.
+ */
+.lever {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 2px;
+  user-select: none;
+}
+
+/* THE SLOT — milled through the plate, and lit by the one lamp: the top lip is
+   the deep cut where the plate overhangs, the bottom lip is the only place light
+   reaches the floor. The slot and the dial's slot used to disagree about where
+   the sun was, which is precisely why they read as two styled divs instead of
+   two cuts in one billet. */
+.lever-track {
+  position: relative;
+  width: 26px;
+  height: 62px;
+  /* Load-bearing: TRAVEL is 46px and the handle sits at top:6px, so at full
+     throw it hangs 12px past the floor and must be clipped. */
+  overflow: hidden;
+  border: 1px solid var(--chrome);
+  /* Stays round. 3px is the rule for raised BODIES; a hole keeps the radius of
+     the cutter that made it. */
+  border-radius: 999px;
+  background: linear-gradient(to bottom, #05070a 0%, #0b0f14 55%, #12171e 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.95),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.1),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* THE RAIL — a rod, not a line: a cylinder's specular is a band down its middle,
+   so 2px reads dark / bright / dark across. top:8/bottom:8 makes it exactly 46px
+   tall, which is TRAVEL in TimeLever.tsx — the charge column and the handle's
+   throw measure the same distance on purpose. */
+.lever-rail {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.7) 0%,
+    rgba(214, 230, 250, 0.26) 50%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* THE CHARGE. Fills bottom-up the moment a jump becomes purchasable and drains
+   top-down the instant you spend it: direct causal legibility for the one control
+   that costs money. It is a POSITION, not a pulse — it says "armed" standing
+   perfectly still, which is what lets the breathing loop go. */
+.lever-rail::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    to top,
+    var(--lever-accent, var(--accent)),
+    color-mix(in srgb, var(--lever-accent, var(--accent)) 22%, transparent)
+  );
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform calc(220ms * var(--ritual)) var(--ease-seat);
+}
+
+.lever--armed .lever-rail::after {
+  transform: scaleY(1);
+}
+
+/* Release is always quicker than grip. */
+.lever--idle .lever-rail::after,
+.lever--busy .lever-rail::after {
+  transition-duration: calc(130ms * var(--ritual));
+}
+
+/* Engaged arrives WITH --busy (Portal marks the scene running the same tick the
+   throw fires), so the discharge has to beat the idle/busy drain above — an
+   animation does, and `both` holds the full rail through the 90ms delay so the
+   drain starts as the handle lands, not before it. */
+.lever--engaged .lever-rail::after {
+  transform-origin: top;
+  animation: rail-discharge calc(260ms * var(--ritual)) calc(90ms * var(--ritual))
+    var(--ease-strike) forwards;
+}
+
+@keyframes rail-discharge {
+  0% {
+    transform: scaleY(1);
+    filter: brightness(2.2);
+  }
+  100% {
+    transform: scaleY(0);
+    filter: brightness(1);
+  }
+}
+
+/* THE HANDLE — worn brass. The polish is brightest slightly BELOW centre (63%),
+   where a thumb rests when it pulls down. Symmetric polish reads as a gradient;
+   asymmetric polish reads as a hand. */
+.lever-handle {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  margin-left: -15px;
+  width: 30px;
+  height: 22px;
+  padding: 0;
+  cursor: grab;
+  border: 1px solid rgba(0, 0, 0, 0.85);
+  border-radius: 2px 2px 3px 3px;
+  /* Confines .lever-grip's mix-blend-mode to this button's own brass. Without
+     it the blend group is whatever is behind the lever — i.e. the photograph. */
+  isolation: isolate;
+  background:
+    radial-gradient(58% 60% at 50% 63%, rgba(255, 238, 202, 0.3) 0%, transparent 72%),
+    linear-gradient(var(--light-axis), rgba(255, 246, 224, 0.62) 0%, rgba(255, 240, 205, 0.1) 13%, transparent 30%),
+    linear-gradient(var(--light-axis), var(--brass-hi) 0%, var(--brass) 38%, var(--brass-lo) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 235, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
+    0 2px 0 rgba(0, 0, 0, 0.75),
+    0 5px 12px -4px rgba(0, 0, 0, 0.8);
+  transition:
+    transform calc(300ms * var(--ritual)) var(--ease-release),
+    box-shadow var(--t-contact) var(--ease-drive),
+    filter 140ms var(--ease-drive);
+}
+
+/* The rule the old comment promised and the file never implemented: the spring
+   used to run through the ENTIRE gesture, so the handle sat a third of a second
+   behind your hand and was springy on top of it. Requires W21 to put
+   `lever--dragging` on the root while the pointer is captured. */
+.lever--dragging .lever-handle {
+  transition: none;
+}
+
+/* THE KNURL. A machined ridge has a lit face AND a shaded face; the mask wears
+   the ends smooth so the ridges die out at the edges of the grip instead of
+   stopping dead, and overlay composites them INTO the brass rather than laying a
+   white comb on top of it. This and nothing else in the app is knurled. If
+   profiling ever bites, mix-blend-mode here is the first thing to drop. */
+.lever-grip {
+  position: absolute;
+  inset: 5px 6px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 250, 236, 0.3) 0 1px,
+    rgba(58, 40, 16, 0.55) 1px 2px,
+    transparent 2px 4px
+  );
+  -webkit-mask-image: radial-gradient(78% 86% at 50% 58%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(78% 86% at 50% 58%, #000 30%, transparent 100%);
+  mix-blend-mode: overlay;
+}
+
+/* Arming lights the RAIL and the LABEL and leaves the edge alone. Stated
+   explicitly rather than left to the base rule, because the tempting change is
+   to put the accent back on this border, and warm brass rimmed in 2050's magenta
+   is the one combination the structural mitigation cannot save. */
+.lever--armed .lever-handle {
+  border-color: rgba(0, 0, 0, 0.85);
+}
+
+.lever--armed .lever-handle:active {
+  cursor: grabbing;
+}
+
+/* Dead brass is dark grey metal, not a ghost. Replaces opacity 0.45 / 0.7, which
+   let the photograph through the handle and, over a bright sky, straight through
+   the one control that spends money. */
+.lever--idle .lever-handle {
+  opacity: 1;
+  filter: saturate(0.1) brightness(0.42);
+  cursor: default;
+}
+
+.lever--busy .lever-handle {
+  opacity: 1;
+  filter: saturate(0.45) brightness(0.72);
+  cursor: progress;
+}
+
+/* THE THROW — accelerating into the stop, and the glow snaps rather than
+   transitions because the shorthand here deliberately drops box-shadow from the
+   transition list. The inner top facet survives; the drop shadow does not,
+   because the handle is against the floor of the slot. */
+.lever--engaged .lever-handle {
+  transition: transform calc(110ms * var(--ritual)) var(--ease-strike);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 235, 0.5),
+    0 2px 0 rgba(0, 0, 0, 0.75),
+    0 0 30px color-mix(in srgb, var(--lever-accent, var(--accent)) 85%, transparent);
+}
+
+/* The slot takes the hit, fired exactly as the handle lands (110ms = the throw's
+   duration). The recess is re-declared with the glow rather than replaced by it:
+   a bare `box-shadow: inset 0 0 18px` flattens the milled slot for the length of
+   the throw, which is the one moment anyone is looking at it. */
+.lever--engaged .lever-track {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.95),
+    inset 0 -1px 0 rgba(206, 224, 248, 0.1),
+    inset 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+  animation: lever-bottom calc(220ms * var(--ritual)) var(--ease-seat)
+    calc(110ms * var(--ritual)) both;
+}
+
+@keyframes lever-bottom {
+  0% {
+    transform: translateY(1.5px);
+  }
+  55% {
+    transform: translateY(-0.5px);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* THE LEGEND. 8.5px in --accent over an arbitrary photograph is a contrast
+   failure waiting for a bright frame, so the accent moves to a rule UNDER the
+   word and the word itself goes to frozen --ink. The transparent border and its
+   padding are reserved in the base: without them, arming grows the label box by
+   3px and shunts the whole column. */
+.lever-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-shadow: var(--incise-fine);
+  white-space: nowrap;
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+}
+
+/* Two strokes, zero blur, as every mark over the frame is: the accent rule is
+   the lit half and the shadow directly beneath it is the shade half, so the
+   underline survives both a white sky and a night scene. */
+.lever--armed .lever-label {
+  color: var(--ink);
+  border-bottom-color: var(--lever-accent, var(--accent));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+.lever--busy .lever-label {
+  color: var(--ink-dim);
+}
+
+/* Retry wears the degraded amber already used elsewhere, so retry and jump are
+   the same gesture in different light. Set on the root so the rail, the label
+   rule and the throw glow all take it together. Requires W21 to emit
+   data-retry. */
+.lever--armed[data-retry] {
+  --lever-accent: #e0b24a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 90ms linear, not 0: the handle still has to be seen to move, or a click
+     produces a jump with no visible cause. `armed` survives this block
+     untouched, because it is a filled rail — a position, not a pulse. */
+  .lever-handle {
+    transition: transform 90ms linear;
+  }
+  .lever--engaged .lever-track {
+    animation: none;
+  }
+  .lever--engaged .lever-rail::after {
+    animation: none;
+    transform: scaleY(0);
+  }
+}
+
+@media (max-width: 880px) {
+  .lever { grid-column: 1; flex-direction: row; align-items: center; gap: 10px; }
+}
+
+
+
+/* ---------- the sundial --------------------------------------------------- */
+
+/*
+ * The day as a cycle, because it is one, with the body ORBITING THE OUTSIDE so
+ * it is something you can reach for and swing round. Midday at the top where the
+ * sun is highest; cross the horizon and it becomes a moon.
+ */
+.sundial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 8px, not 4: at midnight the body sits at the very bottom of the 74px orbit
+     box, and a low-elevation body grows past it — at 4px the moon and the word
+     MIDNIGHT touched. */
+  gap: 8px;
+  user-select: none;
+}
+
+/* The touch/aim surface is the whole orbit, not the face — the body rides at
+   r=30 and must be grabbable where it actually is. */
+.sundial-orbit {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sundial--dragging .sundial-orbit {
+  cursor: grabbing;
+}
+
+.sundial-orbit:focus-visible {
+  outline: none;
+}
+
+.sundial-orbit:focus-visible .sundial-face {
+  border-color: color-mix(in srgb, var(--accent) 70%, #000);
+  box-shadow: var(--recess), 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* THE SKY, milled into the plate. Lit above the horizon, dark below. */
+.sundial-face {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  border: 1px solid var(--chrome-strong);
+  background:
+    /* The sky takes the HOUR's colour, mixed back towards the era accent so the
+       dial still belongs to the year. Midday is the palest and brightest of the
+       eight, so the lit half visibly brightens as you drag towards the top. */
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb,
+        color-mix(in srgb, var(--tint, var(--accent)) 70%, var(--sun-accent, var(--accent)))
+        22%, transparent) 0%,
+      transparent 54%
+    ),
+    var(--body);
+  background-color: var(--steel);
+  box-shadow: var(--recess), var(--seat-fine);
+  transition: background 320ms var(--ease-drive), border-color var(--t-contact) var(--ease-drive);
+  pointer-events: none;
+}
+
+.sundial--dark .sundial-face {
+  background:
+    linear-gradient(to bottom, transparent 46%, rgba(150, 178, 214, 0.1) 100%),
+    var(--body);
+  background-color: var(--steel);
+}
+
+/*
+ * THE HORIZON. Spans the whole ORBIT, not just the face, and paints ABOVE the
+ * body — which is the entire trick behind dawn and sunset. Those two stops sit
+ * at exactly 9 and 3 o'clock, so the line runs straight through the middle of
+ * the disc there and the sun reads as half-risen and half-set without any
+ * clipping, masking or extra geometry. Everywhere else the body is clear of it.
+ *
+ * Two strokes, zero blur — the primitive every mark over an unknown backdrop
+ * uses, so it survives a white sky and a night scene alike.
+ */
+.sundial-horizon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 76px;
+  height: 1px;
+  margin: 0 0 0 -38px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--rule-lit) 14%,
+    var(--rule-lit) 86%,
+    transparent 100%
+  );
+  opacity: 0.42;
+  box-shadow: var(--rule-groove);
+  pointer-events: none;
+}
+
+/* Eight graduations ON the orbit, so the stops are visible as positions rather
+   than something you find by dragging. */
+.sundial-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 4px;
+  margin: -2px 0 0 -0.5px;
+  transform-origin: 50% 50%;
+  background: var(--mark-minor);
+  box-shadow: var(--rule-groove);
+  pointer-events: none;
+}
+
+.sundial-mark--on {
+  height: 6px;
+  background: var(--mark-major);
+}
+
+.sundial-arm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform-origin: 50% 50%;
+  /* The body takes the long way round rather than snapping across the face:
+     stepping from sunset to midnight should look like time passing. Suppressed
+     while dragging, where the finger is the clock. */
+  transition: transform calc(var(--t-seat) * var(--ritual)) var(--ease-seat);
+  pointer-events: none;
+}
+
+.sundial--dragging .sundial-arm {
+  transition: none;
+}
+
+/*
+ * THE BODY. Size and colour follow --elev, so a low sun is a big soft red one
+ * and a high sun is small and hard — the actual difference between a dawn
+ * photograph and a midday one, carried by the control that sets it.
+ */
+.sundial-body {
+  position: absolute;
+  left: calc(-7px - (1 - var(--elev, 1)) * 1.5px);
+  top: calc(-7px - (1 - var(--elev, 1)) * 1.5px);
+  width: calc(14px + (1 - var(--elev, 1)) * 3px);
+  height: calc(14px + (1 - var(--elev, 1)) * 3px);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 30%,
+    #fff8e4 0%,
+    color-mix(in srgb, var(--tint, var(--accent)) 78%, var(--sun-accent, var(--accent))) 58%,
+    #8a5a14 100%
+  );
+  box-shadow:
+    /* Radius grows as the sun sinks and OPACITY grows as it climbs: a low sun is
+       big and soft and dim, a high one small and hard and fierce. Midday is
+       therefore the most luminant point on the dial, which is the whole shape of
+       the arc the tints describe. */
+    0 0 calc(8px + (1 - var(--elev, 1)) * 10px)
+      color-mix(in srgb, var(--tint, var(--accent)) calc(42% + var(--elev, 1) * 46%), transparent),
+    0 1px 0 rgba(0, 0, 0, 0.55);
+  transition:
+    background 320ms var(--ease-drive),
+    box-shadow 320ms var(--ease-drive),
+    width 320ms var(--ease-drive),
+    height 320ms var(--ease-drive);
+}
+
+/*
+ * After dark the same disc becomes a moon, and --lunar carves it: an inset
+ * shadow offset left or right is a crescent, and zero offset is full. Signed, so
+ * the dark half walks waxing -> full -> waning as you drag through it.
+ *
+ * The state is carried by SHAPE and colour, never by motion alone.
+ */
+.sundial--dark .sundial-body {
+  background: radial-gradient(circle at 36% 32%, #f6f9fd 0%, var(--tint, #c3cfdd) 56%, #626f80 100%);
+  box-shadow:
+    inset calc(var(--lunar, 0) * 9px) 0 0 -1px rgba(6, 9, 14, 0.94),
+    0 0 10px color-mix(in srgb, var(--tint, #becfe8) 45%, transparent),
+    0 1px 0 rgba(0, 0, 0, 0.55);
+}
+
+.sundial-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-shadow: var(--incise-fine);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The orbit still moves — a control whose handle does not follow the pointer
+     is broken, not calm — but it arrives immediately instead of sweeping. */
+  .sundial-arm { transition: none; }
+}
+
+@media (max-width: 880px) {
+  /* One column on the small layout, so the sundial takes a row and lays out as
+     a row. NO grid-column here: pinning on a single-column grid invents a
+     phantom track and crushes the year dial. */
+  .sundial {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
+/* ---------- the journey gallery ------------------------------------------- */
+
+/*
+ * The front door. A full sheet rather than a dropdown, because it is a page of
+ * destinations you read, not a menu you pick from — and because the whole point
+ * is to look at it before you have decided anything.
+ *
+ * The one blur in the app is the key gate's ground glass; this uses an opaque
+ * plate instead. It sits over an arbitrary photograph, and a translucent sheet
+ * carrying forty cards of 10px type is the exact case the opaque-body rule in
+ * the chassis exists for.
+ */
+.gallery {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(120% 80% at 20% 0%, rgba(206, 224, 248, 0.05) 0%, transparent 60%),
+    linear-gradient(var(--light-axis), #0d1117 0%, #080b10 55%, #05070a 100%);
+}
+
+.gallery-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 30px 16px;
+  border-bottom: 1px solid var(--groove);
+  box-shadow: 0 1px 0 var(--groove-lit);
+}
+
+.gallery-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.gallery-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--ink);
+  text-shadow: var(--engraved);
+}
+
+.gallery-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.gallery-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px 30px 40px;
+  scrollbar-width: thin;
+  scrollbar-color: #55432a rgba(0, 0, 0, 0.55);
+}
+
+.gallery-band + .gallery-band {
+  margin-top: 30px;
+}
+
+/* The band's own colour, as an inlaid rule rather than as the letterform — an
+   era key can be #dff2ff, and 10px of that is the weakest contrast case there
+   is. Same trade the dial and the caption already make. */
+.gallery-band-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-shadow: var(--engraved);
+}
+
+.gallery-band-rule {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 2px;
+  background: var(--band, var(--accent));
+  box-shadow: 0 1px 0 var(--rule-shade);
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+}
+
+/* A card is a raised control, so it takes the chassis recipe — but the chassis
+   selector list is exhaustive by design, so the body is restated here rather
+   than adding a 40-instance selector to a rule that runs on every button. */
+.journey {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 13px 15px 12px;
+  text-align: left;
+  border: 1px solid var(--chrome-strong);
+  border-radius: 3px;
+  background: var(--body);
+  background-color: var(--steel);
+  box-shadow: var(--raise), var(--seat-fine);
+  cursor: pointer;
+  transition:
+    filter 140ms var(--ease-drive),
+    box-shadow 120ms var(--ease-drive),
+    transform 180ms var(--ease-release);
+}
+
+/* The band colour rides the left edge of the card, so a grid of forty reads as
+   bands of time at a glance without a single extra element. */
+.journey::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--band, var(--accent));
+  box-shadow: 1px 0 0 var(--rule-shade);
+}
+
+.journey:hover,
+.journey:focus-visible {
+  filter: brightness(1.3) saturate(1.05);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.journey:active {
+  box-shadow: var(--recess);
+  transform: translateY(0.5px);
+  filter: none;
+  transition-duration: 55ms;
+}
+
+.journey--here {
+  border-color: color-mix(in srgb, var(--accent) 55%, #000);
+}
+
+.journey-year {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-variant-numeric: var(--nums);
+  color: var(--ink);
+  text-shadow: var(--engraved);
+}
+
+.journey-title {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.journey-blurb {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.42;
+  color: var(--ink-dim);
+}
+
+.journey-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--groove);
+  box-shadow: inset 0 1px 0 var(--groove-lit);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.journey-place {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journey-phase {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* The same body the sundial draws, at 7px: a card says which hour it is in the
+   language the control uses, so the two are obviously the same setting. */
+.journey-phase-body {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fff8e4 0%, var(--tint, var(--accent)) 62%, #8a5a14 100%);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--tint, var(--accent)) 60%, transparent);
+}
+
+.journey-phase--dark .journey-phase-body {
+  background: radial-gradient(circle at 36% 32%, #f6f9fd 0%, var(--tint, #c3cfdd) 56%, #626f80 100%);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--tint, #becfe8) 45%, transparent);
+}
+
+.journey-here {
+  position: absolute;
+  top: 11px;
+  right: 13px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+@media (max-width: 880px) {
+  .gallery-head { padding: 16px 20px 14px; }
+  .gallery-scroll { padding: 20px 20px 32px; }
+  .gallery-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey { transition: filter 140ms linear; }
+  .journey:hover,
+  .journey:focus-visible { transform: none; }
+}
+
+
+/* ---------- settings, continued ------------------------------------------ */
+
+/* The meta-prompt is prose about prose: it needs the width of the thing it is
+   editing, or every line wraps twice and the structure stops being legible. */
+.gate-card--wide {
+  width: min(880px, 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-card { transition: none; }
+}
+
+/* A rule between the credential and the preferences below it. The key is the one
+   field that gates the whole app; the rest are taste. */
+.gate-card #set-key {
+  margin-bottom: 22px;
+}
+
+.gate-card #set-custom {
+  margin-bottom: 4px;
+}
+
+/*
+ * THE DISCLOSURE. Was a text glyph glued to a label with an inline hint, which
+ * wrapped mid-phrase and orphaned the last word onto its own line. Now a real
+ * row: caret, title, hint, state — with the hint allowed to disappear before it
+ * is allowed to wrap.
+ */
+.disclosure {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 11px 13px;
+  text-align: left;
+}
+
+.disclosure-caret {
+  flex: 0 0 auto;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--ink-faint);
+  transition: transform 200ms var(--ease-detent), color 140ms var(--ease-drive);
+}
+
+/* Rotation, not a glyph swap — so the open state is carried by the same element
+   moving rather than by two different characters. prefers-reduced-motion drops
+   the transition and keeps the rotation, so the state is never motion-only. */
+.disclosure[aria-expanded='true'] .disclosure-caret {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+.disclosure-title {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.disclosure-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+.disclosure-state {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure-caret { transition: none; }
+}
+
+/* The editor gets room to be an editor. */
+.prompt-editor textarea {
+  min-height: 340px;
+  padding: 14px 15px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+/* The placeholder reference becomes a scannable two-column table instead of a
+   bullet list — there are nineteen of them now. */
+.prompt-tokens dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 4px 18px;
+  margin: 8px 0 0;
+}
+
+.prompt-tokens dl > div {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+
+.prompt-tokens dt {
+  margin: 0;
+}
+
+.prompt-tokens dd {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--groove);
+  box-shadow: inset 0 1px 0 var(--groove-lit);
+}
+
+/* Says whether you are on the shipped default or your own text — the one fact
+   you want before deciding whether to press reset. */
+.prompt-status {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+
+/*
+ * The card is a column: fixed title, scrolling body, pinned actions. Without
+ * this the meta-prompt editor pushed "done" past the bottom of the viewport and
+ * the only way to close the dialog was Escape or a click on the backdrop.
+ */
+.gate-card {
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 940px);
+}
+
+.gate-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the scrollbar so text never runs under it. */
+  padding-right: 4px;
+  margin-right: -4px;
+  scrollbar-width: thin;
+  scrollbar-color: #55432a rgba(0, 0, 0, 0.55);
+}
+
+.gate-card h2 {
+  flex: 0 0 auto;
+}
+
+.gate-actions {
+  flex: 0 0 auto;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--groove);
+  box-shadow: inset 0 1px 0 var(--groove-lit);
+}
+
+
+@media (max-width: 700px) {
+  /* The placeholder table becomes a list: a 116px term column plus a
+     description does not fit beside anything on a phone, and the fixed track
+     was forcing the whole dialog wider than the viewport. */
+  .prompt-tokens dl > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+  }
+
+  .gate-card {
+    padding: 22px 18px;
+    max-height: 92vh;
+  }
+
+  /* The disclosure hint is the first thing to go when there is no room — the
+     title and the state still say everything necessary. */
+  .disclosure-hint {
+    display: none;
+  }
+
+  .prompt-editor textarea {
+    min-height: 240px;
+  }
+}
+
+
+@media (max-width: 700px) {
+  /* The bar wraps rather than overflowing. `set key` has to stay reachable: it
+     is the only way back into Settings once a key is saved. */
+  .portal-top {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 16px 18px 12px;
+  }
+
+  .top-right {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- the fullscreen button ---------------------------------------- */
+
+/*
+ * It was a 13px arrow glyph with no word, sitting between two labelled pills —
+ * a first-time visitor had no way to know it was the route to a full-screen
+ * view. It now carries the era accent so it reads as an invitation, and a label
+ * so it reads as anything at all.
+ */
+.ghost-btn--fullscreen {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--chrome-strong));
+  color: var(--accent);
+}
+
+.ghost-btn--fullscreen:hover {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.ghost-btn--fullscreen[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  box-shadow: var(--raise), var(--seat), 0 0 14px -4px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.fs-glyph {
+  font-size: 15px;
+  line-height: 1;
+  transform: translateY(0.5px);
+}
+
+/* The word is the discoverable part; it is the first thing to go when the bar
+   has to wrap on a phone, where the glyph alone still hits a 44px target. */
+.fs-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 560px) {
+  .fs-label { display: none; }
+}
+
+/* ---------- settings toggle ---------------------------------------------- */
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-top: 20px;
+  padding: 12px 13px;
+  border: 1px solid var(--chrome-strong);
+  border-radius: 3px;
+  background: var(--body);
+  background-color: var(--steel);
+  box-shadow: var(--raise), var(--seat-fine);
+  cursor: pointer;
+}
+
+.toggle input {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toggle-title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.toggle-hint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 700px) {
+  /* The style menu is anchored to the trigger's right edge, which on a narrow
+     layout resolved to a negative left and put seven of the thirteen presets —
+     including None and Custom — off the left of the screen entirely. Anchored to
+     the viewport instead, it can never resolve off-screen. */
+  .look-menu {
+    right: auto;
+    left: 0;
+    width: min(320px, calc(100vw - 36px));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   FAULT — what the app says when it cannot do the thing.
+
+   Deliberately the only element in the app that is allowed to be wordy. Every
+   other surface is terse because the user is steering; a failure is the one
+   moment they have stopped and need to be told what happened and what to press.
+   Sits centred over the dead view rather than in the status strip, because a
+   sentence about credit does not belong in the same eight-pixel row as the word
+   "queued".
+--------------------------------------------------------------------------- */
+/* In the caption column's normal flow, NOT floated over the middle of the view.
+   An absolutely-centred card looked right in isolation and wrong in place: it
+   resolved against .portal-caption (a 589x140 box in the top-left), so it
+   neither centred on the screen nor sat with the other things that describe the
+   frame. The caption column is already where this app explains itself. */
+.fault {
+  width: min(440px, 100%);
+  margin-top: 12px;
+  padding: 18px 20px 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(20, 14, 14, 0.96), rgba(12, 9, 10, 0.98));
+  border: 1px solid rgba(224, 122, 92, 0.34);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  text-align: left;
+  animation: fault-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes fault-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.fault-title {
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  color: #f0c3ac;
+  margin-bottom: 8px;
+}
+
+.fault-detail {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: rgba(233, 224, 217, 0.72);
+}
+
+.fault-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+/* An <a> styled as a button still has to sit on the same baseline as one. */
+.fault-actions a.ghost-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---- key verification ---------------------------------------------------- */
+.key-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.key-verdict {
+  font-size: 11.5px;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  flex: 1 1 220px;
+}
+
+.key-verdict--ok { color: #7fd8b4; }
+.key-verdict--warn { color: #e0b24a; }
+.key-verdict--bad { color: #e8927a; }
+.key-verdict a { color: inherit; }
+
+/* ---- model pickers ------------------------------------------------------- */
+.model-choice {
+  margin-top: 20px;
+}
+
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.model-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  text-align: left;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.022);
+  color: rgba(233, 224, 217, 0.66);
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.model-opt:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.model-opt--on {
+  border-color: rgba(180, 139, 255, 0.5);
+  background: rgba(180, 139, 255, 0.1);
+  color: #efe7ff;
+}
+
+.model-name {
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+}
+
+.model-blurb {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: rgba(233, 224, 217, 0.45);
+}
+
+.model-opt--on .model-blurb {
+  color: rgba(220, 205, 255, 0.6);
+}

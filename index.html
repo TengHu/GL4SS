@@ -1,0 +1,50 @@
+<!--
+  THE LOOKING GLASS
+  Copyright (C) 2026 younger-plinius
+
+  This program is free software: you can redistribute it and/or modify it under
+  the terms of the GNU Affero General Public License as published by the Free
+  Software Foundation, either version 3 of the License, or (at your option) any
+  later version. It is distributed WITHOUT ANY WARRANTY; see the LICENSE file,
+  or <https://www.gnu.org/licenses/>.
+
+  AGPL SECTION 13 applies to this project specifically, because it is a program
+  users interact with over a network: anyone who runs a modified copy on a server
+  must offer those users the corresponding source. If you host this, link the
+  source from the UI.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔭</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The Looking Glass — hold a place, travel through time. Tune the dial and watch any point on Earth resolve across 252 million years." />
+    <meta name="theme-color" content="#05060a" />
+    <meta property="og:title" content="The Looking Glass — Portal" />
+    <meta property="og:description" content="Hold a place. Travel through time. Tune the dial and watch the view resolve." />
+    <meta property="og:type" content="website" />
+    <title>The Looking Glass — Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Three voices, deliberately.
+        Chakra Petch — angular and technical, for the machine's own readouts.
+        Spectral     — a literary serif for the NARRATIVE. The prose is a human
+                       describing what they see; it should not share a typeface
+                       with the instrument panel around it.
+        JetBrains Mono — chrome labels, with real tabular numerals so the year
+                       does not jitter while you scrub.
+      Weights are pinned tight; this is a full-bleed image app and fonts must not
+      be what the visitor waits for.
+    -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap"
+    />
+    <script type="module" src="/src/portal/main.tsx"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

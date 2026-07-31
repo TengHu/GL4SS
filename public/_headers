@@ -1,0 +1,33 @@
+# Cloudflare Pages / Netlify header rules. Copied verbatim into the build output.
+#
+# This app holds an OpenRouter API key in localStorage and talks to the provider
+# straight from the browser, so `connect-src` is the load-bearing line: it is what
+# stops any injected script from posting that key to an attacker's endpoint. Keep
+# it as narrow as the app actually needs.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
+  # script-src is 'self' with no 'unsafe-inline': the Vite build emits no inline
+  # scripts (verified against the built index.html), so this is achievable here.
+  # style-src needs 'unsafe-inline' — Leaflet and the app set element styles
+  # directly, and Google Fonts serves a stylesheet.
+  # img-src must allow arbitrary https: because generated frames can come back as
+  # provider CDN URLs rather than data: URLs, and map tiles come from Esri.
+  # media-src is required for the same reason as img-src: rendered films come
+  # back as provider-hosted video URLs. Without it they fall back to default-src
+  # 'self' and every clip is refused — a failure that appears ONLY in production,
+  # since neither `vite dev` nor `vite preview` applies this file, and after the
+  # visitor has already paid for a several-minute render.
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://openrouter.ai https://nominatim.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+
+# Vite fingerprints every asset filename, so these can never go stale.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The HTML entries are the only mutable files; they must not be cached hard or a
+# deploy would leave visitors on an old bundle.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
