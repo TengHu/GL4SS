@@ -1,0 +1,47 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+
+# Build output. Cloudflare Pages builds from source on every push, so the bundle
+# is never committed — a committed bundle only ever goes stale and bloats clones.
+dist
+docs
+dist-ssr
+*.local
+
+# Local editor/tooling config.
+.claude/
+
+# Secrets. This app talks to OpenRouter directly from the browser, so a key that
+# lands in the tree can also get baked into a committed bundle. The patterns
+# below cover more than this repo currently needs on purpose: it is AGPL, people
+# will fork it, and the cost of a too-wide ignore rule is nothing next to the
+# cost of a forked repo committing its own key.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+secrets.json
+credentials.json
+.npmrc
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
