@@ -595,20 +595,19 @@ body {
    just outside: transverse chromatic aberration on the highest-contrast edge on
    screen. THIS IS THE ONLY OWNER OF THE CHROMATIC EDGE IN THE APP — a second
    frame-edge element produces a double hairline where the two overlap. */
-.portal-glass::before {
-  content: '';
-  position: absolute;
-  inset: clamp(10px, 2.2vmin, 24px);
-  border-radius: 2px;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--rim-lit) 32%, transparent),
-    inset 1px 0 0 color-mix(in srgb, var(--rim-lit) 17%, transparent),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
-    inset -1px 0 0 rgba(0, 0, 0, 0.4),
-    inset 0 0 0 2px var(--disp-cool),
-    0 0 0 1px var(--disp-warm),
-    0 0 22px 6px rgba(0, 0, 0, 0.32);
-}
+/* THE RIM IS GONE.
+ *
+ * This drew a hairline mount inset ~20px from every edge — the "seated optic"
+ * that made the app read as a machined object. It was the right idea in the
+ * wrong place. The product is a photograph of what was standing there, and a
+ * photograph is at its strongest edge to edge; insetting it by 20px turns the
+ * past into a preview pane inside a UI. It also contradicted this file's own
+ * stated thesis, that the generated view IS the entire screen. Worse over the
+ * map home screen, where it had no reading at all beyond a grey box.
+ *
+ * The instrument language survives where it is doing work and costing nothing:
+ * the dial, the sundial, the lever, the wormhole. Restoring this is one rule if
+ * it turns out to be missed. */
 
 /* ---------- time travel ------------------------------------------------- */
 
@@ -909,19 +908,6 @@ body {
   letter-spacing: 0.26em;
   color: var(--ink);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 1px 12px rgba(0, 0, 0, 0.9);
-}
-
-/* --ink-faint is a midtone, so this subtitle is the first thing a bright frame
-   eats. --incise-fine composes --readable-shadow BY REFERENCE and adds one
-   dark stop above the glyph, which cuts the word into the plate instead of
-   floating it — additive to the measured shadow, never a reduction of it. */
-.brand-text em {
-  font-style: normal;
-  font-weight: 400;
-  letter-spacing: 0.16em;
-  color: var(--ink-faint);
-  margin-left: 9px;
-  text-shadow: var(--incise-fine);
 }
 
 .top-right {

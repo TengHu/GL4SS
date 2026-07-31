@@ -1025,9 +1025,7 @@ export function Portal() {
       <header className="portal-top">
         <div className="brand">
           <span className="brand-mark" />
-          <span className="brand-text">
-            THE LOOKING GLASS<em>portal</em>
-          </span>
+          <span className="brand-text">THE LOOKING GLASS</span>
         </div>
 
         <div className="top-right">
