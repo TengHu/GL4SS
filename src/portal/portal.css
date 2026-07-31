@@ -5082,3 +5082,35 @@ body {
 .portal--home .portal-bottom {
   pointer-events: auto;
 }
+
+/* --- home mode: the overlays are still overlays --------------------------
+   .portal--home turns the root pass-through so the map can be dragged, and
+   EVERY overlay rendered inside .portal inherited it — Settings, the journey
+   gallery and the film warning were all click-dead. The key dialog was the
+   costly one: its field autofocuses, so a key could be pasted but the button to
+   save it did nothing, which is the worst possible place to put a dead control.
+
+   Written as "every direct child opts back in, except the two that must not"
+   rather than a list of overlays, so anything added later is live by default —
+   a new overlay silently arriving dead is exactly the failure this had. */
+.portal--home > * {
+  pointer-events: auto;
+}
+
+.portal--home > .portal-view,
+.portal--home > .portal-caption {
+  pointer-events: none;
+}
+
+.portal--home > .portal-caption button,
+.portal--home > .portal-caption a {
+  pointer-events: auto;
+}
+
+/* The era wash runs to 48% cream and 59% burnt orange. Over a developing
+   photograph that IS the atmosphere; over a satellite map it eats the contrast
+   and reads as both sepia and soft focus. Dialled back to a hint, so the era
+   still colours the world without hiding it. */
+.portal--home .portal-field {
+  opacity: 0.2;
+}

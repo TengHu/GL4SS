@@ -144,8 +144,16 @@ export function PlaceDial({
       // The globe owns everything below GLOBE_ZOOM, so the map must not go there.
       minZoom: GLOBE_ZOOM,
     });
-    L.tileLayer(SATELLITE, { attribution: GLOBE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
-    L.tileLayer(LABELS, { maxZoom: 19, opacity: 0.9 }).addTo(map);
+    // detectRetina, because this is now the HOME SCREEN and not a thumbnail in a
+    // panel. On a 2x display Leaflet otherwise paints one tile pixel across four
+    // device pixels and the world looks permanently out of focus. It requests a
+    // zoom level deeper at half the tile size, which is the sharp version.
+    L.tileLayer(SATELLITE, {
+      attribution: GLOBE_ATTRIBUTION,
+      maxZoom: 19,
+      detectRetina: true,
+    }).addTo(map);
+    L.tileLayer(LABELS, { maxZoom: 19, opacity: 0.9, detectRetina: true }).addTo(map);
 
     const marker = L.marker([coordinates.lat, coordinates.lng], {
       icon: targetIcon(),
