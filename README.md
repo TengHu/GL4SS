@@ -134,19 +134,6 @@ retrying could actually work. **Four runtime dependencies** — React, React DOM
 Frames persist to **IndexedDB** — your archive survives a reload, the dial lights up the stations you already
 own, and those restore instantly and for free.
 
-### 🚀 DEPLOY
-
-Static. No runtime backend. Point **Cloudflare Pages** at the repo:
-
-| setting | value |
-| --- | --- |
-| build command | `npm run build` |
-| output directory | `dist` |
-| node | from `.nvmrc` (22) |
-
-`public/_headers` carries the CSP and cache rules **into the artifact**, so your security headers are code,
-not dashboard state you can lose.
-
 ---
 
 ## ⌨️ HOTKEYS
