@@ -25,9 +25,22 @@ import { readSeedImage } from '../lib/seedImage';
 interface Props {
   photo: SeedImage | null;
   onChange: (photo: SeedImage | null) => void;
+  /**
+   * Shrink to a single line.
+   *
+   * The full block is for the stage BEFORE a picture exists, where choosing a
+   * photograph is the thing you are doing. Once a seed is on the glass that
+   * stage is over, and a four-line panel explaining an option you have already
+   * taken is in the way of the two boxes that come next.
+   *
+   * It does not disappear, though. The photograph is still attached and still
+   * shapes the next lever pull, and a setting that is quietly active with
+   * nothing on screen to say so is worse than one that takes a line.
+   */
+  compact?: boolean;
 }
 
-export function SeedPhoto({ photo, onChange }: Props) {
+export function SeedPhoto({ photo, onChange, compact = false }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -102,20 +115,34 @@ export function SeedPhoto({ photo, onChange }: Props) {
 
   if (photo) {
     return (
-      <div className={`seedphoto seedphoto--set${dragging ? ' seedphoto--over' : ''}`} {...dragProps}>
+      <div
+        className={
+          `seedphoto seedphoto--set${dragging ? ' seedphoto--over' : ''}` +
+          (compact ? ' seedphoto--compact' : '')
+        }
+        {...dragProps}
+      >
         <img className="seedphoto-thumb" src={photo.url} alt="" />
-        <div className="seedphoto-body">
-          <span className="seedphoto-title">Your photograph anchors the camera</span>
-          <span className="seedphoto-meta">
-            {error ?? `${photo.name} · ${photo.width}×${photo.height} · paste or drop another to replace`}
-          </span>
-        </div>
+        {compact ? (
+          <span className="seedphoto-meta">{error ?? 'your photograph anchors new pictures'}</span>
+        ) : (
+          <div className="seedphoto-body">
+            <span className="seedphoto-title">Your photograph anchors the camera</span>
+            <span className="seedphoto-meta">
+              {error ?? `${photo.name} · ${photo.width}×${photo.height} · paste or drop another to replace`}
+            </span>
+          </div>
+        )}
         <button className="ghost-btn seedphoto-clear" onClick={() => onChange(null)}>
           remove
         </button>
       </div>
     );
   }
+
+  // Nothing chosen and the stage is past: the offer belongs where seeds are
+  // made, not stacked above two boxes that are about what to do with one.
+  if (compact) return null;
 
   return (
     <div className={`seedphoto${dragging ? ' seedphoto--over' : ''}`} {...dragProps}>

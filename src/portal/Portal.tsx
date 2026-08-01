@@ -1596,10 +1596,22 @@ export function Portal() {
         {/* Belongs to the SEED, so it sits ABOVE both paths rather than inside
             one — a seed is a (time, picture) pair, and this supplies the picture
             side. Both boxes below consume the seed without knowing where its
-            picture came from. Offered as soon as there is a key, because it is
-            useful before the first frame exists: the whole point is to shape the
-            frame you have not made yet. */}
-        {apiKey && <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />}
+            picture came from.
+
+            FULL SIZE ONLY BEFORE THERE IS A SEED. Choosing a photograph is the
+            thing you are doing at that stage, so it gets the room. Once a
+            picture is on the glass that stage is over, and a four-line panel
+            about an option already taken is in the way of the two boxes that
+            come next — so it shrinks to one line, or vanishes if no photograph
+            was chosen.
+
+            It shrinks rather than disappearing because it is STILL ATTACHED and
+            still shapes the next lever pull. A setting that is quietly active
+            with nothing on screen to say so is worse than one that takes a
+            line. */}
+        {apiKey && (
+          <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} compact={Boolean(shownScene)} />
+        )}
 
         {/* TWO INDEPENDENT PATHS TO A VIDEO, one box each.
 
