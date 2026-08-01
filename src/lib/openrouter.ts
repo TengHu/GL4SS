@@ -427,6 +427,8 @@ function buildSceneDirectionPrompt(
    * WITHIN THE ERA BAND (getEraPhase), and the two are entirely different axes.
    */
   dayPhase?: string,
+  /** True when a photograph of the spot is attached to this request. */
+  hasReference?: boolean,
 ): string {
   const formattedYear = formatYear(year);
   const era = getEraDescription(year);
@@ -476,6 +478,24 @@ function buildSceneDirectionPrompt(
 
   return [
     `You are a historian and a stills photographer planning what a single photograph taken at this place in this year would show.`,
+    /**
+     * THE ATTACHED PHOTOGRAPH NARROWS THE PLACE, and that is the job it does
+     * here — not style, not period, not mood.
+     *
+     * A pin is a borough. Given "Brooklyn" and 2016 the planner reasonably
+     * reaches for the Brooklyn Bridge, and the drawing request was then handed a
+     * bridge to render from the viewpoint of a residential stoop. Those are two
+     * LOCATIONS, and no reference image can reconcile them — which is why
+     * attaching the photograph only to the drawing request looked like it did
+     * nothing at all.
+     *
+     * Deliberately says the photograph is MODERN and not evidence about the
+     * year: it fixes where you are standing and which way you are facing, and
+     * the history still comes from the planner's own knowledge of the date.
+     */
+    hasReference
+      ? `A PHOTOGRAPH OF THIS EXACT SPOT IS ATTACHED. It was taken recently — it is evidence about WHERE, never about WHEN. Plan the photograph as seen from that camera position: the same street or ground, the same direction of view, the same kind of vantage. If it shows a residential side street, this is that side street and not the district's landmark; if it shows a courtyard, a shoreline, a field, plan THAT. Choose subjects that could stand in that view. Everything belonging to ${formattedYear} — the buildings, the surfaces, the vehicles, the clothing, the vegetation, the light — you still supply yourself, and it may differ completely from what the photograph shows.`
+      : '',
     // QUOTED, so the planner reads this as a NAME and not as prose it might
     // obey. The string comes from the URL query and from Nominatim (which anyone
     // with an OpenStreetMap account can edit), and it lands in a prompt billed to
@@ -708,6 +728,23 @@ export async function generateSceneDirection(
     neighbours?: { earlier: number; later: number };
     /** The user's chosen time of day, as a sentence about the light present. */
     phase?: string;
+    /**
+     * A photograph of the spot, shown to the PLANNER.
+     *
+     * This was the missing half. A pin is a place name and a coordinate —
+     * "Brooklyn" — and the planner, given only that, picks the most photogenic
+     * thing in the borough. It chose the Brooklyn Bridge while the visitor's
+     * photograph showed a residential side street, and then the image model was
+     * asked to draw the bridge from a brownstone stoop's viewpoint. No reference
+     * can reconcile that: the two describe different LOCATIONS, not different
+     * framings of one.
+     *
+     * So the planner sees it too, and plans the scene that is actually there.
+     * This IS the vision shape — image in, text out — which is what
+     * chat-completions does correctly and what the drawing request had to leave
+     * for /images.
+     */
+    reference?: string;
   } = {},
 ): Promise<SceneDirection> {
   const prompt = buildSceneDirectionPrompt(
@@ -718,12 +755,19 @@ export async function generateSceneDirection(
     styleSuffix,
     options.neighbours,
     options.phase,
+    Boolean(options.reference),
   );
+  const content = options.reference
+    ? [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: options.reference } },
+      ]
+    : prompt;
   const data = await postChat(
     apiKey,
     {
       model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content }],
       // Hint to OpenAI-compatible JSON-mode capable providers — harmlessly ignored elsewhere.
       response_format: { type: 'json_object' },
       // Raised from 800 when periodMarkers was added. At 800 the object was

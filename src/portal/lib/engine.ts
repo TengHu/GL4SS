@@ -715,6 +715,9 @@ export class SceneEngine {
           // The dial's own neighbours, so "must not resemble" means the frame
           // one click away rather than an arithmetic guess off the era's span.
           neighbours: neighbourContrast(coords.year),
+          // The planner needs the photograph too — it narrows WHERE within the
+          // pin, which the coordinate alone cannot. See generateSceneDirection.
+          reference: this.seedReference ?? undefined,
         },
       );
       if (job.abort.signal.aborted) return this.discardAborted(key);
