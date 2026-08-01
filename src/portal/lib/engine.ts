@@ -777,7 +777,24 @@ export class SceneEngine {
             ? buildCoreSamplePrompts(promptFields, direction, false)
             : undefined,
         },
-        { signal: job.abort.signal },
+        {
+          signal: job.abort.signal,
+          /**
+           * A refused reference USED TO BE SILENT HERE.
+           *
+           * renderStill degrades gracefully — it drops the attachment and draws
+           * the frame anyway — and the sweep marks that on the filmstrip as a
+           * seam. The lever path passed no handler at all, so someone who chose
+           * a photograph, pulled the lever and got an unanchored frame had no
+           * way to tell whether the feature had worked, failed, or was never
+           * wired up. A picture that came back on a worse path must say so; it
+           * is the same rule `degraded` already exists for.
+           */
+          onDegrade: () =>
+            this.patch(key, {
+              degraded: 'your photograph was refused — this frame is not anchored to it',
+            }),
+        },
       );
       if (job.abort.signal.aborted) return this.discardAborted(key);
 
