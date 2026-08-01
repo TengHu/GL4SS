@@ -26,8 +26,18 @@ interface Props {
   onFilm?: () => void;
 }
 
-/** Frames per second of playback. Slow enough to read the year, fast enough to move. */
-const SPEEDS = [1.5, 3, 6] as const;
+/**
+ * Two transports, because the two things being played are not the same thing.
+ *
+ * Stills advance on a timer, so the only meaningful number is FRAMES PER SECOND
+ * — slow enough to read the year, fast enough to move. These used to be labelled
+ * "1.5×/3×/6×", which reads as a multiple of a normal speed that does not exist.
+ *
+ * A film has a real playback rate, so there the × IS a multiplier and the values
+ * are the ones a video wants rather than the ones a slideshow wants.
+ */
+const STILL_FPS = [1.5, 3, 6] as const;
+const FILM_RATES = [0.5, 1, 2] as const;
 
 function formatElapsed(ms: number): string {
   const total = Math.floor(ms / 1000);
@@ -60,6 +70,8 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(3);
+  const [filmRate, setFilmRate] = useState<number>(1);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [follow, setFollow] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const hostRef = useRef<HTMLDivElement>(null);
@@ -87,7 +99,10 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
   // direction, and dumping the viewer back in the Triassic without warning
   // reads as a glitch rather than as a loop.
   useEffect(() => {
-    if (!playing || ready.length < 2) return;
+    // Never while a film is playing: the cursor would advance under a stage
+    // that is showing video, and pressing pause would stop a timer nobody can
+    // see instead of the picture that is actually moving.
+    if (hasFilm || !playing || ready.length < 2) return;
     const id = setInterval(() => {
       setCursor((c) => {
         if (c >= ready.length - 1) {
@@ -98,11 +113,18 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
       });
     }, 1000 / speed);
     return () => clearInterval(id);
-  }, [playing, speed, ready.length]);
+  }, [hasFilm, playing, speed, ready.length]);
 
   useEffect(() => {
     hostRef.current?.focus();
   }, []);
+
+  // The rate is a property of the ELEMENT, not of React state, and a new clip
+  // mounts a new element — so it has to be reapplied per clip rather than set
+  // once. Without this, changing the rate held only until the next join.
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.playbackRate = filmRate;
+  }, [filmRate, clipIndex, hasFilm]);
 
   /**
    * Hand control to the user.
@@ -126,6 +148,13 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
    * likely moment for someone to press it.
    */
   const togglePlay = () => {
+    if (hasFilm) {
+      const el = videoRef.current;
+      if (!el) return;
+      if (el.paused) void el.play();
+      else el.pause();
+      return;
+    }
     setFollow(false);
     if (playing) {
       setCursor(shownIndex);
@@ -180,6 +209,7 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
             an autoplay policy will refuse an unmuted one anyway. */}
         {hasFilm && (
           <video
+            ref={videoRef}
             key={clips[Math.min(clipIndex, clips.length - 1)]?.url}
             className="sampler-film"
             src={clips[Math.min(clipIndex, clips.length - 1)]?.url}
@@ -187,6 +217,12 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
             muted
             playsInline
             controls={false}
+            /* Play state is read back OFF the element rather than assumed. An
+               autoplay policy, a stall or the end of the last clip can all stop
+               it without anything here being told, and a pause button that lies
+               about what is happening is worse than no button. */
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
             onEnded={() => setClipIndex((i) => (i + 1 < clips.length ? i + 1 : 0))}
           />
         )}
@@ -251,20 +287,37 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
             </span>
           )}
 
-          <div className="seg" role="radiogroup" aria-label="Playback speed">
-            {SPEEDS.map((s) => (
-              <button
-                key={s}
-                role="radio"
-                aria-checked={speed === s}
-                tabIndex={speed === s ? 0 : -1}
-                className={`seg-option${speed === s ? ' seg-option--on' : ''}`}
-                onClick={() => setSpeed(s)}
-              >
-                {s}×
-              </button>
-            ))}
-          </div>
+          {hasFilm ? (
+            <div className="seg" role="radiogroup" aria-label="Playback rate">
+              {FILM_RATES.map((r) => (
+                <button
+                  key={r}
+                  role="radio"
+                  aria-checked={filmRate === r}
+                  tabIndex={filmRate === r ? 0 : -1}
+                  className={`seg-option${filmRate === r ? ' seg-option--on' : ''}`}
+                  onClick={() => setFilmRate(r)}
+                >
+                  {r}×
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="seg" role="radiogroup" aria-label="Frames per second">
+              {STILL_FPS.map((s) => (
+                <button
+                  key={s}
+                  role="radio"
+                  aria-checked={speed === s}
+                  tabIndex={speed === s ? 0 : -1}
+                  className={`seg-option${speed === s ? ' seg-option--on' : ''}`}
+                  onClick={() => setSpeed(s)}
+                >
+                  {s} fps
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* The strip is the sample. One cell per station in ladder order, so the
