@@ -829,6 +829,46 @@ export function buildImagePromptsFromDirection(
   ];
 }
 
+/**
+ * Prompts for one frame of a core sample — the same spot, rendered again at a
+ * different station.
+ *
+ * Returns the same candidate list shape the hero path uses: focal subject first,
+ * peripherals behind it as moderation fallbacks, so one blocked subject degrades
+ * to a different subject in the same moment instead of punching a hole in the
+ * middle of a sweep the user has already paid for.
+ *
+ * When `chained` is set, the caller is also sending the previous frame as an
+ * input image, and the prompt has to say what to do with it. The instruction is
+ * deliberately about the CAMERA and the LAND rather than about the picture:
+ * "keep this composition" reads to an image model as "change as little as
+ * possible", which on a jump from the Pleistocene to a car park is the one
+ * outcome that makes the sweep pointless. What must persist is the vantage; what
+ * must change is everything standing in it.
+ */
+export function buildCoreSamplePrompts(
+  opts: BuildPanelsOpts,
+  direction: SceneDirection,
+  chained: boolean,
+): string[] {
+  const base = buildImagePromptsFromDirection(opts, direction);
+  // Centre first — it is the focal subject, and this is a single-frame path.
+  const ordered = [base[1] ?? base[0]!, base[0]!, base[2]!].filter(Boolean);
+  if (!chained) return ordered;
+
+  const anchor =
+    `The attached image is the same place photographed from the same spot. ` +
+    `Stand the camera exactly where it stood for that photograph — identical viewpoint, ` +
+    `identical direction, identical lens and horizon line — and keep the landforms that ` +
+    `outlive centuries where they are: the line of the hills, the run of the coast or ` +
+    `river, the shape of the skyline behind. Everything that belongs to a period may and ` +
+    `should change completely: the vegetation, the water and ice, the weather, the light, ` +
+    `whatever is built here, and whoever is present. This is the same view at a different ` +
+    `time, not the same photograph adjusted.`;
+
+  return ordered.map((p) => `${p}\n\n${anchor}`);
+}
+
 export function buildCinematicPromptFromDirection(
   opts: BuildPanelsOpts & { seconds?: number },
   direction: SceneDirection,

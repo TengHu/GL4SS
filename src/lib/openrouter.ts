@@ -788,18 +788,39 @@ export async function generateSceneDirection(
 // (export the field list mainly to silence "unused" if needed; might surface in UI later)
 export { SCENE_FIELDS };
 
+/**
+ * Render one image.
+ *
+ * `reference` turns this into an EDIT rather than a fresh generation: the image
+ * is sent alongside the prompt as an `image_url` content block, which is how
+ * every image model on this app's list accepts a source frame through the chat
+ * endpoint. The core sample uses it to hold one camera position steady across a
+ * chain of frames — see coreSample.ts.
+ *
+ * Not every model accepts image input, and providers moderate an input frame
+ * separately from the prompt (the same lesson filmize() already learned), so a
+ * caller that passes a reference must be prepared for it to be refused. See
+ * `isImageInputRejection`.
+ */
 export async function generateImage(
   apiKey: string,
   prompt: string,
   model: string = DEFAULT_WIDE_FIELD_MODEL,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; reference?: string } = {},
 ): Promise<string> {
+  const content = options.reference
+    ? [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: options.reference } },
+      ]
+    : prompt;
+
   const data = await postChat(
     apiKey,
     {
       model,
       modalities: modalitiesForImageModel(model),
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content }],
     },
     { signal: options.signal, timeoutMs: IMAGE_TIMEOUT_MS },
   );
@@ -858,7 +879,7 @@ export async function generateImageWithFallback(
   apiKey: string,
   prompts: string[],
   model: string = DEFAULT_WIDE_FIELD_MODEL,
-  options: { fallbackModel?: string | null; signal?: AbortSignal } = {},
+  options: { fallbackModel?: string | null; signal?: AbortSignal; reference?: string } = {},
 ): Promise<{ url: string; promptIndex: number; moderatedCount: number; modelUsed: string }> {
   let moderatedCount = 0;
   let lastModeration: unknown = null;
@@ -873,7 +894,10 @@ export async function generateImageWithFallback(
       const prompt = prompts[i];
       if (!prompt) continue;
       try {
-        const url = await generateImage(apiKey, prompt, candidateModel, { signal: options.signal });
+        const url = await generateImage(apiKey, prompt, candidateModel, {
+          signal: options.signal,
+          reference: options.reference,
+        });
         return { url, promptIndex: i, moderatedCount, modelUsed: candidateModel };
       } catch (err) {
         if (!isModerationError(err)) throw err;
@@ -913,6 +937,27 @@ export interface VideoJob {
 export function isSourceFrameRejection(err: unknown): boolean {
   if (!(err instanceof OpenRouterError)) return false;
   return /InputImageSensitiveContent|source_image|frame_images|image.*(rejected|sensitive)/i.test(
+    err.body,
+  );
+}
+
+/**
+ * The STILL path's equivalent: this model or provider will not take an input
+ * image on the chat endpoint at all.
+ *
+ * Distinct from `isSourceFrameRejection`, which is about a specific frame being
+ * refused on content grounds. This one is structural — the model has no image
+ * input, or the provider rejects the multimodal content block outright — and the
+ * correct response is to give up on chaining for that frame and render it
+ * unchained rather than to fail the whole sweep. Moderation is deliberately NOT
+ * matched here: `generateImageWithFallback` already handles that, and treating a
+ * moderated prompt as an input-image problem would silently drop continuity
+ * every time a frame contained a gladiator.
+ */
+export function isImageInputRejection(err: unknown): boolean {
+  if (!(err instanceof OpenRouterError)) return false;
+  if (isModerationError(err)) return false;
+  return /image_url|multimodal|does not support image|no endpoints found|unsupported.*(input|modality)|invalid.*content/i.test(
     err.body,
   );
 }

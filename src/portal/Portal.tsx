@@ -27,7 +27,11 @@ import { FilmControl } from './components/FilmControl';
 import { TimeLever } from './components/TimeLever';
 import { SunDial } from './components/SunDial';
 import { JourneyGallery } from './components/JourneyGallery';
+import { SampleControl } from './components/SampleControl';
+import { SampleWarning } from './components/SampleWarning';
+import { SamplePlayer } from './components/SamplePlayer';
 import type { Journey } from './lib/journeys';
+import { CoreSampleRunner, findSpan, planSample } from './lib/coreSample';
 import { SceneEngine, sceneKey } from './lib/engine';
 import type { Scene, SceneStatus } from './lib/engine';
 import { STATIONS, nearestStationIndex, neighbourStations } from './lib/stations';
@@ -56,6 +60,8 @@ const STORAGE_KEY_CUSTOM_STYLE = 'looking-glass-custom-style';
 const STORAGE_KEY_FILM_WARNED = 'looking-glass-film-warned';
 const STORAGE_KEY_PHASE = 'looking-glass-day-phase';
 const STORAGE_KEY_PREFETCH = 'looking-glass-prefetch';
+const STORAGE_KEY_SAMPLE_SPAN = 'looking-glass-sample-span';
+const STORAGE_KEY_SAMPLE_LENGTH = 'looking-glass-sample-length';
 
 /** Clip lengths offered. Longer costs more and waits longer, linearly. */
 const FILM_LENGTHS = [4, 8, 12] as const;
@@ -442,6 +448,31 @@ export function Portal() {
 
   const scenes = useSyncExternalStore(engine.subscribe, engine.getSnapshot);
 
+  // --- the core sample -----------------------------------------------------
+  // Its own runner rather than a mode on the engine. The engine's queue exists
+  // to keep the station you are looking at ahead of everything else and runs
+  // two-wide; a sample is strictly ordered and strictly sequential, because
+  // each frame is drawn from the one before it. Those are opposite shapes, and
+  // the sample must not be able to displace demand work either.
+  const [sampler] = useState(() => new CoreSampleRunner());
+  const sample = useSyncExternalStore(sampler.subscribe, sampler.getSnapshot);
+  const [samplerOpen, setSamplerOpen] = useState(false);
+  const [samplePending, setSamplePending] = useState<number[] | null>(null);
+  const [sampleAnchorOwned, setSampleAnchorOwned] = useState(false);
+  const [sampleSpanId, setSampleSpanId] = useState(
+    () => findSpan(safeStorage.get(STORAGE_KEY_SAMPLE_SPAN) ?? 'recorded').id,
+  );
+  const [sampleLength, setSampleLength] = useState(() => {
+    const stored = Number(safeStorage.get(STORAGE_KEY_SAMPLE_LENGTH));
+    return stored === 8 || stored === 16 || stored === 24 ? stored : 16;
+  });
+  useEffect(() => {
+    safeStorage.set(STORAGE_KEY_SAMPLE_SPAN, sampleSpanId);
+  }, [sampleSpanId]);
+  useEffect(() => {
+    safeStorage.set(STORAGE_KEY_SAMPLE_LENGTH, String(sampleLength));
+  }, [sampleLength]);
+
   const currentKey = useMemo(
     () => sceneKey({ year, coordinates, location, styleId: styleKey, phaseId }),
     [year, coordinates, location, styleKey, phaseId],
@@ -589,14 +620,19 @@ export function Portal() {
   }, [template, templateIsValid]);
 
   // The custom chip's suffix is whatever the user wrote; every other chip uses
-  // its own. Threaded into the engine so a style change re-keys the cache.
-  useEffect(() => {
+  // its own. Derived rather than computed inside the effect below, because the
+  // core sample runs outside the engine and needs the identical value — two
+  // copies of this expression is exactly how a sample would end up rendering in
+  // a different style from the frame it was launched off.
+  const styleSuffix = useMemo(() => {
     const preset = findStyle(styleId);
-    engine.setStyleOverride(
-      preset.isCustom ? (customStyle.trim() || null) : preset.suffix,
-      effectiveTemplate,
-    );
-  }, [engine, styleId, customStyle, effectiveTemplate]);
+    return preset.isCustom ? (customStyle.trim() || null) : preset.suffix;
+  }, [styleId, customStyle]);
+
+  // Threaded into the engine so a style change re-keys the cache.
+  useEffect(() => {
+    engine.setStyleOverride(styleSuffix, effectiveTemplate);
+  }, [engine, styleSuffix, effectiveTemplate]);
 
   // --- input ---------------------------------------------------------------
   const step = useCallback(
@@ -655,6 +691,63 @@ export function Portal() {
     },
     [engine, scene, filmSeconds],
   );
+
+  /**
+   * Open the core-sample price dialog.
+   *
+   * Nothing is spent here and nothing may be: this only works out which stations
+   * a sweep would visit and whether the first one is already owned, so the
+   * dialog can quote a real number of billable images rather than the length of
+   * the sweep. The confirm handler below is the only path that spends.
+   */
+  const requestSample = useCallback(async () => {
+    if (!apiKey) {
+      setKeyGateOpen(true);
+      return;
+    }
+    if (sampler.isRunning) {
+      setSamplerOpen(true);
+      return;
+    }
+    const years = planSample(findSpan(sampleSpanId), sampleLength);
+    // Same reason the lever waits: until the index is loaded we cannot tell an
+    // owned station from an unowned one, and would quote a price that is one
+    // image too high.
+    await engine.whenHydrated();
+    const anchor = years[0];
+    setSampleAnchorOwned(
+      anchor !== undefined &&
+        engine.hasStored({ year: anchor, coordinates, location, styleId: styleKey, phaseId }),
+    );
+    setSamplePending(years);
+  }, [apiKey, sampler, sampleSpanId, sampleLength, engine, coordinates, location, styleKey, phaseId]);
+
+  const confirmSample = useCallback(() => {
+    const years = samplePending;
+    setSamplePending(null);
+    if (!years?.length) return;
+    setSamplerOpen(true);
+    void sampler.start(
+      { years, coordinates, location, styleId: styleKey, phaseId },
+      {
+        apiKey,
+        models,
+        styleOverride: styleSuffix,
+        template: effectiveTemplate,
+      },
+    );
+  }, [
+    samplePending,
+    sampler,
+    coordinates,
+    location,
+    styleKey,
+    phaseId,
+    apiKey,
+    models,
+    styleSuffix,
+    effectiveTemplate,
+  ]);
 
   /** Throw the lever: this is the only path that starts a paid generation. */
   const pullLever = useCallback(async () => {
@@ -824,9 +917,16 @@ export function Portal() {
        * while it is open.
        */
       if (filmWarnPending && e.key !== 'Escape') return;
+      // The sample dialog quotes a price for a specific set of stations. Letting
+      // the arrows keep moving the dial behind it would leave the quote attached
+      // to a place and style the user is no longer standing in.
+      if (samplePending && e.key !== 'Escape') return;
       // The gallery is a modal on top of everything and owns its own keys; its
       // Escape is handled and stopped inside the component.
       if (galleryOpen) return;
+      // Same for the player: it is a modal, it owns arrows/space/Enter for
+      // scrubbing, and its own handler stops them there.
+      if (samplerOpen) return;
 
       /**
        * ENTER AND SPACE BELONG TO WHATEVER HAS FOCUS.
@@ -898,6 +998,15 @@ export function Portal() {
           e.preventDefault();
           setGalleryOpen((v) => !v);
           break;
+        case 's':
+        case 'S':
+          e.preventDefault();
+          // Reopens an existing sample rather than starting a second one; the
+          // runner refuses concurrent sweeps, so without this the key would be
+          // dead for the whole of a five-minute render.
+          if (sample.status !== 'idle') setSamplerOpen(true);
+          else void requestSample();
+          break;
         case ' ':
           // Blink comparator. Held, not toggled — a blink is a gesture.
           if (!comparing) break;
@@ -930,7 +1039,7 @@ export function Portal() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [step, engine, scene, togglePin, comparing, mapExpanded, keyGateOpen, pullLever, immersive, toggleImmersive, galleryOpen, filmWarnPending]);
+  }, [step, engine, scene, togglePin, comparing, mapExpanded, keyGateOpen, pullLever, immersive, toggleImmersive, galleryOpen, filmWarnPending, samplePending, samplerOpen, sample.status, requestSample]);
 
   const saveKey = (value: string = keyDraft) => {
     const trimmed = value.trim();
@@ -1250,6 +1359,22 @@ export function Portal() {
           />
         )}
 
+        {/* Offered on any ready frame, and unlike film it does not depend on
+            THIS station having rendered — a sample is about the place, not the
+            year. It is gated on a frame only so that it cannot be the first
+            thing a new visitor spends money on. */}
+        {scene?.status === 'ready' && (
+          <SampleControl
+            spanId={sampleSpanId}
+            onSpanChange={setSampleSpanId}
+            length={sampleLength}
+            onLengthChange={setSampleLength}
+            onRun={() => void requestSample()}
+            hasSample={sample.status !== 'idle'}
+            onReopen={() => setSamplerOpen(true)}
+          />
+        )}
+
         {scene?.videoStatus === 'ready' && scene.videoContinuous === false && (
           <div className="caption-stage caption-stage--degraded" aria-live="polite">
             <span className="stage-pip" style={{ color: '#e0b24a' }} />
@@ -1324,6 +1449,7 @@ export function Portal() {
           <span><kbd>W</kbd> widen</span>
           <span><kbd>F</kbd> full</span>
           <span><kbd>J</kbd> journeys</span>
+          <span><kbd>S</kbd> {sample.status !== 'idle' ? 'sample' : 'core sample'}</span>
           <span>
             <kbd>P</kbd> {activePin ? 'unpin' : 'hold'}
             {comparing && <> · <kbd>SPC</kbd> peek</>}
@@ -1355,6 +1481,27 @@ export function Portal() {
           onPick={takeJourney}
           currentYear={year}
           currentLocation={location}
+        />
+      )}
+
+      {/* ---- the core sample ---- */}
+      {samplerOpen && sample.status !== 'idle' && (
+        <SamplePlayer
+          state={sample}
+          onCancel={() => sampler.cancel()}
+          /* Closing puts the sample away without destroying it — it cost real
+             money and `reopen` brings it back. Only `clear()` discards, and
+             nothing in the UI calls it: the session ending is discard enough. */
+          onClose={() => setSamplerOpen(false)}
+        />
+      )}
+
+      {samplePending && (
+        <SampleWarning
+          years={samplePending}
+          anchorOwned={sampleAnchorOwned}
+          onConfirm={confirmSample}
+          onCancel={() => setSamplePending(null)}
         />
       )}
 
