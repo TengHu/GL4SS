@@ -152,6 +152,18 @@ interface Job {
   coords: SceneCoords;
   priority: 'demand' | 'prefetch';
   abort: AbortController;
+  /**
+   * A photograph the visitor brought, for THIS generation only.
+   *
+   * Carried on the job rather than held on the engine, and that is the whole
+   * lifecycle: the photograph belongs to the moment of making a seed, is spent
+   * by it, and has no standing existence afterwards. Holding it on the engine
+   * made it a mode — quietly shaping every later pull, needing a fingerprint in
+   * the cache key to take effect at all, and needing a control on screen to say
+   * it was still on. A job carries its own copy, so the caller can forget the
+   * photograph the instant it is handed over.
+   */
+  reference?: string;
 }
 
 const MAX_CACHED_SCENES = 48;
@@ -192,17 +204,7 @@ export class SceneEngine {
    */
   private styleOverride: string | null = null;
   private template: string | undefined;
-  /**
-   * A photograph the visitor brought, attached to the drawing request so the
-   * generated frame is shot from their camera position.
-   *
-   * Held here rather than passed per-request for the same reason the style
-   * suffix is: it is a standing choice about how frames are made, not a property
-   * of any one station. It changes only the DRAWING request — the planner still
-   * works out what this year looked like from place, year, hour and style, since
-   * a modern photograph has nothing to say about that.
-   */
-  private seedReference: string | null = null;
+
   /** Stations with a film in flight. Not Jobs, so the queue cannot protect them. */
   private filming = new Set<string>();
   private persisted: FrameIndex = { keys: new Map(), totalBytes: 0 };
@@ -257,17 +259,6 @@ export class SceneEngine {
     this.template = template;
   }
 
-  /**
-   * The reference photograph, or null for none.
-   *
-   * Callers must also fold its fingerprint into `styleId`, or a frame drawn from
-   * this photograph and one drawn without it would share a cache key and
-   * silently overwrite each other in the archive. See styleKey in Portal.
-   */
-  setSeedReference(url: string | null): void {
-    this.seedReference = url;
-  }
-
   setConfig(config: EngineConfig): void {
     const keyChanged = config.apiKey !== this.config.apiKey;
     this.config = config;
@@ -312,7 +303,11 @@ export class SceneEngine {
    * Ask for a scene. Returns immediately with whatever exists; generation (if
    * needed) proceeds in the background and surfaces through subscribe().
    */
-  request(coords: SceneCoords, priority: 'demand' | 'prefetch' = 'demand'): Scene {
+  request(
+    coords: SceneCoords,
+    priority: 'demand' | 'prefetch' = 'demand',
+    options: { reference?: string } = {},
+  ): Scene {
     const key = sceneKey(coords);
     const existing = this.scenes.get(key);
 
@@ -354,7 +349,7 @@ export class SceneEngine {
     }
 
     this.scenes.set(key, scene);
-    this.queue.push({ key, coords, priority, abort: new AbortController() });
+    this.queue.push({ key, coords, priority, abort: new AbortController(), reference: options.reference });
     this.evictMemory();
     this.emit();
     this.pump();
@@ -411,7 +406,7 @@ export class SceneEngine {
    * and back just returns the same error. Errors are the one cache entry that
    * must not be sticky.
    */
-  retry(coords: SceneCoords): Scene {
+  retry(coords: SceneCoords, options: { reference?: string } = {}): Scene {
     const key = sceneKey(coords);
 
     // Force-abort in-flight work rather than refusing to touch it. Refusing was
@@ -440,7 +435,7 @@ export class SceneEngine {
       void deleteFrame(key);
     }
 
-    return this.request(coords, 'demand');
+    return this.request(coords, 'demand', options);
   }
 
   /**
@@ -717,7 +712,7 @@ export class SceneEngine {
           neighbours: neighbourContrast(coords.year),
           // The planner needs the photograph too — it narrows WHERE within the
           // pin, which the coordinate alone cannot. See generateSceneDirection.
-          reference: this.seedReference ?? undefined,
+          reference: job.reference,
         },
       );
       if (job.abort.signal.aborted) return this.discardAborted(key);
@@ -756,7 +751,7 @@ export class SceneEngine {
        * same paragraph every chained frame in a sweep already uses, which is why
        * there is nothing new to write here.
        */
-      const reference = this.seedReference ?? undefined;
+      const reference = job.reference;
       const candidates = buildCoreSamplePrompts(promptFields, direction, Boolean(reference));
       const model = imageModelForMode('wide-field', this.config.models);
       /**

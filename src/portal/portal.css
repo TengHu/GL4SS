@@ -6103,11 +6103,3 @@ body {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, rgba(8, 11, 15, 0.66));
 }
-
-/* One line, once a seed exists. The photograph is still attached — this is a
-   standing mark, not an offer — so it keeps its thumbnail and its way out. */
-.seedphoto--compact {
-  padding: 5px 8px;
-  gap: 7px;
-}
-.seedphoto--compact .seedphoto-thumb { width: 32px; height: 21px; }

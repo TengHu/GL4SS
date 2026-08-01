@@ -484,21 +484,20 @@ export function Portal() {
     // exactly as much as the style does. Without it, editing the template served
     // back frames produced by the previous prompt — and persisted them as though
     // they were the new one.
-    const withTemplate =
-      effectiveTemplate === DEFAULT_IMAGE_TEMPLATE ? base : `${base}+t${hash(effectiveTemplate)}`;
     /**
-     * A reference photograph changes every pixel, so it belongs in the key for
-     * exactly the reason the template does. Without it, Koto 1915 drawn from
-     * your photograph and Koto 1915 drawn from nothing share an archive entry:
-     * whichever was saved last wins, and the next visit silently restores the
-     * wrong one.
+     * The reference photograph is deliberately NOT in here.
      *
-     * APPENDED, and only when a photograph is set — the same discipline
-     * sceneKey uses for the phase. An unreferenced key stays byte-identical to
-     * what it has always been, so no existing archive goes unreachable.
+     * It was, briefly, so that a photograph-anchored frame could not collide
+     * with a plain one. But a fingerprint in the key makes the photograph a
+     * standing property of the app: clear it and the frame it produced becomes
+     * unreachable, so it can never be put down. The photograph belongs to the
+     * moment of making a seed and is spent by it — a station is a station, and
+     * whichever picture is there is the one you keep.
      */
-    return seedPhoto ? `${withTemplate}+r${seedPhoto.fingerprint}` : withTemplate;
-  }, [styleId, customStyle, effectiveTemplate, seedPhoto]);
+    return effectiveTemplate === DEFAULT_IMAGE_TEMPLATE
+      ? base
+      : `${base}+t${hash(effectiveTemplate)}`;
+  }, [styleId, customStyle, effectiveTemplate]);
 
 
   // --- engine --------------------------------------------------------------
@@ -769,9 +768,6 @@ export function Portal() {
     engine.setStyleOverride(styleSuffix, effectiveTemplate);
   }, [engine, styleSuffix, effectiveTemplate]);
 
-  useEffect(() => {
-    engine.setSeedReference(seedPhoto?.url ?? null);
-  }, [engine, seedPhoto]);
 
   // --- input ---------------------------------------------------------------
   const step = useCallback(
@@ -1004,11 +1000,28 @@ export function Portal() {
      * again is the wrong behaviour) would visibly arm and then do nothing at all.
      * retry() aborts anything still in flight and drops the scene so it rebuilds.
      */
-    if (scene?.status === 'error') engine.retry(here);
+    /**
+     * THE PHOTOGRAPH IS SPENT HERE.
+     *
+     * It goes to the engine with this one request and is dropped from state in
+     * the same breath — the job keeps its own copy, so there is no race with a
+     * generation already in flight, and nothing is left switched on afterwards.
+     *
+     * retry() rather than request() when one is attached, even on a station that
+     * is not in error: request() hands back any frame it already holds, so at a
+     * station you own the photograph would have been silently ignored. Choosing
+     * a photograph and pulling the lever is an explicit ask for a new picture,
+     * which is exactly what retry is.
+     */
+    const reference = seedPhoto?.url;
+    if (reference) {
+      engine.retry(here, { reference });
+      setSeedPhoto(null);
+    } else if (scene?.status === 'error') engine.retry(here);
     else engine.request(here, 'demand');
     // The journey is spent; the next move starts a new one from here.
     setNav((cur) => ({ ...cur, origin: null }));
-  }, [engine, apiKey, year, coordinates, location, styleKey, phaseId, scene?.status, placeCoversLever]);
+  }, [engine, apiKey, year, coordinates, location, styleKey, phaseId, scene?.status, placeCoversLever, seedPhoto]);
 
   const handleFrameError = useCallback(
     (key: string, message: string) => engine.markFrameError(key, message),
@@ -1598,19 +1611,17 @@ export function Portal() {
             side. Both boxes below consume the seed without knowing where its
             picture came from.
 
-            FULL SIZE ONLY BEFORE THERE IS A SEED. Choosing a photograph is the
-            thing you are doing at that stage, so it gets the room. Once a
-            picture is on the glass that stage is over, and a four-line panel
-            about an option already taken is in the way of the two boxes that
-            come next — so it shrinks to one line, or vanishes if no photograph
-            was chosen.
+            ONLY WHERE A SEED IS ABOUT TO BE MADE. The photograph belongs to the
+            step BEFORE a picture exists and is spent by the lever pull that uses
+            it, so it has no business on screen once that station has a frame —
+            it is not a setting left switched on, it is an input already
+            consumed.
 
-            It shrinks rather than disappearing because it is STILL ATTACHED and
-            still shapes the next lever pull. A setting that is quietly active
-            with nothing on screen to say so is worse than one that takes a
-            line. */}
-        {apiKey && (
-          <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} compact={Boolean(shownScene)} />
+            Gated on THIS STATION rather than on the app having any frame at all:
+            dial to a year you have not made yet and the offer returns, because
+            that is a seed waiting to be made. */}
+        {apiKey && (!scene || scene.status === 'error') && (
+          <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />
         )}
 
         {/* TWO INDEPENDENT PATHS TO A VIDEO, one box each.
