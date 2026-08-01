@@ -30,7 +30,6 @@ import { JourneyGallery } from './components/JourneyGallery';
 import { SampleControl } from './components/SampleControl';
 import { SampleWarning } from './components/SampleWarning';
 import { SamplePlayer } from './components/SamplePlayer';
-import { SampleFilmWarning } from './components/SampleFilmWarning';
 import type { Journey } from './lib/journeys';
 import {
   CoreSampleRunner,
@@ -840,6 +839,9 @@ export function Portal() {
   }, [sampler, videoCaps, models.cinematic]);
 
   const confirmFilmSample = useCallback(() => {
+    // The dialog's `dontShowAgain` is ignored here on purpose: it is only
+    // offered for a single clip, whose price is fixed. A sequence is priced at
+    // the moment of asking, so it must be asked every time.
     const pending = filmPending;
     setFilmPending(null);
     if (!pending) return;
@@ -1602,7 +1604,7 @@ export function Portal() {
       )}
 
       {filmPending && (
-        <SampleFilmWarning
+        <FilmWarning
           clips={filmPending.clips}
           seconds={filmPending.seconds}
           resolution={filmPending.resolution}
@@ -1625,7 +1627,9 @@ export function Portal() {
       {/* ---- key gate ---- */}
       {filmWarnPending && (
         <FilmWarning
+          clips={1}
           seconds={filmSeconds}
+          pricePerSecond={FILM_PRICE_PER_SECOND[models.cinematic]}
           onConfirm={confirmFilm}
           onCancel={() => setFilmWarnPending(false)}
         />

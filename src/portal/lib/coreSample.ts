@@ -37,13 +37,12 @@ import type { Coordinates } from '../../types';
 import {
   generateImageWithFallback,
   generateSceneDirection,
-  generateVideoBlocking,
   imageModelForMode,
   isImageInputRejection,
-  isSourceFrameRejection,
   videoModelSupports,
 } from '../../lib/openrouter';
-import type { ModelSelection, VideoFrame, VideoModelCapability } from '../../lib/openrouter';
+import type { ModelSelection, VideoModelCapability } from '../../lib/openrouter';
+import { audioForSequence, renderClip } from './film';
 import { explainFailure } from '../../lib/failure';
 import { buildCoreSamplePrompts } from '../../lib/promptcraft';
 import type { SceneDirection } from '../../lib/promptcraft';
@@ -542,11 +541,10 @@ export class CoreSampleRunner {
    * governs the sweep does not apply here and would cost an hour of wall clock
    * for nothing. Bounded, because each one is a real charge.
    *
-   * Audio is off and it is not a preference. Veo and Seedance both synthesise
-   * sound per clip, so twenty-three independently-scored four-second clips would
-   * be twenty-three unrelated soundtracks cutting every four seconds — actively
-   * destroying the continuity this exists to create. One bed over the finished
-   * sequence is a different feature; this one is silent on purpose.
+   * Audio follows the clip COUNT rather than a preference — see
+   * `audioForSequence` in film.ts. A sweep of two frames films to a single clip
+   * and keeps its sound; anything longer goes silent, because a per-clip score
+   * would cut to an unrelated soundtrack at every join.
    */
   async renderFilm(config: SampleConfig, opts: FilmOptions): Promise<void> {
     if (this.state.filmStatus === 'rendering') return;
@@ -572,53 +570,27 @@ export class CoreSampleRunner {
 
       this.patchClip(i, { status: 'rendering', stage: 'submitting' });
 
-      const prompt = buildTransitionPrompt(this.state.location, a.year, b.year);
-      const base = {
-        model: opts.model,
-        prompt,
-        duration: opts.seconds,
-        resolution: opts.resolution,
-        aspect_ratio: '16:9' as const,
-        // See the note above. Not a setting.
-        generate_audio: false,
-      };
-
-      const run = (frames: VideoFrame[]) =>
-        generateVideoBlocking(
+      try {
+        // Both ends offered, always. renderClip steps down to an opening frame
+        // only if the provider refuses the closing one, and reports which
+        // happened — see film.ts, which the single-station film shares.
+        const { url, pinned } = await renderClip(
           config.apiKey,
-          { ...base, frames },
           {
+            prompt: buildTransitionPrompt(this.state.location, a.year, b.year),
+            model: opts.model,
+            seconds: opts.seconds,
+            resolution: opts.resolution,
+            first: a.url,
+            last: b.url,
+            audio: audioForSequence(frames.length - 1),
+          },
+          {
+            signal: abort.signal,
             onStatus: (job) => this.patchClip(i, { stage: job.status }),
-            maxWaitMs: Math.max(10, opts.seconds * 2) * 60 * 1000,
+            onDegrade: (note) => this.patchClip(i, { stage: note }),
           },
         );
-
-      try {
-        let url: string;
-        let pinned = true;
-        try {
-          url = await run([
-            { url: a.url, frame_type: 'first_frame' },
-            { url: b.url, frame_type: 'last_frame' },
-          ]);
-        } catch (err) {
-          /**
-           * A refused closing frame costs continuity, not the film.
-           *
-           * `supported_frame_images` is checked before any of this runs, so
-           * reaching here means the model claims last_frame and the PROVIDER
-           * refused this particular image — content moderation on the closing
-           * still, or a data: URL it will not take. Falling back to an
-           * opening-frame-only clip keeps the sequence intact and marks the
-           * join as a cut, which is worse than seamless and far better than a
-           * hole.
-           */
-          if (abort.signal.aborted) return;
-          if (!isSourceFrameRejection(err) && !isImageInputRejection(err)) throw err;
-          pinned = false;
-          this.patchClip(i, { stage: 'closing frame refused — rendering unpinned' });
-          url = await run([{ url: a.url, frame_type: 'first_frame' }]);
-        }
         if (abort.signal.aborted) return;
         this.patchClip(i, { status: 'ready', url, stage: undefined, pinned });
       } catch (err) {

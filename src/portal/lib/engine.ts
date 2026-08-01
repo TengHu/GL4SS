@@ -28,10 +28,9 @@ import {
   generateImage,
   generateImageWithFallback,
   generateSceneDirection,
-  generateVideoBlocking,
   imageModelForMode,
-  isSourceFrameRejection,
 } from '../../lib/openrouter';
+import { audioForSequence, renderClip } from './film';
 import type { ModelSelection } from '../../lib/openrouter';
 import { explainFailure } from '../../lib/failure';
 import type { Failure } from '../../lib/failure';
@@ -564,51 +563,31 @@ export class SceneEngine {
       scene.direction,
     );
 
-    const run = (withSource: boolean) =>
-      generateVideoBlocking(
+    try {
+      /**
+       * A film of ONE station is a sequence of one clip.
+       *
+       * No `last` frame is offered because nothing follows it — which is why a
+       * single-station film is unpinned, and the reason lives in the input
+       * rather than in this code path being the poor relation of the sweep's.
+       * See film.ts. Audio is on for the same reason: one clip has no join for
+       * an independently-scored soundtrack to disrupt.
+       */
+      const { url, continuous } = await renderClip(
         this.config.apiKey,
         {
-          model: this.config.models.cinematic,
           prompt,
-          duration: seconds,
+          model: this.config.models.cinematic,
+          seconds,
           resolution: '720p',
-          aspect_ratio: '16:9',
-          generate_audio: true,
-          ...(withSource && scene.heroUrl
-            ? { frames: [{ url: scene.heroUrl, frame_type: 'first_frame' as const }] }
-            : {}),
+          first: scene.heroUrl,
+          audio: audioForSequence(1),
         },
         {
           onStatus: (job) => this.patch(key, { videoStage: job.status }),
-          /**
-           * Scaled to the clip, and comfortably ABOVE what the UI promises.
-           * It was a flat 6 minutes while FilmControl told the user to expect
-           * "~8 min" for the DEFAULT 8-second clip and "~12 min" for a 12s one —
-           * so the two longer options could time out after the user had already
-           * paid, with the frame discarded and nothing to show. Measured basis:
-           * a 4s clip took ~4 minutes.
-           */
-          maxWaitMs: Math.max(10, seconds * 2) * 60 * 1000,
+          onDegrade: (note) => this.patch(key, { videoStage: note }),
         },
       );
-
-    try {
-      let url: string;
-      let continuous = true;
-      try {
-        url = await run(true);
-      } catch (err) {
-        // Providers moderate the SOURCE FRAME separately from the prompt, and a
-        // live run showed Seedance rejecting a crowd shot outright
-        // (InputImageSensitiveContentDetected). Our frames contain people, so
-        // this is the common path — losing continuity with the still beats
-        // losing the film. Anything that is NOT a frame rejection is a real
-        // failure and must not be retried into a second charge.
-        if (!scene.heroUrl || !isSourceFrameRejection(err)) throw err;
-        continuous = false;
-        this.patch(key, { videoStage: 'the still was refused as a source — rendering fresh' });
-        url = await run(false);
-      }
       this.patch(key, {
         videoStatus: 'ready',
         videoUrl: url,
