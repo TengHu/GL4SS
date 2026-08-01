@@ -123,6 +123,20 @@ export function modalitiesForImageModel(modelId: string): ('image' | 'text')[] {
 const OPENROUTER_ORIGIN = 'https://openrouter.ai';
 
 const CHAT_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+/**
+ * The DEDICATED image endpoint.
+ *
+ * Distinct from chat-completions, and the only place a reference image can be
+ * given. `/chat/completions` with an `image_url` content block is the VISION
+ * shape — image in, TEXT out — so an image-output model accepts the request,
+ * generates from the prompt alone, and silently drops the attachment. No error,
+ * no warning, just a picture that ignored the photograph you handed it.
+ *
+ * Here the reference goes in `input_references`, which every image model in the
+ * app's catalog advertises in `supported_parameters` (probed 2026-08-01: FLUX 2
+ * takes up to 8, Gemini 14, Grok 3, GPT-5 Image 16).
+ */
+const IMAGES_ENDPOINT = 'https://openrouter.ai/api/v1/images';
 const VIDEOS_ENDPOINT = 'https://openrouter.ai/api/v1/videos';
 /** Capability table for video models. Public — no key, no charge. */
 const VIDEO_MODELS_ENDPOINT = 'https://openrouter.ai/api/v1/videos/models';
@@ -790,19 +804,74 @@ export async function generateSceneDirection(
 // (export the field list mainly to silence "unused" if needed; might surface in UI later)
 export { SCENE_FIELDS };
 
+interface ImagesResponse {
+  data?: { b64_json?: string; media_type?: string; url?: string }[];
+}
+
+/**
+ * Render one image from a prompt AND a reference photograph.
+ *
+ * Uses the dedicated /images endpoint, because that is the only one that takes
+ * `input_references` — see IMAGES_ENDPOINT for why the chat endpoint cannot do
+ * this. `aspect_ratio` is a real parameter here rather than a sentence begged
+ * into the prompt, which is a small mercy given the note in promptcraft about
+ * providers disagreeing wildly on default aspect.
+ *
+ * Providers moderate an input image separately from the prompt (the lesson
+ * filmize() already learned), so a caller must be prepared for refusal — see
+ * `isImageInputRejection` and `renderStill`, which drops the anchor and says so.
+ */
+async function generateImageWithReference(
+  apiKey: string,
+  prompt: string,
+  model: string,
+  reference: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS);
+  const onAbort = () => controller.abort();
+  options.signal?.addEventListener('abort', onAbort);
+
+  let response: Response;
+  try {
+    response = await fetch(IMAGES_ENDPOINT, {
+      method: 'POST',
+      headers: commonHeaders(apiKey),
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        prompt,
+        aspect_ratio: '16:9',
+        input_references: [{ type: 'image_url', image_url: { url: reference } }],
+      }),
+    });
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort', onAbort);
+  }
+
+  if (!response.ok) {
+    throw new OpenRouterError(response.status, await response.text());
+  }
+
+  const data = (await response.json()) as ImagesResponse;
+  const first = data.data?.[0];
+  if (first?.b64_json) {
+    return `data:${first.media_type || 'image/png'};base64,${first.b64_json}`;
+  }
+  if (first?.url) return first.url;
+  throw new Error(`No image data in OpenRouter response: ${JSON.stringify(data).slice(0, 400)}`);
+}
+
 /**
  * Render one image.
  *
- * `reference` turns this into an EDIT rather than a fresh generation: the image
- * is sent alongside the prompt as an `image_url` content block, which is how
- * every image model on this app's list accepts a source frame through the chat
- * endpoint. The core sample uses it to hold one camera position steady across a
- * chain of frames — see coreSample.ts.
- *
- * Not every model accepts image input, and providers moderate an input frame
- * separately from the prompt (the same lesson filmize() already learned), so a
- * caller that passes a reference must be prepared for it to be refused. See
- * `isImageInputRejection`.
+ * WITH a reference, this is an EDIT and goes to the dedicated /images endpoint.
+ * WITHOUT one it stays on chat-completions, which is the path the app has always
+ * used and the one every response-shape workaround in this file was written for
+ * — there is no reason to move working generation onto a second endpoint just
+ * because editing needs one.
  */
 export async function generateImage(
   apiKey: string,
@@ -810,19 +879,18 @@ export async function generateImage(
   model: string = DEFAULT_WIDE_FIELD_MODEL,
   options: { signal?: AbortSignal; reference?: string } = {},
 ): Promise<string> {
-  const content = options.reference
-    ? [
-        { type: 'text', text: prompt },
-        { type: 'image_url', image_url: { url: options.reference } },
-      ]
-    : prompt;
+  if (options.reference) {
+    return generateImageWithReference(apiKey, prompt, model, options.reference, {
+      signal: options.signal,
+    });
+  }
 
   const data = await postChat(
     apiKey,
     {
       model,
       modalities: modalitiesForImageModel(model),
-      messages: [{ role: 'user', content }],
+      messages: [{ role: 'user', content: prompt }],
     },
     { signal: options.signal, timeoutMs: IMAGE_TIMEOUT_MS },
   );
