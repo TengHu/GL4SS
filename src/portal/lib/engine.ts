@@ -26,11 +26,10 @@
 import type { Coordinates } from '../../types';
 import {
   generateImage,
-  generateImageWithFallback,
   generateSceneDirection,
   imageModelForMode,
 } from '../../lib/openrouter';
-import { audioForSequence, renderClip } from './film';
+import { audioForSequence, renderClip, renderStill } from './render';
 import type { ModelSelection } from '../../lib/openrouter';
 import { explainFailure } from '../../lib/failure';
 import type { Failure } from '../../lib/failure';
@@ -730,10 +729,17 @@ export class SceneEngine {
       // side renders fine and still belongs to the same moment.
       const candidates = [prompts[1] ?? prompts[0]!, prompts[0]!, prompts[2]!].filter(Boolean);
       const model = imageModelForMode('wide-field', this.config.models);
-      const { url: heroUrl, moderatedCount, modelUsed } = await generateImageWithFallback(
+      /**
+       * NO REFERENCE, and that is the whole difference between this and a swept
+       * frame. A station reached from the dial has no predecessor to hold the
+       * camera on, so it is unanchored — free to frame the place however the
+       * model likes, which is what an independent photograph of a spacetime
+       * should be. With `reference` omitted, renderStill makes exactly the call
+       * this line has always made.
+       */
+      const { url: heroUrl, moderatedCount, modelUsed } = await renderStill(
         this.config.apiKey,
-        candidates,
-        model,
+        { model, prompts: candidates },
         { signal: job.abort.signal },
       );
       if (job.abort.signal.aborted) return this.discardAborted(key);

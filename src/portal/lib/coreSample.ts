@@ -35,14 +35,12 @@
 
 import type { Coordinates } from '../../types';
 import {
-  generateImageWithFallback,
   generateSceneDirection,
   imageModelForMode,
-  isImageInputRejection,
   videoModelSupports,
 } from '../../lib/openrouter';
 import type { ModelSelection, VideoModelCapability } from '../../lib/openrouter';
-import { audioForSequence, renderClip } from './film';
+import { audioForSequence, renderClip, renderStill } from './render';
 import { explainFailure } from '../../lib/failure';
 import { buildCoreSamplePrompts } from '../../lib/promptcraft';
 import type { SceneDirection } from '../../lib/promptcraft';
@@ -771,29 +769,17 @@ export class CoreSampleRunner {
           : prompts;
 
         try {
-          let url: string;
-          let chained = Boolean(reference);
-          try {
-            url = (
-              await generateImageWithFallback(config.apiKey, prompts, model, {
-                signal: abort.signal,
-                reference,
-              })
-            ).url;
-          } catch (err) {
-            // A provider that will not take an input image must not cost the
-            // user the rest of the sweep. Drop continuity for this frame only,
-            // and keep going — the next frame tries to chain again.
-            if (!reference || !isImageInputRejection(err)) throw err;
-            chained = false;
-            url = (
-              await generateImageWithFallback(config.apiKey, unchainedPrompts, model, {
-                signal: abort.signal,
-              })
-            ).url;
-          }
+          // A provider that will not take an input image must not cost the user
+          // the rest of the sweep: renderStill drops the anchor for this frame
+          // alone and reports that it did, and the next frame tries to chain
+          // again from here.
+          const { url, anchored } = await renderStill(
+            config.apiKey,
+            { model, prompts, reference, unanchoredPrompts: unchainedPrompts },
+            { signal: abort.signal },
+          );
           if (abort.signal.aborted) break;
-          this.patchFrame(i, { status: 'ready', url, chained });
+          this.patchFrame(i, { status: 'ready', url, chained: anchored });
           reference = url;
         } catch (err) {
           if (abort.signal.aborted) break;
