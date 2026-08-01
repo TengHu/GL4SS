@@ -5931,12 +5931,34 @@ body {
   text-transform: uppercase;
 }
 
-/* QUEUED STATIONS ON THE DIAL. Picking years is a thing you do to the axis, so
-   the axis has to show it — a list in a panel makes you hold the spacing in your
-   head, and spacing is what decides whether the result reads as one place
-   changing or as unrelated pictures. Drawn under the active and pinned marks,
-   which must stay the loudest things on the ribbon. */
-.dial-station--picked {
-  background: color-mix(in srgb, var(--accent) 72%, transparent);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent);
+/* QUEUED STATIONS ON THE DIAL.
+ *
+ * Its OWN mark, and a small one. The dial already carries four readouts on one
+ * ribbon — .dial-tick is graduation order, .dial-dot is what you own, .dial-rail
+ * is the era, and the active and pinned marks are the loudest things on it — so
+ * a fifth has to take a place none of them uses and stay quieter than all of
+ * them.
+ *
+ * This first shipped as a `background` on .dial-station, which is the whole CELL
+ * rather than the mark inside it: at rung width that painted a 56px gold slab
+ * across the ribbon, buried the era labels behind it, and read as a selected
+ * REGION when the truth is a handful of individual stations. The mark belongs on
+ * the graduation, not on the ground it stands in.
+ */
+.dial-station--picked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  width: 62%;
+  min-width: 4px;
+  max-width: 13px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
 }
+
+/* Where you are standing already shouts; it does not also need the queue mark. */
+.dial-station--picked.dial-station--active::after { opacity: 0.45; }
