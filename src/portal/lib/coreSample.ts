@@ -106,7 +106,20 @@ export const SAMPLE_SPANS: SampleSpan[] = [
   },
 ];
 
-export const SAMPLE_LENGTHS = [8, 16, 24] as const;
+/**
+ * Frame counts on offer.
+ *
+ * 2 and 4 are here to be cheap rather than to be good. A sweep is the most
+ * expensive thing in the app and a film over it is several times that again, so
+ * there has to be a way to answer "does the chaining actually hold this camera
+ * still, and will this provider take a closing frame" for the price of a couple
+ * of images rather than twenty-four.
+ *
+ * 2 is the smallest sweep that is still a sweep: one anchor, one chained frame,
+ * and — if filmed — exactly one clip. That is the whole mechanism end to end,
+ * and nothing smaller tests anything.
+ */
+export const SAMPLE_LENGTHS = [2, 4, 8, 16, 24] as const;
 
 export function findSpan(id: string): SampleSpan {
   return SAMPLE_SPANS.find((s) => s.id === id) ?? SAMPLE_SPANS[0]!;

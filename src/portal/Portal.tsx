@@ -34,6 +34,7 @@ import { SampleFilmWarning } from './components/SampleFilmWarning';
 import type { Journey } from './lib/journeys';
 import {
   CoreSampleRunner,
+  SAMPLE_LENGTHS,
   bestFilmResolution,
   chooseFilmModel,
   clampClipSeconds,
@@ -504,8 +505,11 @@ export function Portal() {
     () => findSpan(safeStorage.get(STORAGE_KEY_SAMPLE_SPAN) ?? 'recorded').id,
   );
   const [sampleLength, setSampleLength] = useState(() => {
+    // Validated against the offered set rather than a hand-written list of
+    // numbers, which is how the 2 and 4 options would have been silently
+    // unrestorable the moment they were added.
     const stored = Number(safeStorage.get(STORAGE_KEY_SAMPLE_LENGTH));
-    return stored === 8 || stored === 16 || stored === 24 ? stored : 16;
+    return (SAMPLE_LENGTHS as readonly number[]).includes(stored) ? stored : 8;
   });
   useEffect(() => {
     safeStorage.set(STORAGE_KEY_SAMPLE_SPAN, sampleSpanId);
