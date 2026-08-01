@@ -5518,11 +5518,11 @@ body {
   padding: 10px 12px;
 }
 
-/* THE ONE-PICTURE LINE. Not a control — a pointer at the lever, printed inside
-   the pictures block so that one and many read as one job at two counts. The
-   rule between label and target is the same device the caption uses to tie a
-   name to a value. */
-.sample-one {
+/* A PATH'S FIRST STEP. Not a control — a pointer at the object that performs it,
+   printed inside the path it belongs to. It lived in the many-pictures block for
+   a while, pointing at the lever, which crossed the two paths at the one point
+   they must never touch. */
+.path-step {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -5532,12 +5532,12 @@ body {
   font-size: 10.5px;
   letter-spacing: 0.05em;
 }
-.sample-one-rule {
+.path-rule {
   flex: 1;
   height: 1px;
   background: linear-gradient(to right, var(--chrome), transparent);
 }
-.sample-one-target {
+.path-target {
   color: var(--ink-dim, #b7c3cf);
   letter-spacing: 0.09em;
 }
@@ -5986,3 +5986,34 @@ body {
 /* Unparseable. Says so on the field rather than in a message that would push
    the fill buttons and the price down the panel. */
 .year-input--bad { border-color: #7d3b52; color: #ff9ad5; }
+
+/* ---------- a path's second step ------------------------------------------
+
+   Each box is one whole path: make pictures, then make video from them. The
+   "then" row is that second step, set apart by a rule so the two steps read as
+   sequence rather than as one undifferentiated panel of controls.
+
+   It sits INSIDE a box on purpose. As a separate block between the two paths it
+   claimed to continue from whichever one was above it, which for the
+   many-pictures path was simply false — its render button has always filmed the
+   single frame on screen. */
+.path-then {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--chrome);
+}
+
+.path-then-title {
+  color: var(--ink-dim, #b7c3cf);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+}
+
+/* The many-pictures path only NAMES its video step — the step itself happens in
+   the viewer — so its row carries no controls and should not pull the eye. */
+.sample .path-then { opacity: 0.72; }

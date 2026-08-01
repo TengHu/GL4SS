@@ -1,5 +1,18 @@
 /**
- * PICTURES OF THIS SPOT — one now, or several across time.
+ * PATH B — MANY PICTURES ACROSS TIME, and the video made across them.
+ *
+ * The app has two independent paths to a video:
+ *
+ *   A   one picture   → a clip of that picture      (OnePicturePath)
+ *   B   many pictures → a clip across them          (this file)
+ *
+ * They do not meet, and this block used to imply otherwise twice over: it
+ * printed the LEVER inside itself — path A's first step — and the video block
+ * beneath it said "then", as though it continued from this one. It does not.
+ * Each box is now one whole path.
+ *
+ * This path's video step happens in the viewer that opens after a run, not in
+ * the caption, so the box says so rather than leaving it to be hunted for.
  *
  * WHAT YOU ARE EDITING IS A LIST OF YEARS.
  *
@@ -49,7 +62,7 @@ interface Props {
   onReopen: () => void;
 }
 
-export function SampleControl({
+export function ManyPicturesPath({
   years,
   currentYear,
   onAddYear,
@@ -83,7 +96,7 @@ export function SampleControl({
     <div className="sample">
       <div className="film-head">
         <span className="film-dot" aria-hidden="true" />
-        <span className="film-title">Pictures of this spot</span>
+        <span className="film-title">Many pictures, across time</span>
         <span className="film-meta">
           {years.length ? (
             <>
@@ -98,18 +111,7 @@ export function SampleControl({
         </span>
       </div>
 
-      {/* The one-picture case, named and pointed at rather than duplicated. A
-          second button here would be a second way to spend on one frame, and
-          the app deliberately has exactly one. */}
-      <div className="sample-one">
-        one, right now
-        <span className="sample-one-rule" aria-hidden="true" />
-        <span className="sample-one-target">pull the lever ⟶</span>
-      </div>
-
       <div className="sample-rows">
-        <div className="sample-many">many, across time</div>
-
         {/* The list itself. Ascending, so it reads as a timeline rather than as
             the order things happened to be clicked in. */}
         <div className="year-chips" role="list" aria-label="Years queued">
@@ -237,6 +239,14 @@ export function SampleControl({
             take {years.length} images
             <span aria-hidden="true"> ⧗</span>
           </button>
+        </div>
+
+        {/* Named, not hidden. This path's video step lives in the viewer that
+            opens after a run — saying where stops it being hunted for in the
+            caption, where the only render button belongs to the other path. */}
+        <div className="path-then">
+          <span className="path-then-title">then film them</span>
+          <span className="film-meta">in the viewer that opens</span>
         </div>
       </div>
     </div>

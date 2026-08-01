@@ -1,16 +1,27 @@
 /**
- * THE FILM CONTROL.
+ * PATH A — ONE PICTURE, and the video made from it.
  *
- * Film was a plain text CTA sitting at the same visual weight as "widen the
- * view", with three unlabelled length pills beside it. That badly misrepresents
- * what it is: widen costs two images and seconds, film costs minutes and is the
- * most expensive thing the app can ask for. A control should look like what it
- * costs.
+ * The app has two independent paths to a video:
  *
- * So it gets its own bordered block, the length choice reads as a segmented
- * control with an honest wait estimate attached, and — because the wait is
- * genuinely minutes — the rendering state counts elapsed time and names the
- * provider's stage instead of showing a static string that looks frozen.
+ *   A   one picture   → a clip of that picture      (this file)
+ *   B   many pictures → a clip across them          (ManyPicturesPath)
+ *
+ * Each has its own picture step and its own video step, and they do not meet.
+ * The caption used to show path B's picture step stacked on path A's video step,
+ * joined by the word "then" — which claimed the lower block continued from the
+ * upper one. It does not: pressing render there produces a clip of the SINGLE
+ * frame on screen, whatever years happen to be queued above it. The word was
+ * added to fix an ordering problem and introduced a worse one, because a label
+ * that is merely noisy is better than a label that is wrong.
+ *
+ * So each box is now one whole path, and "then" appears inside a box, where it
+ * is true.
+ *
+ * This block was formerly FilmControl, and keeps its reasons: film costs minutes
+ * and is the most expensive thing the app can ask for, so it gets a bordered
+ * block rather than a text CTA, the length choice carries an honest wait
+ * estimate, and the rendering state counts elapsed time and names the provider's
+ * stage instead of showing a static string that looks frozen.
  */
 
 import { useEffect, useState } from 'react';
@@ -35,7 +46,7 @@ function formatElapsed(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-export function FilmControl({ scene, seconds, onSecondsChange, onRender, lengths }: Props) {
+export function OnePicturePath({ scene, seconds, onSecondsChange, onRender, lengths }: Props) {
   const status = scene.videoStatus ?? 'none';
   const rendering = status === 'rendering';
   const [now, setNow] = useState(() => Date.now());
@@ -52,25 +63,46 @@ export function FilmControl({ scene, seconds, onSecondsChange, onRender, lengths
 
   const startedAt = scene.videoStartedAt ?? now;
 
+  /** The path's head and its first step, shared by every state below. */
+  const head = (
+    <>
+      <div className="film-head">
+        <span className="film-dot" aria-hidden="true" />
+        <span className="film-title">One picture</span>
+        <span className="film-meta">this station, this hour</span>
+      </div>
+      {/* The lever is not moved here — it is the app's signature object and
+          belongs where it is — but it IS this path's first step, so the path
+          names it. It used to be printed inside the many-pictures block, which
+          crossed the two paths at the one point they should never touch. */}
+      <div className="path-step">
+        make it
+        <span className="path-rule" aria-hidden="true" />
+        <span className="path-target">pull the lever ⟶</span>
+      </div>
+    </>
+  );
+
   if (status === 'ready') {
     return (
-      <div className="film film--done">
-        <span className="film-dot film-dot--done" aria-hidden="true" />
-        <span className="film-title">Film playing</span>
-        <span className="film-meta">{seconds}s with sound</span>
+      <div className="film">
+        {head}
+        <div className="path-then">
+          <span className="film-dot film-dot--done" aria-hidden="true" />
+          <span className="path-then-title">Film playing</span>
+          <span className="film-meta">{seconds}s with sound</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className={`film${rendering ? ' film--busy' : ''}`}>
-      <div className="film-head">
-        <span className="film-dot" aria-hidden="true" />
-        {/* "then" rather than a bare title: this is the SECOND stage, and it
-            needs a picture to exist before it means anything. The word does the
-            ordering work that the layout alone could not. */}
-        {!rendering && <span className="film-then">then</span>}
-        <span className="film-title">{rendering ? 'Rendering film' : 'turn it into video'}</span>
+      {head}
+      <div className="path-then">
+        <span className="path-then-title">
+          {rendering ? 'Rendering film' : 'then turn it into video'}
+        </span>
         <span className="film-meta">
           {rendering
             ? `${formatElapsed(Math.max(0, now - startedAt))} elapsed${scene.videoStage ? ` · ${scene.videoStage}` : ''}`

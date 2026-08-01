@@ -22,12 +22,12 @@ import { TimeDial } from './components/TimeDial';
 import { PlaceDial } from './components/PlaceDial';
 import { Settings } from './components/Settings';
 import { FilmWarning } from './components/FilmWarning';
+import { OnePicturePath } from './components/OnePicturePath';
 import { LookPicker } from './components/LookPicker';
-import { FilmControl } from './components/FilmControl';
 import { TimeLever } from './components/TimeLever';
 import { SunDial } from './components/SunDial';
 import { JourneyGallery } from './components/JourneyGallery';
-import { SampleControl } from './components/SampleControl';
+import { ManyPicturesPath } from './components/ManyPicturesPath';
 import { SampleWarning } from './components/SampleWarning';
 import { SamplePlayer } from './components/SamplePlayer';
 import type { Journey } from './lib/journeys';
@@ -1539,8 +1539,29 @@ export function Portal() {
 
             Still gated on SOMETHING having rendered, so this cannot be the first
             thing a new visitor spends money on. */}
+        {/* TWO INDEPENDENT PATHS TO A VIDEO, one box each.
+
+            A — one picture, then a clip of it. Belongs to the TUNED station, so
+            it correctly disappears when you tune away from a frame that exists.
+
+            B — many pictures, then a clip across them. Belongs to the PLACE, so
+            it survives moving the dial; its video step happens in the viewer
+            rather than here.
+
+            They used to be shown as half of each, stacked, joined by a "then"
+            that claimed one continued from the other. */}
+        {scene?.status === 'ready' && (
+          <OnePicturePath
+            scene={scene}
+            seconds={filmSeconds}
+            onSecondsChange={setFilmSeconds}
+            onRender={requestFilm}
+            lengths={FILM_LENGTHS}
+          />
+        )}
+
         {shownScene && (
-          <SampleControl
+          <ManyPicturesPath
             years={sampleYears}
             currentYear={year}
             onAddYear={addSampleYear}
@@ -1552,19 +1573,6 @@ export function Portal() {
             onRun={() => void requestSample()}
             hasSample={sample.status !== 'idle'}
             onReopen={() => setSamplerOpen(true)}
-          />
-        )}
-
-        {/* Film, by contrast, DOES belong to the tuned station: it turns this
-            station's frame into a clip, so it correctly disappears when you tune
-            away from a frame that exists. */}
-        {scene?.status === 'ready' && (
-          <FilmControl
-            scene={scene}
-            seconds={filmSeconds}
-            onSecondsChange={setFilmSeconds}
-            onRender={requestFilm}
-            lengths={FILM_LENGTHS}
           />
         )}
 
