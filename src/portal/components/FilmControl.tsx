@@ -66,7 +66,11 @@ export function FilmControl({ scene, seconds, onSecondsChange, onRender, lengths
     <div className={`film${rendering ? ' film--busy' : ''}`}>
       <div className="film-head">
         <span className="film-dot" aria-hidden="true" />
-        <span className="film-title">{rendering ? 'Rendering film' : 'Render as film'}</span>
+        {/* "then" rather than a bare title: this is the SECOND stage, and it
+            needs a picture to exist before it means anything. The word does the
+            ordering work that the layout alone could not. */}
+        {!rendering && <span className="film-then">then</span>}
+        <span className="film-title">{rendering ? 'Rendering film' : 'turn it into video'}</span>
         <span className="film-meta">
           {rendering
             ? `${formatElapsed(Math.max(0, now - startedAt))} elapsed${scene.videoStage ? ` · ${scene.videoStage}` : ''}`
@@ -117,7 +121,10 @@ export function FilmControl({ scene, seconds, onSecondsChange, onRender, lengths
               </button>
             ))}
           </div>
-          <button className="film-go" onClick={onRender}>
+          {/* Quiet, because this is derived work. It used to wear the same lit
+              actuator as the picture button beside it, which made the optional
+              second stage look exactly as primary as the thing it depends on. */}
+          <button className="film-go film-go--quiet" onClick={onRender}>
             {status === 'error' ? 'try again' : 'render'}
             <span aria-hidden="true"> ▶</span>
           </button>

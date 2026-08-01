@@ -143,7 +143,7 @@ own, and those restore instantly and for free.
 | `←` `→` | step a station (`shift` = five) |
 | `↵` | throw the lever |
 | `J` | journeys |
-| `S` | take a core sample · this spot across many stations |
+| `S` | more pictures of this spot, across time |
 | `M` | place |
 | `W` | widen the view |
 | `P` | hold a frame · `space` to blink-compare |

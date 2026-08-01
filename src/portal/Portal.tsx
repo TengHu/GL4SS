@@ -1455,18 +1455,13 @@ export function Portal() {
           </button>
         )}
 
-        {scene?.status === 'ready' && (
-          <FilmControl
-            scene={scene}
-            seconds={filmSeconds}
-            onSecondsChange={setFilmSeconds}
-            onRender={requestFilm}
-            lengths={FILM_LENGTHS}
-          />
-        )}
+        {/* PICTURES BEFORE VIDEO, because video is made FROM pictures. These two
+            blocks used to sit the other way up, which put the derived action
+            above the thing it derives from and encouraged reading them as two
+            flavours of one choice rather than as two stages.
 
-        {/* Offered on any ready frame, and unlike film it does not depend on
-            THIS station having rendered — a sample is about the place, not the
+            Offered on any ready frame, and unlike film it does not depend on
+            THIS station having rendered — a sweep is about the place, not the
             year. It is gated on a frame only so that it cannot be the first
             thing a new visitor spends money on. */}
         {scene?.status === 'ready' && (
@@ -1478,6 +1473,16 @@ export function Portal() {
             onRun={() => void requestSample()}
             hasSample={sample.status !== 'idle'}
             onReopen={() => setSamplerOpen(true)}
+          />
+        )}
+
+        {scene?.status === 'ready' && (
+          <FilmControl
+            scene={scene}
+            seconds={filmSeconds}
+            onSecondsChange={setFilmSeconds}
+            onRender={requestFilm}
+            lengths={FILM_LENGTHS}
           />
         )}
 
@@ -1555,7 +1560,7 @@ export function Portal() {
           <span><kbd>W</kbd> widen</span>
           <span><kbd>F</kbd> full</span>
           <span><kbd>J</kbd> journeys</span>
-          <span><kbd>S</kbd> {sample.status !== 'idle' ? 'sample' : 'core sample'}</span>
+          <span><kbd>S</kbd> {sample.status !== 'idle' ? 'pictures' : 'more pictures'}</span>
           <span>
             <kbd>P</kbd> {activePin ? 'unpin' : 'hold'}
             {comparing && <> · <kbd>SPC</kbd> peek</>}

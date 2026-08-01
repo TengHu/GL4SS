@@ -1,10 +1,18 @@
 /**
- * THE CORE SAMPLE CONTROL.
+ * PICTURES OF THIS SPOT — one now, or many across time.
  *
- * Sits with the film control and is deliberately shaped like it, because it is
- * the same kind of thing: an explicit, expensive, opt-in render that is not part
- * of moving the dial. Two segmented choices — how far, how many — and one button
- * that opens the price dialog.
+ * This used to be titled "take a core sample" and shaped to match the film
+ * control beside it, on the reasoning that both were explicit opt-in renders.
+ * That was the wrong family. Film turns a picture INTO A VIDEO; this makes MORE
+ * PICTURES. Identical styling on two blocks with different outputs left the
+ * titles to carry the distinction, and "core sample" is a metaphor that names
+ * no output at all — so the wrong reading had nothing to correct it.
+ *
+ * Both fixes are here: the block is named for what comes out, and the LEVER is
+ * printed inside it as the one-picture case. The lever itself does not move —
+ * it is the app's signature object and belongs where it is — but stating it
+ * here is what shows that these are one job at two counts, rather than two
+ * different features that happen to be adjacent.
  *
  * The span pills carry a blurb rather than a year range. "3000 BC to now" means
  * something; "-3000 → 2030" is the same fact in a form nobody reads.
@@ -38,11 +46,21 @@ export function SampleControl({
     <div className="sample">
       <div className="film-head">
         <span className="film-dot" aria-hidden="true" />
-        <span className="film-title">Take a core sample</span>
-        <span className="film-meta">this spot, {length} frames · {span.blurb}</span>
+        <span className="film-title">Pictures of this spot</span>
+        <span className="film-meta">{length} images · {span.blurb}</span>
+      </div>
+
+      {/* The one-picture case, named and pointed at rather than duplicated. A
+          second button here would be a second way to spend on one frame, and
+          the app deliberately has exactly one. */}
+      <div className="sample-one">
+        one, right now
+        <span className="sample-one-rule" aria-hidden="true" />
+        <span className="sample-one-target">pull the lever ⟶</span>
       </div>
 
       <div className="sample-rows">
+        <div className="sample-many">many, across time</div>
         <div className="seg seg--wrap" role="radiogroup" aria-label="Span of time">
           {SAMPLE_SPANS.map((s, i) => (
             <button
@@ -109,8 +127,11 @@ export function SampleControl({
               reopen
             </button>
           )}
+          {/* Reads out what it will produce. "Sample" named the gesture; this
+              names the result, which is the thing worth confirming before a
+              price dialog opens. */}
           <button className="film-go" onClick={onRun}>
-            sample
+            take {length} images
             <span aria-hidden="true"> ⧗</span>
           </button>
         </div>
