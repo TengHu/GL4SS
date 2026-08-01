@@ -1,53 +1,84 @@
 /**
- * PICTURES OF THIS SPOT — one now, or many across time.
+ * PICTURES OF THIS SPOT — one now, or several across time.
  *
- * This used to be titled "take a core sample" and shaped to match the film
- * control beside it, on the reasoning that both were explicit opt-in renders.
- * That was the wrong family. Film turns a picture INTO A VIDEO; this makes MORE
- * PICTURES. Identical styling on two blocks with different outputs left the
- * titles to carry the distinction, and "core sample" is a metaphor that names
- * no output at all — so the wrong reading had nothing to correct it.
+ * WHAT YOU ARE EDITING IS A LIST OF YEARS.
  *
- * Both fixes are here: the block is named for what comes out, and the LEVER is
- * printed inside it as the one-picture case. The lever itself does not move —
- * it is the app's signature object and belongs where it is — but stating it
- * here is what shows that these are one job at two counts, rather than two
- * different features that happen to be adjacent.
+ * It used to be a choice between four canned spans, which could only ever
+ * produce evenly spaced years. That answers "show me recorded history" and
+ * cannot answer "show me 1989, 1999, 2010 and 2020" — a set, not a span. The
+ * runner has always taken an arbitrary `years: number[]`; only this control was
+ * narrower than the thing behind it.
  *
- * The span pills carry a blurb rather than a year range. "3000 BC to now" means
- * something; "-3000 → 2030" is the same fact in a form nobody reads.
+ * So the list is the state, and everything else is a way to fill it:
+ *
+ *   a span preset   replaces the list with N evenly spaced years
+ *   + this year     appends whatever the dial is tuned to
+ *   a chip's ×      removes one
+ *
+ * Which means a preset is a starting point rather than a cage: take recorded
+ * history, drop the two you do not want, add 79 AD, and go.
+ *
+ * The block is also named for what comes OUT of it. It was "take a core sample",
+ * shaped to match the film control beside it — the wrong family, since film turns
+ * a picture into a video and this makes more pictures. And the LEVER is printed
+ * inside as the one-picture case: it does not move, it is the app's signature
+ * object, but naming it here is what shows one and many to be the same job at
+ * two counts.
  */
 
+import { formatYear } from '../../lib/format';
 import { SAMPLE_LENGTHS, SAMPLE_SPANS } from '../lib/coreSample';
 
 interface Props {
+  /** The years queued, ascending. This is the real state. */
+  years: number[];
+  /** The station the dial is tuned to, offered as the next addition. */
+  currentYear: number;
+  onAddYear: () => void;
+  onRemoveYear: (year: number) => void;
+  /** Replace the list with an evenly spaced fill. */
+  onFill: (spanId: string, count: number) => void;
   spanId: string;
-  onSpanChange: (id: string) => void;
   length: number;
-  onLengthChange: (n: number) => void;
   onRun: () => void;
-  /** A sample already exists in this session — the button reopens it. */
+  /** A run already exists in this session — the button reopens it. */
   hasSample: boolean;
   onReopen: () => void;
 }
 
 export function SampleControl({
+  years,
+  currentYear,
+  onAddYear,
+  onRemoveYear,
+  onFill,
   spanId,
-  onSpanChange,
   length,
-  onLengthChange,
   onRun,
   hasSample,
   onReopen,
 }: Props) {
-  const span = SAMPLE_SPANS.find((s) => s.id === spanId) ?? SAMPLE_SPANS[0]!;
+  const alreadyQueued = years.includes(currentYear);
+  const first = years[0];
+  const last = years[years.length - 1];
 
   return (
     <div className="sample">
       <div className="film-head">
         <span className="film-dot" aria-hidden="true" />
         <span className="film-title">Pictures of this spot</span>
-        <span className="film-meta">{length} images · {span.blurb}</span>
+        <span className="film-meta">
+          {years.length ? (
+            <>
+              {years.length} images
+              {first !== undefined && last !== undefined && years.length > 1
+                ? ` · ${formatYear(first)} → ${formatYear(last)}`
+                : ''}
+            </>
+          ) : (
+            'no years picked'
+          )}
+        </span>
       </div>
 
       {/* The one-picture case, named and pointed at rather than duplicated. A
@@ -61,39 +92,59 @@ export function SampleControl({
 
       <div className="sample-rows">
         <div className="sample-many">many, across time</div>
-        <div className="seg seg--wrap" role="radiogroup" aria-label="Span of time">
-          {SAMPLE_SPANS.map((s, i) => (
+
+        {/* The list itself. Ascending, so it reads as a timeline rather than as
+            the order things happened to be clicked in. */}
+        <div className="year-chips" role="list" aria-label="Years queued">
+          {years.map((y) => (
             <button
-              key={s.id}
-              role="radio"
-              aria-checked={s.id === spanId}
-              tabIndex={s.id === spanId ? 0 : -1}
-              className={`seg-option${s.id === spanId ? ' seg-option--on' : ''}`}
-              onClick={() => onSpanChange(s.id)}
-              /* Arrows must not reach Portal's global handler, or choosing a span
-                 would retune the year instead. Same lesson as FilmControl. */
-              onKeyDown={(e) => {
-                const delta =
-                  e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
-                  : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1
-                  : 0;
-                if (!delta) return;
-                e.preventDefault();
-                e.stopPropagation();
-                const next = SAMPLE_SPANS[(i + delta + SAMPLE_SPANS.length) % SAMPLE_SPANS.length]!;
-                onSpanChange(next.id);
-                const group = e.currentTarget.parentElement;
-                const target = group?.children[SAMPLE_SPANS.indexOf(next)] as HTMLElement | undefined;
-                target?.focus();
-              }}
+              key={y}
+              role="listitem"
+              className="year-chip"
+              onClick={() => onRemoveYear(y)}
+              title={`Remove ${formatYear(y)}`}
             >
-              {s.label}
+              {formatYear(y)}
+              <span className="year-chip-x" aria-hidden="true">
+                ×
+              </span>
             </button>
           ))}
+
+          <button
+            className="year-add"
+            onClick={onAddYear}
+            disabled={alreadyQueued}
+            title={
+              alreadyQueued
+                ? `${formatYear(currentYear)} is already in the list`
+                : `Add ${formatYear(currentYear)} to the list`
+            }
+          >
+            + {formatYear(currentYear)}
+          </button>
+        </div>
+
+        {/* Fills, not modes. Clicking one replaces the list; editing it
+            afterwards is expected rather than a departure from the preset. */}
+        <div className="sample-fill">
+          <span className="sample-fill-label">fill with</span>
+          <div className="seg seg--wrap">
+            {SAMPLE_SPANS.map((s) => (
+              <button
+                key={s.id}
+                className={`seg-option${s.id === spanId ? ' seg-option--on' : ''}`}
+                onClick={() => onFill(s.id, length)}
+                title={s.blurb}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="sample-go-row">
-          <div className="seg" role="radiogroup" aria-label="Number of frames">
+          <div className="seg" role="radiogroup" aria-label="How many to fill with">
             {SAMPLE_LENGTHS.map((n, i) => (
               <button
                 key={n}
@@ -101,7 +152,10 @@ export function SampleControl({
                 aria-checked={length === n}
                 tabIndex={length === n ? 0 : -1}
                 className={`seg-option${length === n ? ' seg-option--on' : ''}`}
-                onClick={() => onLengthChange(n)}
+                onClick={() => onFill(spanId, n)}
+                /* Arrows must not reach Portal's global handler, or choosing a
+                   count would retune the year instead. Same lesson as
+                   FilmControl learned the hard way. */
                 onKeyDown={(e) => {
                   const delta =
                     e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
@@ -111,7 +165,7 @@ export function SampleControl({
                   e.preventDefault();
                   e.stopPropagation();
                   const next = SAMPLE_LENGTHS[(i + delta + SAMPLE_LENGTHS.length) % SAMPLE_LENGTHS.length]!;
-                  onLengthChange(next);
+                  onFill(spanId, next);
                   const group = e.currentTarget.parentElement;
                   const target = group?.children[SAMPLE_LENGTHS.indexOf(next)] as HTMLElement | undefined;
                   target?.focus();
@@ -130,8 +184,8 @@ export function SampleControl({
           {/* Reads out what it will produce. "Sample" named the gesture; this
               names the result, which is the thing worth confirming before a
               price dialog opens. */}
-          <button className="film-go" onClick={onRun}>
-            take {length} images
+          <button className="film-go" onClick={onRun} disabled={years.length < 2}>
+            take {years.length} images
             <span aria-hidden="true"> ⧗</span>
           </button>
         </div>

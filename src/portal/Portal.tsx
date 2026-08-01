@@ -45,7 +45,7 @@ import { fetchVideoModels } from '../lib/openrouter';
 import type { VideoModelCapability } from '../lib/openrouter';
 import { SceneEngine, sceneKey } from './lib/engine';
 import type { Scene, SceneStatus } from './lib/engine';
-import { STATIONS, nearestStationIndex, neighbourStations } from './lib/stations';
+import { STATIONS, nearestStationIndex, neighbourStations, snapToStation } from './lib/stations';
 import { eraAccent } from './lib/eraField';
 import { jumpCharacter, makePin, openingSeam, pinApplies, pinnedSide } from './lib/pin';
 import { safeStorage } from './lib/safeStorage';
@@ -503,6 +503,16 @@ export function Portal() {
   const [sampleSpanId, setSampleSpanId] = useState(
     () => findSpan(safeStorage.get(STORAGE_KEY_SAMPLE_SPAN) ?? 'recorded').id,
   );
+  /**
+   * THE YEARS QUEUED FOR THE NEXT MULTI-PICTURE RUN.
+   *
+   * The real state of that control. Span and count are only ways to fill it —
+   * `sampleSpanId` and `sampleLength` are remembered so the fill buttons stay
+   * where you left them, but neither is what gets rendered. The runner has
+   * always taken an arbitrary `years: number[]`; this is what finally hands it
+   * one that the user composed rather than one a preset computed.
+   */
+  const [sampleYears, setSampleYears] = useState<number[]>([]);
   const [sampleLength, setSampleLength] = useState(() => {
     // Validated against the offered set rather than a hand-written list of
     // numbers, which is how the 2 and 4 options would have been silently
@@ -540,6 +550,9 @@ export function Portal() {
     resolution: '720p' | '1080p';
     choice: FilmModelChoice;
   } | null>(null);
+
+  /** Set form, so the dial can test membership per station without a scan. */
+  const sampleYearSet = useMemo(() => new Set(sampleYears), [sampleYears]);
 
   const currentKey = useMemo(
     () => sceneKey({ year, coordinates, location, styleId: styleKey, phaseId }),
@@ -760,6 +773,39 @@ export function Portal() {
     [engine, scene, filmSeconds],
   );
 
+  /** Replace the queue with an evenly spaced fill, and remember the choice. */
+  const fillSampleYears = useCallback((spanId: string, count: number) => {
+    setSampleSpanId(spanId);
+    setSampleLength(count);
+    setSampleYears(planSample(findSpan(spanId), count));
+  }, []);
+
+  /**
+   * Add the station the dial is tuned to.
+   *
+   * `year` here is the EXACT year, which may be a typed value between stations
+   * (see exactYear). Snapping keeps the queue on the ladder — the runner keys
+   * every frame by station, so an off-ladder year would silently render as its
+   * neighbour and appear twice under two labels.
+   */
+  const addSampleYear = useCallback(() => {
+    const station = snapToStation(year);
+    setSampleYears((cur) => (cur.includes(station) ? cur : [...cur, station].sort((a, b) => a - b)));
+  }, [year]);
+
+  const removeSampleYear = useCallback((y: number) => {
+    setSampleYears((cur) => cur.filter((v) => v !== y));
+  }, []);
+
+  /** Seed the queue once, so the control opens with something rather than empty. */
+  useEffect(() => {
+    if (sampleYears.length === 0) {
+      setSampleYears(planSample(findSpan(sampleSpanId), sampleLength));
+    }
+    // Seeding only. Editing the queue down to nothing must not refill it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /**
    * Open the core-sample price dialog.
    *
@@ -777,7 +823,8 @@ export function Portal() {
       setSamplerOpen(true);
       return;
     }
-    const years = planSample(findSpan(sampleSpanId), sampleLength);
+    const years = sampleYears;
+    if (years.length < 2) return;
     // Same reason the lever waits: until the index is loaded we cannot tell an
     // owned station from an unowned one, and would quote a price that is one
     // image too high.
@@ -788,7 +835,7 @@ export function Portal() {
         engine.hasStored({ year: anchor, coordinates, location, styleId: styleKey, phaseId }),
     );
     setSamplePending(years);
-  }, [apiKey, sampler, sampleSpanId, sampleLength, engine, coordinates, location, styleKey, phaseId]);
+  }, [apiKey, sampler, sampleYears, engine, coordinates, location, styleKey, phaseId]);
 
   const confirmSample = useCallback(() => {
     const years = samplePending;
@@ -1466,10 +1513,13 @@ export function Portal() {
             thing a new visitor spends money on. */}
         {scene?.status === 'ready' && (
           <SampleControl
+            years={sampleYears}
+            currentYear={year}
+            onAddYear={addSampleYear}
+            onRemoveYear={removeSampleYear}
+            onFill={fillSampleYears}
             spanId={sampleSpanId}
-            onSpanChange={setSampleSpanId}
             length={sampleLength}
-            onLengthChange={setSampleLength}
             onRun={() => void requestSample()}
             hasSample={sample.status !== 'idle'}
             onReopen={() => setSamplerOpen(true)}
@@ -1540,6 +1590,7 @@ export function Portal() {
             setExactYear(STATIONS.includes(y) ? null : y);
           }}
           seat={seat}
+          pickedYears={sampleYearSet}
           pinIndex={activePin ? activePin.index : null}
           pinAccent={pinnedYear !== undefined ? eraAccent(pinnedYear) : accent}
         />

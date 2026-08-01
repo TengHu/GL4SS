@@ -53,6 +53,15 @@ interface Props {
   exactYear?: number | null;
   onIndexChange: (index: number) => void;
   statusByYear: Map<number, SceneStatus>;
+  /**
+   * Years queued for the next multi-picture run.
+   *
+   * Drawn on the dial rather than only listed in the caption, because the whole
+   * point of picking years is picking them ON THE AXIS — a list of numbers in a
+   * panel makes you hold the spacing in your head, and spacing is the thing that
+   * decides whether the result reads as one place changing.
+   */
+  pickedYears?: ReadonlySet<number>;
   onScrubbingChange: (scrubbing: boolean) => void;
   /** Station index of the held frame, if any. */
   pinIndex?: number | null;
@@ -95,6 +104,7 @@ export function TimeDial({
   exactYear = null,
   onIndexChange,
   statusByYear,
+  pickedYears,
   onScrubbingChange,
   pinIndex = null,
   pinAccent = '#ffd166',
@@ -444,6 +454,7 @@ export function TimeDial({
                 key={stationYear}
                 className={[
                   'dial-station',
+                  pickedYears?.has(stationYear) ? 'dial-station--picked' : '',
                   i === index ? 'dial-station--active' : '',
                   i === pinIndex ? 'dial-station--pinned' : '',
                   isEraStart ? 'dial-station--era-start' : '',

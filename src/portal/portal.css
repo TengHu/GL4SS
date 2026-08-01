@@ -5853,3 +5853,90 @@ body {
   margin-top: 2px;
   opacity: 0.94;
 }
+
+/* ---------- the year queue ------------------------------------------------
+
+   What the pictures block actually edits. Chips rather than a text field: the
+   list is short, every entry is removable, and a year you can see is a year you
+   can reason about — which is the whole reason for picking them individually
+   instead of accepting an even spread. */
+
+.year-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 3px;
+  /* 24 chips is four rows at this width. Scroll rather than push the fill
+     buttons and the price off the bottom of the caption. */
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.year-chip, .year-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--chrome);
+  border-radius: 2px;
+  background: var(--steel);
+  color: var(--ink-dim, #b7c3cf);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  padding: 4px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.year-chip:hover {
+  color: var(--ink);
+  border-color: #7d3b52;
+}
+.year-chip:hover .year-chip-x { color: #ff9ad5; }
+
+.year-chip-x {
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* The add button carries the dial's accent, because what it adds is wherever
+   the dial is standing — the two are the same fact in two places. */
+.year-add {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--chrome));
+  background: color-mix(in srgb, var(--accent) 7%, var(--steel));
+}
+.year-add:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--chrome));
+}
+.year-add:disabled {
+  color: var(--ink-faint);
+  border-color: var(--chrome);
+  background: var(--steel);
+  cursor: default;
+}
+
+.sample-fill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sample-fill-label {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* QUEUED STATIONS ON THE DIAL. Picking years is a thing you do to the axis, so
+   the axis has to show it — a list in a panel makes you hold the spacing in your
+   head, and spacing is what decides whether the result reads as one place
+   changing or as unrelated pictures. Drawn under the active and pinned marks,
+   which must stay the loudest things on the ribbon. */
+.dial-station--picked {
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent);
+}
