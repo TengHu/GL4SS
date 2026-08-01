@@ -36,6 +36,7 @@ import type { Failure } from '../../lib/failure';
 import { findPhase, isDefaultPhase } from './daylight';
 import {
   buildCinematicPromptFromDirection,
+  buildCoreSamplePrompts,
   buildImagePromptsFromDirection,
 } from '../../lib/promptcraft';
 import type { SceneDirection } from '../../lib/promptcraft';
@@ -191,6 +192,17 @@ export class SceneEngine {
    */
   private styleOverride: string | null = null;
   private template: string | undefined;
+  /**
+   * A photograph the visitor brought, attached to the drawing request so the
+   * generated frame is shot from their camera position.
+   *
+   * Held here rather than passed per-request for the same reason the style
+   * suffix is: it is a standing choice about how frames are made, not a property
+   * of any one station. It changes only the DRAWING request — the planner still
+   * works out what this year looked like from place, year, hour and style, since
+   * a modern photograph has nothing to say about that.
+   */
+  private seedReference: string | null = null;
   /** Stations with a film in flight. Not Jobs, so the queue cannot protect them. */
   private filming = new Set<string>();
   private persisted: FrameIndex = { keys: new Map(), totalBytes: 0 };
@@ -243,6 +255,17 @@ export class SceneEngine {
   setStyleOverride(suffix: string | null, template: string): void {
     this.styleOverride = suffix;
     this.template = template;
+  }
+
+  /**
+   * The reference photograph, or null for none.
+   *
+   * Callers must also fold its fingerprint into `styleId`, or a frame drawn from
+   * this photograph and one drawn without it would share a cache key and
+   * silently overwrite each other in the archive. See styleKey in Portal.
+   */
+  setSeedReference(url: string | null): void {
+    this.seedReference = url;
   }
 
   setConfig(config: EngineConfig): void {
@@ -706,28 +729,32 @@ export class SceneEngine {
         degraded: direction.isFallback ? 'scene planning failed — generic imagery' : undefined,
       });
 
-      const prompts = buildImagePromptsFromDirection(
-        {
-          location: coords.location,
-          coordinates: coords.coordinates,
-          year: coords.year,
-          mode: 'wide-field',
-          styleSuffix: this.styleOverride,
-          phase: findPhase(coords.phaseId).prompt,
-          template: this.template,
-          // The hero fills the screen, so this matters here MORE than in widen().
-          // It was originally added to widen() only, which meant the full-bleed
-          // frame — the one the whole app is about — was the one getting a square
-          // image cropped to ribbons.
-          aspect: '16:9',
-        },
-        direction,
-      );
-      // Index 1 is the centre/focal frame — the right one for a single hero.
-      // The peripheral subjects follow as moderation fallbacks: an arena scene's
-      // focal subject is often the violent one, while the stonemason off to the
-      // side renders fine and still belongs to the same moment.
-      const candidates = [prompts[1] ?? prompts[0]!, prompts[0]!, prompts[2]!].filter(Boolean);
+      const promptFields = {
+        location: coords.location,
+        coordinates: coords.coordinates,
+        year: coords.year,
+        mode: 'wide-field' as const,
+        styleSuffix: this.styleOverride,
+        phase: findPhase(coords.phaseId).prompt,
+        template: this.template,
+        // The hero fills the screen, so this matters here MORE than in widen().
+        // It was originally added to widen() only, which meant the full-bleed
+        // frame — the one the whole app is about — was the one getting a square
+        // image cropped to ribbons.
+        aspect: '16:9',
+      };
+      const prompts = buildImagePromptsFromDirection(promptFields, direction);
+      /**
+       * Centre first, peripherals behind it as moderation fallbacks: an arena
+       * scene's focal subject is often the violent one, while the stonemason off
+       * to the side renders fine and still belongs to the same moment.
+       *
+       * With a reference photograph this also carries the anchor clause — the
+       * same paragraph every chained frame in a sweep already uses, which is why
+       * there is nothing new to write here.
+       */
+      const reference = this.seedReference ?? undefined;
+      const candidates = buildCoreSamplePrompts(promptFields, direction, Boolean(reference));
       const model = imageModelForMode('wide-field', this.config.models);
       /**
        * NO REFERENCE, and that is the whole difference between this and a swept
@@ -739,7 +766,17 @@ export class SceneEngine {
        */
       const { url: heroUrl, moderatedCount, modelUsed } = await renderStill(
         this.config.apiKey,
-        { model, prompts: candidates },
+        {
+          model,
+          prompts: candidates,
+          reference,
+          // Refused references fall back to prompts that do not mention an
+          // attachment, or the model would be reading instructions about a
+          // picture that is no longer there.
+          unanchoredPrompts: reference
+            ? buildCoreSamplePrompts(promptFields, direction, false)
+            : undefined,
+        },
         { signal: job.abort.signal },
       );
       if (job.abort.signal.aborted) return this.discardAborted(key);

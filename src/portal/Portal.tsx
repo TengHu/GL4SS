@@ -28,6 +28,8 @@ import { TimeLever } from './components/TimeLever';
 import { SunDial } from './components/SunDial';
 import { JourneyGallery } from './components/JourneyGallery';
 import { ManyPicturesPath } from './components/ManyPicturesPath';
+import { SeedPhoto } from './components/SeedPhoto';
+import type { SeedImage } from './lib/seedImage';
 import { SampleWarning } from './components/SampleWarning';
 import { SamplePlayer } from './components/SamplePlayer';
 import type { Journey } from './lib/journeys';
@@ -459,6 +461,13 @@ export function Portal() {
    * Folding a cheap hash of the text into the id keeps every distinct look its
    * own cache namespace.
    */
+  /**
+   * A photograph the visitor brought, used as the camera reference for newly
+   * drawn frames. Session-only: it is their file, not something the app made,
+   * and a reload loses it exactly as a film does.
+   */
+  const [seedPhoto, setSeedPhoto] = useState<SeedImage | null>(null);
+
   const styleKey = useMemo(() => {
     const hash = (text: string) => {
       let h = 0;
@@ -475,10 +484,21 @@ export function Portal() {
     // exactly as much as the style does. Without it, editing the template served
     // back frames produced by the previous prompt — and persisted them as though
     // they were the new one.
-    return effectiveTemplate === DEFAULT_IMAGE_TEMPLATE
-      ? base
-      : `${base}+t${hash(effectiveTemplate)}`;
-  }, [styleId, customStyle, effectiveTemplate]);
+    const withTemplate =
+      effectiveTemplate === DEFAULT_IMAGE_TEMPLATE ? base : `${base}+t${hash(effectiveTemplate)}`;
+    /**
+     * A reference photograph changes every pixel, so it belongs in the key for
+     * exactly the reason the template does. Without it, Koto 1915 drawn from
+     * your photograph and Koto 1915 drawn from nothing share an archive entry:
+     * whichever was saved last wins, and the next visit silently restores the
+     * wrong one.
+     *
+     * APPENDED, and only when a photograph is set — the same discipline
+     * sceneKey uses for the phase. An unreferenced key stays byte-identical to
+     * what it has always been, so no existing archive goes unreachable.
+     */
+    return seedPhoto ? `${withTemplate}+r${seedPhoto.fingerprint}` : withTemplate;
+  }, [styleId, customStyle, effectiveTemplate, seedPhoto]);
 
 
   // --- engine --------------------------------------------------------------
@@ -748,6 +768,10 @@ export function Portal() {
   useEffect(() => {
     engine.setStyleOverride(styleSuffix, effectiveTemplate);
   }, [engine, styleSuffix, effectiveTemplate]);
+
+  useEffect(() => {
+    engine.setSeedReference(seedPhoto?.url ?? null);
+  }, [engine, seedPhoto]);
 
   // --- input ---------------------------------------------------------------
   const step = useCallback(
@@ -1569,6 +1593,14 @@ export function Portal() {
 
             Still gated on SOMETHING having rendered, so this cannot be the first
             thing a new visitor spends money on. */}
+        {/* Belongs to the SEED, so it sits ABOVE both paths rather than inside
+            one — a seed is a (time, picture) pair, and this supplies the picture
+            side. Both boxes below consume the seed without knowing where its
+            picture came from. Offered as soon as there is a key, because it is
+            useful before the first frame exists: the whole point is to shape the
+            frame you have not made yet. */}
+        {apiKey && <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />}
+
         {/* TWO INDEPENDENT PATHS TO A VIDEO, one box each.
 
             A — one picture, then a clip of it. Belongs to the TUNED station, so

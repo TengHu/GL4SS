@@ -6034,3 +6034,65 @@ body {
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+
+/* ---------- the visitor's own photograph -----------------------------------
+
+   Sits above both path boxes because it belongs to the SEED, not to a path. A
+   thin strip rather than a panel: it is a standing choice about how frames are
+   drawn, like the style chip, not an action with a price. */
+
+.seedphoto {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  max-width: min(420px, 100%);
+  padding: 7px 10px;
+  border: 1px solid var(--chrome);
+  border-radius: 3px;
+  background: rgba(8, 11, 15, 0.66);
+}
+
+/* Set: the picture itself is the label. Nothing describes a photograph better. */
+.seedphoto--set {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--chrome));
+  background: color-mix(in srgb, var(--accent) 5%, rgba(8, 11, 15, 0.66));
+}
+
+.seedphoto-thumb {
+  width: 46px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid var(--chrome);
+  flex: 0 0 auto;
+}
+
+.seedphoto-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.seedphoto-title {
+  color: var(--ink-dim, #b7c3cf);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.seedphoto-meta {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seedphoto-pick { padding: 5px 11px; font-size: 10px; }
+.seedphoto-clear { padding: 4px 9px; font-size: 9.5px; flex: 0 0 auto; }
