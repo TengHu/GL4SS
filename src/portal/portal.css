@@ -6017,3 +6017,20 @@ body {
 /* The many-pictures path only NAMES its video step — the step itself happens in
    the viewer — so its row carries no controls and should not pull the eye. */
 .sample .path-then { opacity: 0.72; }
+
+/* THE SEED CHIP. Not removable — the sweep grows out of it and it is the one
+   picture already paid for — so it is a span rather than a button and carries a
+   word instead of a ×. Given the dial's accent, because it is the year the dial
+   was standing on when the lever was pulled. */
+.year-chip--seed {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--chrome));
+  background: color-mix(in srgb, var(--accent) 9%, var(--steel));
+  cursor: default;
+}
+.year-chip-seed {
+  color: color-mix(in srgb, var(--accent) 70%, var(--ink-faint));
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}

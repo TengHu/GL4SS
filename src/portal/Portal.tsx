@@ -557,9 +557,6 @@ export function Portal() {
     choice: FilmModelChoice;
   } | null>(null);
 
-  /** Set form, so the dial can test membership per station without a scan. */
-  const sampleYearSet = useMemo(() => new Set(sampleYears), [sampleYears]);
-
   const currentKey = useMemo(
     () => sceneKey({ year, coordinates, location, styleId: styleKey, phaseId }),
     [year, coordinates, location, styleKey, phaseId],
@@ -583,6 +580,37 @@ export function Portal() {
    * destination; the viewport is the present. The lever is what joins them.
    */
   const [displayed, setDisplayed] = useState<Scene | null>(null);
+
+  /**
+   * The picture actually on the glass: this station's frame once it has one, and
+   * until then whatever we were last looking at. Declared here rather than beside
+   * the caption because the sample queue needs it too — the seed is the year of
+   * the picture you are looking at, and that has to be known before the callbacks
+   * that spend money are built.
+   */
+  const shownScene = scene?.status === 'ready' ? scene : displayed;
+
+  /**
+   * THE SEED — the year of the picture on the glass.
+   *
+   * Always in the queue and never removable, because the sweep grows out of it:
+   * it is the one frame already paid for, and a queue that could exclude it
+   * would quietly charge for a picture the visitor is looking at.
+   *
+   * Derived rather than written into `sampleYears`, so the user's own list stays
+   * exactly what they typed. Pull the lever somewhere else and the pin moves;
+   * the year you left behind stays in the list as an ordinary chip, because you
+   * own that one too.
+   */
+  const seedYear = shownScene?.year;
+  const queuedYears = useMemo(() => {
+    if (seedYear === undefined || sampleYears.includes(seedYear)) return sampleYears;
+    return [...sampleYears, seedYear].sort((a, b) => a - b);
+  }, [sampleYears, seedYear]);
+
+  /** Set form, so the dial can test membership per station without a scan. */
+  const sampleYearSet = useMemo(() => new Set(queuedYears), [queuedYears]);
+
   const [seenScene, setSeenScene] = useState<Scene | undefined>(undefined);
   // Adjusted during render rather than in an effect. This is the same rule
   // React documents for state derived from a changed prop: an effect would
@@ -844,19 +872,22 @@ export function Portal() {
       setSamplerOpen(true);
       return;
     }
-    const years = sampleYears;
+    const years = queuedYears;
     if (years.length < 2) return;
     // Same reason the lever waits: until the index is loaded we cannot tell an
     // owned station from an unowned one, and would quote a price that is one
     // image too high.
     await engine.whenHydrated();
-    const anchor = years[0];
+    // The SEED is what may already be owned, wherever it sits in the queue —
+    // not years[0], which was only ever the anchor because the sweep could not
+    // grow backwards.
     setSampleAnchorOwned(
-      anchor !== undefined &&
-        engine.hasStored({ year: anchor, coordinates, location, styleId: styleKey, phaseId }),
+      seedYear !== undefined &&
+        years.includes(seedYear) &&
+        engine.hasStored({ year: seedYear, coordinates, location, styleId: styleKey, phaseId }),
     );
     setSamplePending(years);
-  }, [apiKey, sampler, sampleYears, engine, coordinates, location, styleKey, phaseId]);
+  }, [apiKey, sampler, queuedYears, seedYear, engine, coordinates, location, styleKey, phaseId]);
 
   const confirmSample = useCallback(() => {
     const years = samplePending;
@@ -864,7 +895,7 @@ export function Portal() {
     if (!years?.length) return;
     setSamplerOpen(true);
     void sampler.start(
-      { years, coordinates, location, styleId: styleKey, phaseId },
+      { years, coordinates, location, styleId: styleKey, phaseId, anchorYear: seedYear },
       {
         apiKey,
         models,
@@ -875,6 +906,7 @@ export function Portal() {
   }, [
     samplePending,
     sampler,
+    seedYear,
     coordinates,
     location,
     styleKey,
@@ -1229,8 +1261,6 @@ export function Portal() {
     setKeyGateOpen(false);
   };
 
-  /** The scene the caption is describing: this station's, else the holdover. */
-  const shownScene = scene?.status === 'ready' ? scene : displayed;
   const shownYear = shownScene?.year ?? year;
   const shownAccent = eraAccent(shownYear);
 
@@ -1562,7 +1592,8 @@ export function Portal() {
 
         {shownScene && (
           <ManyPicturesPath
-            years={sampleYears}
+            years={queuedYears}
+            seedYear={seedYear}
             currentYear={year}
             onAddYear={addSampleYear}
             onAddTypedYear={addTypedYear}

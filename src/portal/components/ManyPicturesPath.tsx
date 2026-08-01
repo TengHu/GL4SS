@@ -46,6 +46,14 @@ import { SAMPLE_LENGTHS, SAMPLE_SPANS } from '../lib/coreSample';
 interface Props {
   /** The years queued, ascending. This is the real state. */
   years: number[];
+  /**
+   * The seed's year — the picture already on the glass.
+   *
+   * Pinned: it cannot be removed, because the sweep grows out of it and it is
+   * the one frame already paid for. A queue that could exclude it would quietly
+   * charge for the picture the visitor is looking at.
+   */
+  seedYear?: number;
   /** The station the dial is tuned to, offered as the next addition. */
   currentYear: number;
   onAddYear: () => void;
@@ -64,6 +72,7 @@ interface Props {
 
 export function ManyPicturesPath({
   years,
+  seedYear,
   currentYear,
   onAddYear,
   onAddTypedYear,
@@ -104,6 +113,7 @@ export function ManyPicturesPath({
               {first !== undefined && last !== undefined && years.length > 1
                 ? ` · ${formatYear(first)} → ${formatYear(last)}`
                 : ''}
+              {seedYear !== undefined && years.includes(seedYear) ? ' · 1 already yours' : ''}
             </>
           ) : (
             'no years picked'
@@ -115,20 +125,31 @@ export function ManyPicturesPath({
         {/* The list itself. Ascending, so it reads as a timeline rather than as
             the order things happened to be clicked in. */}
         <div className="year-chips" role="list" aria-label="Years queued">
-          {years.map((y) => (
-            <button
-              key={y}
-              role="listitem"
-              className="year-chip"
-              onClick={() => onRemoveYear(y)}
-              title={`Remove ${formatYear(y)}`}
-            >
-              {formatYear(y)}
-              <span className="year-chip-x" aria-hidden="true">
-                ×
+          {years.map((y) =>
+            y === seedYear ? (
+              // The seed. No ×, and marked — it is where the sweep grows from,
+              // and it is already yours.
+              <span key={y} role="listitem" className="year-chip year-chip--seed">
+                {formatYear(y)}
+                <span className="year-chip-seed" aria-hidden="true">
+                  seed
+                </span>
               </span>
-            </button>
-          ))}
+            ) : (
+              <button
+                key={y}
+                role="listitem"
+                className="year-chip"
+                onClick={() => onRemoveYear(y)}
+                title={`Remove ${formatYear(y)}`}
+              >
+                {formatYear(y)}
+                <span className="year-chip-x" aria-hidden="true">
+                  ×
+                </span>
+              </button>
+            ),
+          )}
 
           {/* Two ways in, because they suit different intents. The button adds
               wherever the dial is standing — right when you are already looking
@@ -235,8 +256,11 @@ export function ManyPicturesPath({
           {/* Reads out what it will produce. "Sample" named the gesture; this
               names the result, which is the thing worth confirming before a
               price dialog opens. */}
+          {/* Counts what will be BILLED, not how many pictures result. Saying
+              "take 4" when one is already yours errs in the direction that
+              costs money. */}
           <button className="film-go" onClick={onRun} disabled={years.length < 2}>
-            take {years.length} images
+            take {years.length - (seedYear !== undefined && years.includes(seedYear) ? 1 : 0)} more
             <span aria-hidden="true"> ⧗</span>
           </button>
         </div>

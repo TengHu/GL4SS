@@ -334,6 +334,14 @@ export interface SampleRequest {
   location: string;
   styleId: string;
   phaseId?: string;
+  /**
+   * The year the sweep grows OUT of — the station the lever was pulled at, and
+   * the one whose picture is already on the glass.
+   *
+   * Absent, or not in `years`, and the sweep falls back to growing forward from
+   * the earliest year, which is what it always did.
+   */
+  anchorYear?: number;
 }
 
 /** How far the planner may run ahead of the renderer. */
@@ -677,22 +685,40 @@ export class CoreSampleRunner {
 
     try {
       /**
-       * The anchor may come free.
+       * THE SWEEP GROWS OUT OF THE SEED, IN BOTH DIRECTIONS.
        *
-       * If the visitor already owns an ordinary frame at the first station of
-       * the sweep, it becomes frame zero: the sample then continues from the
-       * photograph they have actually been looking at, and costs one image less.
-       * Only the FIRST frame is allowed to do this. Substituting owned frames
-       * further down the chain would save more money and wreck the product — an
-       * unchained frame in the middle is exactly where the camera visibly jumps,
-       * and continuity is the entire reason this feature exists.
+       * The seed is the station the lever was pulled at — the picture already on
+       * the glass, already paid for, already in the archive. Years earlier than
+       * it extend backwards; years later extend forwards. Both directions chain
+       * the same way, each frame drawn while looking at its neighbour nearer the
+       * seed, so one camera position propagates outward through the whole sweep.
+       *
+       *   1900  ◀──  1980  ──▶  1987  ──▶  2020
+       *              seed
+       *
+       * This used to assume the seed was the EARLIEST year and only ever grow
+       * forward. With the lever pulled at 1980 and 1900 in the queue, that
+       * ignored the 1980 picture entirely, generated 1900 out of nothing, and
+       * charged for a frame the visitor already owned — the one thing the
+       * archive exists to prevent.
+       *
+       * Only the seed is restored from disk. Substituting other owned frames
+       * mid-chain would save more money and wreck the product: an unchained
+       * frame in the middle is exactly where the camera visibly jumps, and
+       * continuity is the entire reason this feature exists.
        */
-      let reference: string | undefined;
-      const first = this.state.frames[0];
-      if (first) {
+      const anchor = (() => {
+        if (request.anchorYear === undefined) return 0;
+        const i = this.state.frames.findIndex((f) => f.year === request.anchorYear);
+        return i < 0 ? 0 : i;
+      })();
+
+      let anchorUrl: string | undefined;
+      const seed = this.state.frames[anchor];
+      if (seed) {
         const stored = await getFrame(
           sceneKey({
-            year: first.year,
+            year: seed.year,
             coordinates: request.coordinates,
             location: request.location,
             styleId: request.styleId,
@@ -700,8 +726,8 @@ export class CoreSampleRunner {
           }),
         );
         if (stored?.heroUrl && !abort.signal.aborted) {
-          reference = stored.heroUrl;
-          this.patchFrame(0, {
+          anchorUrl = stored.heroUrl;
+          this.patchFrame(anchor, {
             status: 'ready',
             url: stored.heroUrl,
             narrative: stored.narrative,
@@ -711,14 +737,45 @@ export class CoreSampleRunner {
         }
       }
 
-      for (let i = 0; i < this.state.frames.length; i++) {
+      /**
+       * Outward, nearest first: the seed, then its neighbours, then theirs.
+       *
+       * Walking forward-then-backward instead would leave the far past until
+       * last, so a visitor watching a sweep build would see it march away from
+       * them and only afterwards fill in behind. Interleaving keeps the picture
+       * on screen adjacent to the one they started from.
+       */
+      const order: number[] = [];
+      for (let d = 0; d <= this.state.frames.length; d++) {
+        if (d === 0) order.push(anchor);
+        else {
+          if (anchor + d < this.state.frames.length) order.push(anchor + d);
+          if (anchor - d >= 0) order.push(anchor - d);
+        }
+      }
+
+      /** Each frame is drawn from its neighbour ONE STEP NEARER THE SEED. */
+      const referenceFor = (i: number): string | undefined => {
+        if (i === anchor) return undefined;
+        const towardSeed = i > anchor ? i - 1 : i + 1;
+        const neighbour = this.state.frames[towardSeed];
+        // A failed neighbour leaves this one unanchored rather than chaining it
+        // to nothing; the next frame out then re-anchors from whatever did land.
+        return neighbour?.status === 'ready' ? neighbour.url : undefined;
+      };
+
+      for (const i of order) {
         if (abort.signal.aborted) break;
         const frame = this.state.frames[i];
         if (!frame) continue;
-        if (frame.status === 'ready') continue; // the restored anchor
+        if (frame.status === 'ready') continue; // the restored seed
+
+        const reference = i === anchor ? anchorUrl : referenceFor(i);
 
         this.emit({ cursor: i });
-        for (let ahead = i; ahead < i + DIRECTION_LOOKAHEAD; ahead++) planAt(ahead);
+        for (const ahead of order.slice(order.indexOf(i), order.indexOf(i) + DIRECTION_LOOKAHEAD)) {
+          planAt(ahead);
+        }
 
         this.patchFrame(i, { status: 'directing' });
         let direction: SceneDirection;
@@ -780,7 +837,6 @@ export class CoreSampleRunner {
           );
           if (abort.signal.aborted) break;
           this.patchFrame(i, { status: 'ready', url, chained: anchored });
-          reference = url;
         } catch (err) {
           if (abort.signal.aborted) break;
           // `reference` is deliberately left pointing at the last GOOD frame, so
