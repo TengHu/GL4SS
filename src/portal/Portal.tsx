@@ -45,7 +45,13 @@ import { fetchVideoModels } from '../lib/openrouter';
 import type { VideoModelCapability } from '../lib/openrouter';
 import { SceneEngine, sceneKey } from './lib/engine';
 import type { Scene, SceneStatus } from './lib/engine';
-import { STATIONS, nearestStationIndex, neighbourStations, snapToStation } from './lib/stations';
+import {
+  STATIONS,
+  nearestStationIndex,
+  neighbourStations,
+  parseYearInput,
+  snapToStation,
+} from './lib/stations';
 import { eraAccent } from './lib/eraField';
 import { jumpCharacter, makePin, openingSeam, pinApplies, pinnedSide } from './lib/pin';
 import { safeStorage } from './lib/safeStorage';
@@ -797,6 +803,21 @@ export function Portal() {
     setSampleYears((cur) => cur.filter((v) => v !== y));
   }, []);
 
+  /**
+   * Add a year the user typed, in any register the dial itself accepts.
+   *
+   * Reuses parseYearInput, so `1999`, `500 BC`, `66 mya` and `20000 years ago`
+   * all work here for the same reason they work in the year box — one parser,
+   * one set of rules, and no second dialect to learn halfway down the screen.
+   */
+  const addTypedYear = useCallback((raw: string): boolean => {
+    const parsed = parseYearInput(raw);
+    if (parsed === null) return false;
+    const station = snapToStation(parsed);
+    setSampleYears((cur) => (cur.includes(station) ? cur : [...cur, station].sort((a, b) => a - b)));
+    return true;
+  }, []);
+
   /** Seed the queue once, so the control opens with something rather than empty. */
   useEffect(() => {
     if (sampleYears.length === 0) {
@@ -1507,15 +1528,23 @@ export function Portal() {
             above the thing it derives from and encouraged reading them as two
             flavours of one choice rather than as two stages.
 
-            Offered on any ready frame, and unlike film it does not depend on
-            THIS station having rendered — a sweep is about the place, not the
-            year. It is gated on a frame only so that it cannot be the first
+            GATED ON THE FRAME ON SCREEN, NOT ON THE TUNED STATION. This block is
+            about the PLACE, not the year — but it was gated on `scene`, which is
+            the station the dial is pointing at. Moving the dial to a year you
+            have not generated made `scene` undefined and unmounted the whole
+            control, which meant "dial to 1999, then press + to add it" — the one
+            gesture for building a set of specific years — destroyed the button
+            before it could be pressed. `shownScene` is whatever is actually on
+            the glass, which survives tuning, exactly like the picture does.
+
+            Still gated on SOMETHING having rendered, so this cannot be the first
             thing a new visitor spends money on. */}
-        {scene?.status === 'ready' && (
+        {shownScene && (
           <SampleControl
             years={sampleYears}
             currentYear={year}
             onAddYear={addSampleYear}
+            onAddTypedYear={addTypedYear}
             onRemoveYear={removeSampleYear}
             onFill={fillSampleYears}
             spanId={sampleSpanId}
@@ -1526,6 +1555,9 @@ export function Portal() {
           />
         )}
 
+        {/* Film, by contrast, DOES belong to the tuned station: it turns this
+            station's frame into a clip, so it correctly disappears when you tune
+            away from a frame that exists. */}
         {scene?.status === 'ready' && (
           <FilmControl
             scene={scene}

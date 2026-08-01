@@ -26,6 +26,7 @@
  * two counts.
  */
 
+import { useState } from 'react';
 import { formatYear } from '../../lib/format';
 import { SAMPLE_LENGTHS, SAMPLE_SPANS } from '../lib/coreSample';
 
@@ -35,6 +36,8 @@ interface Props {
   /** The station the dial is tuned to, offered as the next addition. */
   currentYear: number;
   onAddYear: () => void;
+  /** Add a typed year. Returns false when it could not be parsed. */
+  onAddTypedYear: (raw: string) => boolean;
   onRemoveYear: (year: number) => void;
   /** Replace the list with an evenly spaced fill. */
   onFill: (spanId: string, count: number) => void;
@@ -50,6 +53,7 @@ export function SampleControl({
   years,
   currentYear,
   onAddYear,
+  onAddTypedYear,
   onRemoveYear,
   onFill,
   spanId,
@@ -58,7 +62,20 @@ export function SampleControl({
   hasSample,
   onReopen,
 }: Props) {
+  const [draft, setDraft] = useState('');
+  const [bad, setBad] = useState(false);
   const alreadyQueued = years.includes(currentYear);
+
+  const commitDraft = () => {
+    const raw = draft.trim();
+    if (!raw) return;
+    if (onAddTypedYear(raw)) {
+      setDraft('');
+      setBad(false);
+    } else {
+      setBad(true);
+    }
+  };
   const first = years[0];
   const last = years[years.length - 1];
 
@@ -111,6 +128,10 @@ export function SampleControl({
             </button>
           ))}
 
+          {/* Two ways in, because they suit different intents. The button adds
+              wherever the dial is standing — right when you are already looking
+              at the year you want. The field adds a year you have in mind,
+              without a trip to the dial and back for each one. */}
           <button
             className="year-add"
             onClick={onAddYear}
@@ -123,6 +144,34 @@ export function SampleControl({
           >
             + {formatYear(currentYear)}
           </button>
+
+          <input
+            className={`year-input${bad ? ' year-input--bad' : ''}`}
+            value={draft}
+            placeholder="or type a year"
+            aria-label="Add a year — 1999, 500 BC, 66 mya"
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setBad(false);
+            }}
+            onBlur={commitDraft}
+            /* Every key is stopped here. Portal's handler listens on window for
+               arrows, Enter and single letters, so without this typing "1999"
+               would retune the dial and "f" would go fullscreen mid-word. The
+               INPUT/TEXTAREA exemption up there covers it, but Escape and Enter
+               still need handling locally. */
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitDraft();
+              } else if (e.key === 'Escape') {
+                setDraft('');
+                setBad(false);
+                e.currentTarget.blur();
+              }
+            }}
+          />
         </div>
 
         {/* Fills, not modes. Clicking one replaces the list; editing it

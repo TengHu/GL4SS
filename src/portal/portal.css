@@ -5962,3 +5962,27 @@ body {
 
 /* Where you are standing already shouts; it does not also need the queue mark. */
 .dial-station--picked.dial-station--active::after { opacity: 0.45; }
+
+/* Typed year entry, sitting in the chip row. Deliberately a WELL rather than a
+   chip: it is a hole you put something into, not a thing you can remove. */
+.year-input {
+  flex: 1 1 96px;
+  min-width: 84px;
+  border: 1px solid var(--chrome);
+  border-radius: 2px;
+  background: linear-gradient(to bottom, #05070a, #0c1015);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  padding: 4px 7px;
+}
+.year-input::placeholder { color: var(--ink-faint); }
+.year-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--chrome));
+}
+/* Unparseable. Says so on the field rather than in a message that would push
+   the fill buttons and the price down the panel. */
+.year-input--bad { border-color: #7d3b52; color: #ff9ad5; }
