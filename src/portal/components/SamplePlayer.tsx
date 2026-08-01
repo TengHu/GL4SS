@@ -22,6 +22,8 @@ interface Props {
   state: CoreSampleState;
   onCancel: () => void;
   onClose: () => void;
+  /** Open the film consent dialog. Absent while a film is already rendering. */
+  onFilm?: () => void;
 }
 
 /** Frames per second of playback. Slow enough to read the year, fast enough to move. */
@@ -32,12 +34,28 @@ function formatElapsed(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-export function SamplePlayer({ state, onCancel, onClose }: Props) {
+export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
   const running = state.status === 'running';
+  const filming = state.filmStatus === 'rendering';
   const ready = useMemo(
     () => state.frames.filter((f) => f.status === 'ready' && f.url),
     [state.frames],
   );
+
+  /**
+   * The clips, in order, once they exist.
+   *
+   * Only clips that RENDERED are playable, but a gap matters here in a way it
+   * does not for stills: skipping a failed clip means jumping straight from one
+   * still to another, which is exactly the cut this feature exists to remove.
+   * So the gap is skipped and marked rather than hidden.
+   */
+  const clips = useMemo(
+    () => state.clips.filter((c) => c.status === 'ready' && c.url),
+    [state.clips],
+  );
+  const hasFilm = clips.length > 0;
+  const [clipIndex, setClipIndex] = useState(0);
 
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -48,10 +66,10 @@ export function SamplePlayer({ state, onCancel, onClose }: Props) {
 
   // Ticks only while there is an elapsed counter on screen.
   useEffect(() => {
-    if (!running) return;
+    if (!running && !filming) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, [running, filming]);
 
   /**
    * What is actually on the glass.
@@ -155,7 +173,25 @@ export function SamplePlayer({ state, onCancel, onClose }: Props) {
       }}
     >
       <div className="sampler-stage">
-        {ready.map((f, i) => (
+        {/* THE FILM, when there is one. Clips play back to back off a single
+            element: each was rendered to END on the still the next one BEGINS
+            on, so consecutive clips meet on the same image and the handover is
+            invisible. Muted and autoplaying, because it is silent by design and
+            an autoplay policy will refuse an unmuted one anyway. */}
+        {hasFilm && (
+          <video
+            key={clips[Math.min(clipIndex, clips.length - 1)]?.url}
+            className="sampler-film"
+            src={clips[Math.min(clipIndex, clips.length - 1)]?.url}
+            autoPlay
+            muted
+            playsInline
+            controls={false}
+            onEnded={() => setClipIndex((i) => (i + 1 < clips.length ? i + 1 : 0))}
+          />
+        )}
+
+        {!hasFilm && ready.map((f, i) => (
           // All ready frames stay mounted; only one is visible. This is what
           // makes scrubbing instant and playback free of decode flicker.
           <img
@@ -167,7 +203,7 @@ export function SamplePlayer({ state, onCancel, onClose }: Props) {
           />
         ))}
 
-        {!ready.length && (
+        {!ready.length && !hasFilm && (
           <div className="sampler-empty">
             {running ? 'developing the first frame…' : 'nothing rendered'}
           </div>
@@ -198,6 +234,23 @@ export function SamplePlayer({ state, onCancel, onClose }: Props) {
           >
             {playing ? '❚❚' : '▶'}
           </button>
+          {/* Filming is offered only on a finished sweep. Mid-sweep the set of
+              ready frames is still growing, so the clip count — and therefore
+              the price the dialog quotes — would be wrong the moment it was
+              shown. */}
+          {onFilm && !running && !filming && !hasFilm && ready.length >= 2 && (
+            <button className="film-go sampler-film-go" onClick={onFilm}>
+              film it
+              <span aria-hidden="true"> ▶</span>
+            </button>
+          )}
+
+          {hasFilm && (
+            <span className="sampler-mode">
+              film · clip {Math.min(clipIndex + 1, clips.length)}/{clips.length}
+            </span>
+          )}
+
           <div className="seg" role="radiogroup" aria-label="Playback speed">
             {SPEEDS.map((s) => (
               <button
@@ -250,7 +303,21 @@ export function SamplePlayer({ state, onCancel, onClose }: Props) {
         </div>
 
         <div className="sampler-status" aria-live="polite">
-          {running ? (
+          {filming ? (
+            <>
+              <span className="film-dot" aria-hidden="true" />
+              rendering {state.clips.filter((c) => c.status === 'ready').length} of{' '}
+              {state.clips.length} clips
+              {state.filmStartedAt ? ` · ${formatElapsed(Math.max(0, now - state.filmStartedAt))}` : ''}
+              {(() => {
+                const active = state.clips.find((c) => c.status === 'rendering' && c.stage);
+                return active?.stage ? ` · ${active.stage}` : '';
+              })()}
+              <button className="ghost-btn sampler-cancel" onClick={onCancel}>
+                stop
+              </button>
+            </>
+          ) : running ? (
             <>
               <span className="film-dot" aria-hidden="true" />
               rendering {Math.min(state.cursor + 1, state.frames.length)} of {state.frames.length}
@@ -268,6 +335,13 @@ export function SamplePlayer({ state, onCancel, onClose }: Props) {
                   the seam is the provider's doing rather than the model's. */}
               {unchained ? ` · ${unchained} unanchored` : ''}
               {state.status === 'cancelled' ? ' · stopped' : ''}
+              {/* The film's own defects, named separately from the sweep's. */}
+              {hasFilm ? ` · ${clips.length} clips` : ''}
+              {(() => {
+                const cut = state.clips.filter((c) => c.status === 'ready' && c.pinned === false).length;
+                const lost = state.clips.filter((c) => c.status === 'error').length;
+                return `${cut ? ` · ${cut} joins cut` : ''}${lost ? ` · ${lost} clips failed` : ''}`;
+              })()}
             </>
           )}
         </div>

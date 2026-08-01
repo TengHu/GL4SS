@@ -5746,3 +5746,38 @@ body {
   .sampler-frame { transition: none; }
   .sampler-cell--directing, .sampler-cell--rendering { animation: none; }
 }
+
+/* ---------- the filmed sample ------------------------------------------- */
+
+/* Replaces the still stack when clips exist. object-fit matches the stills so
+   switching between the two does not reframe the shot. */
+.sampler-film {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.sampler-film-go {
+  /* Held away from the transport on purpose. Play and speed are free and
+     reversible; this one spends more than everything else in the app put
+     together, and it should not sit in the same cluster as the pause button. */
+  margin-left: auto;
+  padding: 6px 13px;
+  font-size: 10.5px;
+}
+
+.sampler-mode {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* A clip whose closing frame was refused: it does not land on the next still,
+   so the join after it is a cut. Amber rather than the error pink — the clip
+   rendered and is playable, it is only less seamless than it should be. */
+.sampler-cell--cut { border-bottom: 2px solid #e0b24a; }

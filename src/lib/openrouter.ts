@@ -124,6 +124,8 @@ const OPENROUTER_ORIGIN = 'https://openrouter.ai';
 
 const CHAT_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 const VIDEOS_ENDPOINT = 'https://openrouter.ai/api/v1/videos';
+/** Capability table for video models. Public — no key, no charge. */
+const VIDEO_MODELS_ENDPOINT = 'https://openrouter.ai/api/v1/videos/models';
 const KEY_ENDPOINT = 'https://openrouter.ai/api/v1/key';
 
 interface AnthropicLikeBlock {
@@ -962,16 +964,78 @@ export function isImageInputRejection(err: unknown): boolean {
   );
 }
 
+export type FrameType = 'first_frame' | 'last_frame';
+
+export interface VideoFrame {
+  url: string;
+  frame_type: FrameType;
+}
+
 export interface CreateVideoParams {
   model: string;
   prompt: string;
   duration?: number;       // seconds, model-dependent
-  resolution?: '480p' | '720p' | '1080p';
+  resolution?: '480p' | '720p' | '1080p' | '2K' | '4K';
   aspect_ratio?: '16:9' | '9:16' | '1:1' | '4:3' | '3:4';
   generate_audio?: boolean;
-  /** Optional source image to drive image-to-video. URL must be HTTPS for most
-   *  models; data URLs may work on some providers but are not officially documented. */
-  source_image?: { url: string; frame_type?: 'first_frame' | 'last_frame' };
+  /**
+   * Frames pinning the clip.
+   *
+   * ONE entry is ordinary image-to-video: the clip starts here and goes wherever
+   * the model likes. TWO entries — a first_frame and a last_frame — pin both
+   * ends, so the clip is an interpolation between two pictures we already have.
+   * That is what makes a run of clips join seamlessly: clip N ends on the exact
+   * image clip N+1 begins on, so there is no cut to conceal.
+   *
+   * Not every model accepts `last_frame`; `supported_frame_images` on
+   * /videos/models says which do, and sending an unsupported value is a 400.
+   * Check before spending — see `videoModelSupports`.
+   */
+  frames?: VideoFrame[];
+}
+
+// ============================================================================
+// VIDEO MODEL CAPABILITIES
+// ============================================================================
+
+export interface VideoModelCapability {
+  id: string;
+  supported_frame_images?: FrameType[];
+  supported_durations?: number[];
+  supported_resolutions?: string[];
+}
+
+/**
+ * The per-model capability table.
+ *
+ * A separate endpoint from /models, which lists no video models at all — every
+ * "video" entry there is a model that READS video and writes text. Public, so
+ * this can be consulted before a key exists and without spending anything.
+ */
+export async function fetchVideoModels(signal?: AbortSignal): Promise<VideoModelCapability[]> {
+  const res = await fetch(VIDEO_MODELS_ENDPOINT, { signal });
+  if (!res.ok) throw new OpenRouterError(res.status, await res.text());
+  const data = (await res.json()) as { data?: VideoModelCapability[] };
+  return data.data ?? [];
+}
+
+/**
+ * Whether `modelId` accepts this frame type.
+ *
+ * Returns undefined when the table could not be read, which is deliberately
+ * NOT the same as false: a capability lookup that failed for network reasons
+ * must not be reported to the user as "this model cannot do it". The caller
+ * decides whether to proceed on an unknown.
+ */
+export function videoModelSupports(
+  models: VideoModelCapability[] | null,
+  modelId: string,
+  frameType: FrameType,
+): boolean | undefined {
+  if (!models) return undefined;
+  const entry = models.find((m) => m.id === modelId);
+  if (!entry?.supported_frame_images) return undefined;
+  return entry.supported_frame_images.includes(frameType);
 }
 
 export async function createVideoJob(apiKey: string, params: CreateVideoParams): Promise<VideoJob> {
@@ -983,14 +1047,12 @@ export async function createVideoJob(apiKey: string, params: CreateVideoParams):
     aspect_ratio: params.aspect_ratio ?? '16:9',
     generate_audio: params.generate_audio ?? true,
   };
-  if (params.source_image) {
-    body.frame_images = [
-      {
-        type: 'image_url',
-        image_url: { url: params.source_image.url },
-        frame_type: params.source_image.frame_type ?? 'first_frame',
-      },
-    ];
+  if (params.frames?.length) {
+    body.frame_images = params.frames.map((f) => ({
+      type: 'image_url',
+      image_url: { url: f.url },
+      frame_type: f.frame_type,
+    }));
   }
 
   const response = await fetch(VIDEOS_ENDPOINT, {

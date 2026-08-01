@@ -30,8 +30,19 @@ import { JourneyGallery } from './components/JourneyGallery';
 import { SampleControl } from './components/SampleControl';
 import { SampleWarning } from './components/SampleWarning';
 import { SamplePlayer } from './components/SamplePlayer';
+import { SampleFilmWarning } from './components/SampleFilmWarning';
 import type { Journey } from './lib/journeys';
-import { CoreSampleRunner, findSpan, planSample } from './lib/coreSample';
+import {
+  CoreSampleRunner,
+  bestFilmResolution,
+  chooseFilmModel,
+  clampClipSeconds,
+  findSpan,
+  planSample,
+} from './lib/coreSample';
+import type { FilmModelChoice } from './lib/coreSample';
+import { fetchVideoModels } from '../lib/openrouter';
+import type { VideoModelCapability } from '../lib/openrouter';
 import { SceneEngine, sceneKey } from './lib/engine';
 import type { Scene, SceneStatus } from './lib/engine';
 import { STATIONS, nearestStationIndex, neighbourStations } from './lib/stations';
@@ -65,6 +76,36 @@ const STORAGE_KEY_SAMPLE_LENGTH = 'looking-glass-sample-length';
 
 /** Clip lengths offered. Longer costs more and waits longer, linearly. */
 const FILM_LENGTHS = [4, 8, 12] as const;
+
+/**
+ * Seconds per transition clip in a filmed core sample.
+ *
+ * The shortest any of the capable models offers, and wanted short on purpose:
+ * this is a TRANSITION between two stills, not a scene. At 8s a 24-frame sample
+ * is a three-minute film that crawls. Clamped to what the chosen model actually
+ * accepts — Veo takes only 4/6/8 — so the quote cannot promise a length the
+ * request would be rejected for.
+ */
+const SAMPLE_CLIP_SECONDS = 4;
+
+/**
+ * Published per-second prices, for the quote only.
+ *
+ * Read off OpenRouter's model pages on 2026-08-01. Deliberately a lookup with
+ * no fallback: an unlisted model shows "billed by the second" instead of a
+ * number, because a stale price presented as a dollar figure is worse than no
+ * figure at all. The capability table is fetched live; this is not, because
+ * /videos/models does not carry pricing.
+ */
+const FILM_PRICE_PER_SECOND: Record<string, number> = {
+  'google/veo-3.1': 0.4,
+  'google/veo-3.1-fast': 0.1,
+  'google/veo-3.1-lite': 0.05,
+  'bytedance/seedance-2.0': 0.06726,
+  'bytedance/seedance-2.0-fast': 0.0538,
+  'kwaivgi/kling-v3.0-pro': 0.168,
+  'x-ai/grok-imagine-video': 0.05,
+};
 
 const DEFAULT_PLACE: Coordinates = { lat: 41.8902, lng: 12.4922 };
 const DEFAULT_PLACE_NAME = 'The Colosseum, Rome';
@@ -473,6 +514,30 @@ export function Portal() {
     safeStorage.set(STORAGE_KEY_SAMPLE_LENGTH, String(sampleLength));
   }, [sampleLength]);
 
+  /**
+   * The video capability table.
+   *
+   * Public and free, so it is fetched once on mount rather than at the moment
+   * of asking — the film dialog has to name the model and the price BEFORE the
+   * user commits, and a dialog that opens and then rewrites its own numbers a
+   * second later is worse than one that opens knowing them. A failure leaves it
+   * null, which the dialog reports as "unverified" rather than guessing.
+   */
+  const [videoCaps, setVideoCaps] = useState<VideoModelCapability[] | null>(null);
+  useEffect(() => {
+    const abort = new AbortController();
+    fetchVideoModels(abort.signal)
+      .then(setVideoCaps)
+      .catch(() => setVideoCaps(null));
+    return () => abort.abort();
+  }, []);
+  const [filmPending, setFilmPending] = useState<{
+    clips: number;
+    seconds: number;
+    resolution: '720p' | '1080p';
+    choice: FilmModelChoice;
+  } | null>(null);
+
   const currentKey = useMemo(
     () => sceneKey({ year, coordinates, location, styleId: styleKey, phaseId }),
     [year, coordinates, location, styleKey, phaseId],
@@ -749,6 +814,41 @@ export function Portal() {
     effectiveTemplate,
   ]);
 
+  /**
+   * Open the film dialog.
+   *
+   * Everything priced here is settled BEFORE the dialog opens: which model can
+   * actually pin a closing frame, what clip length that model accepts, and what
+   * resolution it offers. Deciding any of it after the user has confirmed would
+   * mean the quote and the request could disagree — and the quote is the only
+   * thing standing between them and the most expensive action in the app.
+   */
+  const requestFilm2 = useCallback(() => {
+    const frames = sampler.readyFrames();
+    if (frames.length < 2) return;
+    const choice = chooseFilmModel(videoCaps, models.cinematic);
+    setFilmPending({
+      clips: frames.length - 1,
+      seconds: clampClipSeconds(videoCaps, choice.model, SAMPLE_CLIP_SECONDS),
+      resolution: bestFilmResolution(videoCaps, choice.model),
+      choice,
+    });
+  }, [sampler, videoCaps, models.cinematic]);
+
+  const confirmFilmSample = useCallback(() => {
+    const pending = filmPending;
+    setFilmPending(null);
+    if (!pending) return;
+    void sampler.renderFilm(
+      { apiKey, models, styleOverride: styleSuffix, template: effectiveTemplate },
+      {
+        model: pending.choice.model,
+        seconds: pending.seconds,
+        resolution: pending.resolution,
+      },
+    );
+  }, [filmPending, sampler, apiKey, models, styleSuffix, effectiveTemplate]);
+
   /** Throw the lever: this is the only path that starts a paid generation. */
   const pullLever = useCallback(async () => {
     // Disarming the button is not enough on its own: the global key handler
@@ -920,7 +1020,7 @@ export function Portal() {
       // The sample dialog quotes a price for a specific set of stations. Letting
       // the arrows keep moving the dial behind it would leave the quote attached
       // to a place and style the user is no longer standing in.
-      if (samplePending && e.key !== 'Escape') return;
+      if ((samplePending || filmPending) && e.key !== 'Escape') return;
       // The gallery is a modal on top of everything and owns its own keys; its
       // Escape is handled and stopped inside the component.
       if (galleryOpen) return;
@@ -1039,7 +1139,7 @@ export function Portal() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [step, engine, scene, togglePin, comparing, mapExpanded, keyGateOpen, pullLever, immersive, toggleImmersive, galleryOpen, filmWarnPending, samplePending, samplerOpen, sample.status, requestSample]);
+  }, [step, engine, scene, togglePin, comparing, mapExpanded, keyGateOpen, pullLever, immersive, toggleImmersive, galleryOpen, filmWarnPending, samplePending, filmPending, samplerOpen, sample.status, requestSample]);
 
   const saveKey = (value: string = keyDraft) => {
     const trimmed = value.trim();
@@ -1489,10 +1589,23 @@ export function Portal() {
         <SamplePlayer
           state={sample}
           onCancel={() => sampler.cancel()}
+          onFilm={requestFilm2}
           /* Closing puts the sample away without destroying it — it cost real
              money and `reopen` brings it back. Only `clear()` discards, and
              nothing in the UI calls it: the session ending is discard enough. */
           onClose={() => setSamplerOpen(false)}
+        />
+      )}
+
+      {filmPending && (
+        <SampleFilmWarning
+          clips={filmPending.clips}
+          seconds={filmPending.seconds}
+          resolution={filmPending.resolution}
+          choice={filmPending.choice}
+          pricePerSecond={FILM_PRICE_PER_SECOND[filmPending.choice.model]}
+          onConfirm={confirmFilmSample}
+          onCancel={() => setFilmPending(null)}
         />
       )}
 

@@ -37,14 +37,17 @@ import type { Coordinates } from '../../types';
 import {
   generateImageWithFallback,
   generateSceneDirection,
+  generateVideoBlocking,
   imageModelForMode,
   isImageInputRejection,
+  isSourceFrameRejection,
+  videoModelSupports,
 } from '../../lib/openrouter';
-import type { ModelSelection } from '../../lib/openrouter';
+import type { ModelSelection, VideoFrame, VideoModelCapability } from '../../lib/openrouter';
 import { explainFailure } from '../../lib/failure';
 import { buildCoreSamplePrompts } from '../../lib/promptcraft';
 import type { SceneDirection } from '../../lib/promptcraft';
-import { MAX_YEAR, MIN_YEAR } from '../../lib/format';
+import { MAX_YEAR, MIN_YEAR, formatYear } from '../../lib/format';
 import { findPhase } from './daylight';
 import { STATIONS, nearestStationIndex, neighbourContrast } from './stations';
 import { getFrame } from './frameStore';
@@ -159,6 +162,33 @@ export interface SampleFrame {
   chained?: boolean;
 }
 
+/**
+ * A clip spanning two adjacent ready frames.
+ *
+ * Held apart from SampleFrame because a clip is not a property of a station: it
+ * is what happens BETWEEN two of them, and `from` indexes the ready frames
+ * rather than the sweep, so a sample with a failed station in the middle still
+ * films across the gap instead of producing a clip that goes nowhere.
+ */
+export interface SampleClip {
+  /** Index into the READY frames. This clip runs from `from` to `from + 1`. */
+  from: number;
+  status: 'pending' | 'rendering' | 'ready' | 'error';
+  url?: string;
+  error?: string;
+  /** Provider's coarse stage, so a multi-minute wait talks. */
+  stage?: string;
+  /**
+   * False when `last_frame` was refused and the clip was rendered from its
+   * opening frame alone. It will NOT land on the next still, so the join after
+   * it is a visible cut — which is the whole thing this feature exists to avoid,
+   * and therefore has to be said out loud rather than quietly tolerated.
+   */
+  pinned?: boolean;
+}
+
+export type FilmStatus = 'none' | 'rendering' | 'done' | 'cancelled';
+
 export type CoreSampleStatus = 'idle' | 'running' | 'done' | 'cancelled';
 
 export interface CoreSampleState {
@@ -173,6 +203,11 @@ export interface CoreSampleState {
   startedAt?: number;
   /** Frames that reached 'ready'. */
   done: number;
+  /** The interpolation pass. Empty until the user asks for a film. */
+  clips: SampleClip[];
+  filmStatus: FilmStatus;
+  filmStartedAt?: number;
+  filmError?: string;
 }
 
 const IDLE: CoreSampleState = {
@@ -183,6 +218,8 @@ const IDLE: CoreSampleState = {
   styleId: '',
   cursor: 0,
   done: 0,
+  clips: [],
+  filmStatus: 'none',
 };
 
 export interface SampleConfig {
@@ -202,6 +239,122 @@ export interface SampleRequest {
 
 /** How far the planner may run ahead of the renderer. */
 const DIRECTION_LOOKAHEAD = 3;
+
+/** Clips rendered at once. See renderFilm — they are independent, unlike stills. */
+const FILM_CONCURRENCY = 3;
+
+export interface FilmOptions {
+  model: string;
+  /** Seconds per clip. Short: this is a transition, not a scene. */
+  seconds: number;
+  resolution: '720p' | '1080p';
+}
+
+/**
+ * Order of preference when the selected video model cannot pin a closing frame.
+ *
+ * Quality first, because a film pass is opt-in and already expensive; someone
+ * who has decided to spend on it is not looking to save a third of it. Every id
+ * here reported `supported_frame_images: ['first_frame','last_frame']` from the
+ * live capability table on 2026-08-01, but the table is still consulted at
+ * runtime rather than trusted from this list — a hardcoded capability is a
+ * hardcoded capability, and providers change.
+ */
+export const FILM_MODEL_PREFERENCE = [
+  'google/veo-3.1',
+  'bytedance/seedance-2.0',
+  'google/veo-3.1-fast',
+  'kwaivgi/kling-v3.0-pro',
+  'google/veo-3.1-lite',
+  'alibaba/wan-2.7',
+];
+
+export interface FilmModelChoice {
+  model: string;
+  /** Why this one. 'selected' = the user's own pick was capable. */
+  reason: 'selected' | 'substituted' | 'unknown';
+  /** The model the user actually chose, when it had to be passed over. */
+  displaced?: string;
+}
+
+/**
+ * Pick the model that will render the film.
+ *
+ * The app's default cinematic model is `x-ai/grok-imagine-video`, which is
+ * first_frame only — so on a fresh install the user's selection CANNOT produce
+ * a seamless film, and silently rendering twenty-three clips with a visible cut
+ * at every join would be spending their money on the exact thing they asked to
+ * avoid. Substituting is the right call, and saying so in the dialog is what
+ * makes it honest rather than sneaky.
+ *
+ * `unknown` means the capability table could not be read. Proceed on the user's
+ * selection rather than substituting on a guess, and let the dialog say the
+ * check did not happen.
+ */
+export function chooseFilmModel(
+  caps: VideoModelCapability[] | null,
+  selected: string,
+): FilmModelChoice {
+  const supported = videoModelSupports(caps, selected, 'last_frame');
+  if (supported === undefined) return { model: selected, reason: 'unknown' };
+  if (supported) return { model: selected, reason: 'selected' };
+  const better = FILM_MODEL_PREFERENCE.find(
+    (id) => videoModelSupports(caps, id, 'last_frame') === true,
+  );
+  return better
+    ? { model: better, reason: 'substituted', displaced: selected }
+    : { model: selected, reason: 'unknown' };
+}
+
+/**
+ * Clip length the model will actually accept, nearest to `wanted`.
+ *
+ * Veo offers only 4/6/8 while Seedance offers 4-15, and sending an unsupported
+ * duration is a 400 — after the user has confirmed a price. Clamping to the
+ * table means the quote and the request cannot disagree.
+ */
+export function clampClipSeconds(
+  caps: VideoModelCapability[] | null,
+  modelId: string,
+  wanted: number,
+): number {
+  const durations = caps?.find((m) => m.id === modelId)?.supported_durations;
+  if (!durations?.length) return wanted;
+  return durations.reduce((best, d) =>
+    Math.abs(d - wanted) < Math.abs(best - wanted) ? d : best,
+  );
+}
+
+/** Highest resolution this model offers, capped at 1080p — see the note in the dialog. */
+export function bestFilmResolution(
+  caps: VideoModelCapability[] | null,
+  modelId: string,
+): '720p' | '1080p' {
+  const res = caps?.find((m) => m.id === modelId)?.supported_resolutions;
+  return res?.includes('1080p') ? '1080p' : '720p';
+}
+
+/**
+ * What a transition clip is asked to be.
+ *
+ * Deliberately about the CAMERA HOLDING STILL while the world moves through it.
+ * Asking for "a transition from X to Y" invites a cross-dissolve or a whip pan —
+ * an editing effect between two pictures — when what is wanted is one unbroken
+ * shot in which time passes. The years are named because the model is being
+ * asked to cover a specific interval, and "centuries" and "eleven years" want
+ * visibly different rates of change.
+ */
+function buildTransitionPrompt(location: string, from: number, to: number): string {
+  return (
+    `A locked-off time-lapse at ${location}. The camera does not move, pan or zoom: ` +
+    `it is bolted to one spot and stays there for the whole shot. Time runs forward ` +
+    `from ${formatYear(from)} to ${formatYear(to)} within the shot, and the world ` +
+    `changes through that interval — light crossing the sky, weather passing, ` +
+    `vegetation and water shifting, whatever stands here being built, weathering or ` +
+    `going. Begin exactly on the first image and arrive exactly on the last. ` +
+    `One continuous take, no cuts, no dissolves, no camera movement.`
+  );
+}
 
 // ============================================================================
 // THE RUNNER
@@ -241,14 +394,160 @@ export class CoreSampleRunner {
     this.abort?.abort();
     this.abort = null;
     if (this.state.status === 'running') this.emit({ status: 'cancelled' });
+    if (this.state.filmStatus === 'rendering') this.emit({ filmStatus: 'cancelled' });
   }
 
   /** Throw the whole sample away and return to the dial. */
   clear(): void {
     this.abort?.abort();
     this.abort = null;
+    // Clips are blob: URLs the browser holds until told otherwise; dropping the
+    // state without revoking leaks every one of them for the session. Same
+    // lesson as evictMemory() in engine.ts.
+    for (const clip of this.state.clips) {
+      if (clip.url?.startsWith('blob:')) URL.revokeObjectURL(clip.url);
+    }
     this.state = IDLE;
     for (const fn of this.listeners) fn();
+  }
+
+  /** The ready frames, in order. The film runs between adjacent members of this. */
+  readyFrames(): SampleFrame[] {
+    return this.state.frames.filter((f) => f.status === 'ready' && f.url);
+  }
+
+  private patchClip(i: number, next: Partial<SampleClip>): void {
+    const clips = this.state.clips.slice();
+    const current = clips[i];
+    if (!current) return;
+    clips[i] = { ...current, ...next };
+    this.emit({ clips });
+  }
+
+  /**
+   * Render the sample as a continuous film.
+   *
+   * One clip per adjacent PAIR of ready frames, each generated with both ends
+   * pinned — `first_frame` is the still we already have, `last_frame` is the
+   * next one. That is the whole trick: clip N finishes on the exact image clip
+   * N+1 opens on, so the joins have nothing to conceal. Anchored at one end
+   * only, each clip would wander off to somewhere the next clip does not begin,
+   * and the result would be what it is trying not to be — a row of separate
+   * clips with a jump at every seam.
+   *
+   * UNLIKE THE STILLS, THESE RUN IN PARALLEL. Every clip already knows both of
+   * its endpoints, so no clip waits on another; the sequential discipline that
+   * governs the sweep does not apply here and would cost an hour of wall clock
+   * for nothing. Bounded, because each one is a real charge.
+   *
+   * Audio is off and it is not a preference. Veo and Seedance both synthesise
+   * sound per clip, so twenty-three independently-scored four-second clips would
+   * be twenty-three unrelated soundtracks cutting every four seconds — actively
+   * destroying the continuity this exists to create. One bed over the finished
+   * sequence is a different feature; this one is silent on purpose.
+   */
+  async renderFilm(config: SampleConfig, opts: FilmOptions): Promise<void> {
+    if (this.state.filmStatus === 'rendering') return;
+    const frames = this.readyFrames();
+    if (frames.length < 2) return;
+
+    const abort = new AbortController();
+    this.abort = abort;
+
+    const clips: SampleClip[] = [];
+    for (let i = 0; i < frames.length - 1; i++) clips.push({ from: i, status: 'pending' });
+    this.emit({
+      clips,
+      filmStatus: 'rendering',
+      filmStartedAt: Date.now(),
+      filmError: undefined,
+    });
+
+    const render = async (i: number): Promise<void> => {
+      const a = frames[i];
+      const b = frames[i + 1];
+      if (!a?.url || !b?.url || abort.signal.aborted) return;
+
+      this.patchClip(i, { status: 'rendering', stage: 'submitting' });
+
+      const prompt = buildTransitionPrompt(this.state.location, a.year, b.year);
+      const base = {
+        model: opts.model,
+        prompt,
+        duration: opts.seconds,
+        resolution: opts.resolution,
+        aspect_ratio: '16:9' as const,
+        // See the note above. Not a setting.
+        generate_audio: false,
+      };
+
+      const run = (frames: VideoFrame[]) =>
+        generateVideoBlocking(
+          config.apiKey,
+          { ...base, frames },
+          {
+            onStatus: (job) => this.patchClip(i, { stage: job.status }),
+            maxWaitMs: Math.max(10, opts.seconds * 2) * 60 * 1000,
+          },
+        );
+
+      try {
+        let url: string;
+        let pinned = true;
+        try {
+          url = await run([
+            { url: a.url, frame_type: 'first_frame' },
+            { url: b.url, frame_type: 'last_frame' },
+          ]);
+        } catch (err) {
+          /**
+           * A refused closing frame costs continuity, not the film.
+           *
+           * `supported_frame_images` is checked before any of this runs, so
+           * reaching here means the model claims last_frame and the PROVIDER
+           * refused this particular image — content moderation on the closing
+           * still, or a data: URL it will not take. Falling back to an
+           * opening-frame-only clip keeps the sequence intact and marks the
+           * join as a cut, which is worse than seamless and far better than a
+           * hole.
+           */
+          if (abort.signal.aborted) return;
+          if (!isSourceFrameRejection(err) && !isImageInputRejection(err)) throw err;
+          pinned = false;
+          this.patchClip(i, { stage: 'closing frame refused — rendering unpinned' });
+          url = await run([{ url: a.url, frame_type: 'first_frame' }]);
+        }
+        if (abort.signal.aborted) return;
+        this.patchClip(i, { status: 'ready', url, stage: undefined, pinned });
+      } catch (err) {
+        if (abort.signal.aborted) return;
+        this.patchClip(i, { status: 'error', error: explainFailure(err).title, stage: undefined });
+      }
+    };
+
+    // A small gate. Video jobs are submit-and-poll, so concurrency is nearly
+    // free in wall clock — but each is a real charge, and a provider that rate
+    // limits will fail them all at once if we fire twenty-three at it.
+    let next = 0;
+    const workers = Array.from({ length: Math.min(FILM_CONCURRENCY, clips.length) }, async () => {
+      while (!abort.signal.aborted) {
+        const i = next++;
+        if (i >= clips.length) return;
+        await render(i);
+      }
+    });
+
+    try {
+      await Promise.all(workers);
+    } finally {
+      if (this.abort === abort) this.abort = null;
+      // Read through the accessor: the early-return guard at the top narrowed
+      // `this.state.filmStatus` for the rest of the body, and TypeScript has no
+      // way to know emit() has since written 'rendering' into it.
+      if (this.getSnapshot().filmStatus === 'rendering') {
+        this.emit({ filmStatus: abort.signal.aborted ? 'cancelled' : 'done' });
+      }
+    }
   }
 
   async start(request: SampleRequest, config: SampleConfig): Promise<void> {
@@ -266,6 +565,8 @@ export class CoreSampleRunner {
       cursor: 0,
       startedAt: Date.now(),
       done: 0,
+      clips: [],
+      filmStatus: 'none',
     };
     for (const fn of this.listeners) fn();
 

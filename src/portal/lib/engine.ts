@@ -575,7 +575,7 @@ export class SceneEngine {
           aspect_ratio: '16:9',
           generate_audio: true,
           ...(withSource && scene.heroUrl
-            ? { source_image: { url: scene.heroUrl, frame_type: 'first_frame' as const } }
+            ? { frames: [{ url: scene.heroUrl, frame_type: 'first_frame' as const }] }
             : {}),
         },
         {
