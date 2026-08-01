@@ -64,7 +64,30 @@ export interface SampleSpan {
   blurb: string;
   fromYear: number;
   toYear: number;
+  /**
+   * How frames are distributed across the span.
+   *
+   * 'linear' is even in YEARS — every frame is the same interval after the last,
+   * which is what "a timelapse of this period" means to anyone looking at it.
+   *
+   * 'log' is even in the ORDER OF MAGNITUDE of years before present, and exists
+   * for the deep span alone. Linear across 252 million years puts seven of eight
+   * frames in the Mesozoic and one in the last two thousand: an accurate picture
+   * of where the time is, and a useless film. Log is the scale the ladder itself
+   * is built on — its step sizes grow by orders of magnitude — so this is the
+   * same judgement applied to sampling.
+   */
+  curve: 'linear' | 'log';
 }
+
+/**
+ * The present, for the log curve — and the ladder's own fixed boundary rather
+ * than the real clock. `1900 → 2030` is annual precisely so the station grid
+ * does not move as the calendar advances (stations.ts), and a sampling scheme
+ * that drifted year by year would hand a different sweep to the same request in
+ * 2027 than it did in 2026.
+ */
+const PRESENT = 2030;
 
 /**
  * Four spans rather than a free range control.
@@ -82,6 +105,7 @@ export const SAMPLE_SPANS: SampleSpan[] = [
     blurb: 'the Great Dying to 3050',
     fromYear: MIN_YEAR,
     toYear: MAX_YEAR,
+    curve: 'log',
   },
   {
     id: 'ice',
@@ -89,6 +113,7 @@ export const SAMPLE_SPANS: SampleSpan[] = [
     blurb: 'the last glacial maximum to now',
     fromYear: -20000,
     toYear: 2030,
+    curve: 'linear',
   },
   {
     id: 'recorded',
@@ -96,6 +121,7 @@ export const SAMPLE_SPANS: SampleSpan[] = [
     blurb: '3000 BC to now',
     fromYear: -3000,
     toYear: 2030,
+    curve: 'linear',
   },
   {
     id: 'memory',
@@ -103,6 +129,7 @@ export const SAMPLE_SPANS: SampleSpan[] = [
     blurb: '1900 to 2030, year by year',
     fromYear: 1900,
     toYear: 2030,
+    curve: 'linear',
   },
 ];
 
@@ -126,13 +153,62 @@ export function findSpan(id: string): SampleSpan {
 }
 
 /**
+ * The years a sweep should ideally land on, before the ladder gets a say.
+ *
+ * Endpoints are always included: a sweep that stops one station short of the era
+ * it is named for reads as a bug even when the spacing is right.
+ */
+function sampleTargets(span: SampleSpan, n: number): number[] {
+  if (span.curve === 'linear') {
+    return Array.from(
+      { length: n },
+      (_, i) => span.fromYear + ((span.toYear - span.fromYear) * i) / (n - 1),
+    );
+  }
+
+  /**
+   * Log time, measured backwards from PRESENT.
+   *
+   * Future years have no logarithm of "years ago", so the part of the span past
+   * PRESENT is not distributed at all — it gets the final frame and nothing
+   * else. That is the right weighting anyway: 3050 is one station's worth of
+   * speculation hanging off the end of 252 million years of evidence.
+   */
+  const future = span.toYear > PRESENT;
+  const k = future ? n - 1 : n;
+  const oldest = Math.max(1, PRESENT - span.fromYear);
+  const targets = Array.from({ length: k }, (_, i) => {
+    const ago = Math.exp(Math.log(oldest) * (1 - i / (k - 1)));
+    return PRESENT - ago;
+  });
+  if (future) targets.push(span.toYear);
+  return targets;
+}
+
+/**
  * The station years this sweep will visit, ascending.
  *
- * Even spacing is by STATION INDEX, not by year. Spacing by year over the deep
- * span would put twenty-three of twenty-four frames in the Mesozoic and one
- * everywhere else, because 96% of the ladder's range is older than the
- * dinosaurs. Index spacing follows the ladder's own judgement about where
- * resolution is worth having, which is the judgement the whole app is built on.
+ * Two failure modes had to be avoided at once, and each is the other's cure.
+ *
+ * SPACING BY STATION INDEX oversamples wherever the ladder is dense — and the
+ * ladder is dense in living memory, where `1900 → 2030` is annual and therefore
+ * holds 130 of the 284 stations. Under index spacing "All of time" put five of
+ * its eight frames in the 20th century: a sweep across 252 million years that
+ * spent half its budget on 122 years of it. The comment that used to sit here
+ * defended index spacing as following "the ladder's own judgement about where
+ * resolution is worth having", which was wrong about why that rung exists — it
+ * is annual so the dial can REACH 1969 and the year you were born, not because
+ * a year in 1950 carries as much change as 25 million years in the Triassic.
+ *
+ * SPACING BY YEAR fixes the weighting and then loses frames. The ladder has
+ * exactly two stations between 20,000 BC and 10,000 BC, so eight evenly spaced
+ * targets across "Since the ice" collapsed onto six distinct years — the user
+ * asked for eight frames and silently got six.
+ *
+ * So: targets are chosen in TIME (see sampleTargets), then each is snapped to
+ * the nearest station NOT ALREADY TAKEN, walking outward when it is. The
+ * distribution is as even as the instrument permits, and the count is always
+ * the count that was asked for and quoted.
  */
 export function planSample(span: SampleSpan, count: number): number[] {
   const lo = nearestStationIndex(span.fromYear);
@@ -141,15 +217,28 @@ export function planSample(span: SampleSpan, count: number): number[] {
   const available = to - from + 1;
   const n = Math.max(2, Math.min(count, available));
 
-  const years: number[] = [];
-  for (let i = 0; i < n; i++) {
-    // Endpoints inclusive: a sweep that stops one station short of the era it
-    // was named for reads as a bug even when the spacing is right.
-    const idx = from + Math.round((i * (available - 1)) / (n - 1));
-    const year = STATIONS[idx];
-    if (year !== undefined && years[years.length - 1] !== year) years.push(year);
+  const used = new Set<number>();
+  for (const target of sampleTargets(span, n)) {
+    let idx = nearestStationIndex(target);
+    if (used.has(idx)) {
+      // Nearest free station on either side. Bounded by `available`, so this
+      // cannot run past the ends of the span even if every candidate is taken.
+      for (let r = 1; r <= available; r++) {
+        const free = [idx + r, idx - r].find((c) => c >= from && c <= to && !used.has(c));
+        if (free !== undefined) {
+          idx = free;
+          break;
+        }
+      }
+    }
+    // Still taken means the span is full — nothing left to move to.
+    if (used.has(idx)) continue;
+    used.add(idx);
   }
-  return years;
+
+  // Indices came from nearestStationIndex or a bounded walk inside [from, to],
+  // so every one of them addresses a real station.
+  return [...used].sort((a, b) => a - b).map((i) => STATIONS[i]!);
 }
 
 // ============================================================================
