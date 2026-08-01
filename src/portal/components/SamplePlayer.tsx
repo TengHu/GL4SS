@@ -36,7 +36,24 @@ interface Props {
  * A film has a real playback rate, so there the × IS a multiplier and the values
  * are the ones a video wants rather than the ones a slideshow wants.
  */
-const STILL_FPS = [1.5, 3, 6] as const;
+/**
+ * Labelled in WORDS, not in fps.
+ *
+ * It read "1.5 / 3 / 6 fps", which is accurate and useless. Sat beside the FILM
+ * IT button it looked like a setting for the film — and it is not: it is how
+ * fast the browser flips through pictures you already own, free, changeable as
+ * often as you like, and with no bearing on any video. A unit invites the
+ * reading that it configures something being generated. A word does not.
+ *
+ * The numbers survive as the values; only the labels changed.
+ */
+const STILL_PACE = [
+  { value: 1.5, label: 'slow' },
+  { value: 3, label: 'steady' },
+  { value: 6, label: 'fast' },
+] as const;
+
+/** Playback rate of a rendered film, where × genuinely IS a multiplier. */
 const FILM_RATES = [0.5, 1, 2] as const;
 
 function formatElapsed(ms: number): string {
@@ -270,23 +287,10 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
           >
             {playing ? '❚❚' : '▶'}
           </button>
-          {/* Filming is offered only on a finished sweep. Mid-sweep the set of
-              ready frames is still growing, so the clip count — and therefore
-              the price the dialog quotes — would be wrong the moment it was
-              shown. */}
-          {onFilm && !running && !filming && !hasFilm && ready.length >= 2 && (
-            <button className="film-go sampler-film-go" onClick={onFilm}>
-              film it
-              <span aria-hidden="true"> ▶</span>
-            </button>
-          )}
-
-          {hasFilm && (
-            <span className="sampler-mode">
-              film · clip {Math.min(clipIndex + 1, clips.length)}/{clips.length}
-            </span>
-          )}
-
+          {/* PACE BELONGS TO THE PLAY BUTTON. It used to sit on the far right,
+              immediately beside FILM IT, where a free viewing control read as a
+              setting for the paid render next to it. Grouped with the transport
+              it governs, that reading is not available. */}
           {hasFilm ? (
             <div className="seg" role="radiogroup" aria-label="Playback rate">
               {FILM_RATES.map((r) => (
@@ -303,20 +307,38 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
               ))}
             </div>
           ) : (
-            <div className="seg" role="radiogroup" aria-label="Frames per second">
-              {STILL_FPS.map((s) => (
+            <div className="seg" role="radiogroup" aria-label="How fast to flip through the pictures">
+              {STILL_PACE.map((p) => (
                 <button
-                  key={s}
+                  key={p.value}
                   role="radio"
-                  aria-checked={speed === s}
-                  tabIndex={speed === s ? 0 : -1}
-                  className={`seg-option${speed === s ? ' seg-option--on' : ''}`}
-                  onClick={() => setSpeed(s)}
+                  aria-checked={speed === p.value}
+                  tabIndex={speed === p.value ? 0 : -1}
+                  className={`seg-option${speed === p.value ? ' seg-option--on' : ''}`}
+                  onClick={() => setSpeed(p.value)}
                 >
-                  {s} fps
+                  {p.label}
                 </button>
               ))}
             </div>
+          )}
+
+          {hasFilm && (
+            <span className="sampler-mode">
+              film · clip {Math.min(clipIndex + 1, clips.length)}/{clips.length}
+            </span>
+          )}
+
+          {/* Last, and pushed to the far end by margin-left:auto. The only
+              control here that spends money, kept away from the ones that do
+              not. Offered only on a finished sweep: mid-sweep the set of ready
+              frames is still growing, so the clip count — and the price the
+              dialog quotes — would be wrong the moment it was shown. */}
+          {onFilm && !running && !filming && !hasFilm && ready.length >= 2 && (
+            <button className="film-go sampler-film-go" onClick={onFilm}>
+              film it
+              <span aria-hidden="true"> ▶</span>
+            </button>
           )}
         </div>
 
