@@ -18,7 +18,18 @@
 import { useEffect, useRef, useState } from 'react';
 
 interface Props {
-  /** Armed: a station is selected that we do not have. */
+  /**
+   * Armed: the lever will start a generation if pulled.
+   *
+   * This used to mean "a station we do not have", which quietly made the lever
+   * dead at every station already owned — and since the seed-photograph controls
+   * were gated the same way, a station you owned could be neither re-made nor
+   * re-seeded. The one paid control in the app switched itself off at exactly
+   * the moment someone wanted another try.
+   *
+   * Owning a frame is now a reason to LABEL the pull differently, not to refuse
+   * it. See `remake`.
+   */
   armed: boolean;
   /** Busy: a generation is already running for it. */
   busy: boolean;
@@ -27,6 +38,14 @@ interface Props {
   label: string;
   /** Armed because the station FAILED, not because it is new. Swaps the lamp. */
   retry?: boolean;
+  /**
+   * A frame for this station already exists, so pulling replaces it.
+   *
+   * Purely a matter of saying so. The pull costs the same either way, and the
+   * visitor is owed the difference between "make one" and "make another one and
+   * overwrite what you have" before they throw it.
+   */
+  remake?: boolean;
   /** Overrides the accessible name when the lever is dead for some other reason. */
   blockedReason?: string;
 }
@@ -61,7 +80,7 @@ const THROW_DEG = -180;
 const angleFor = (px: number) => (px / TRAVEL) * THROW_DEG;
 const THROW_AT = 0.55;
 
-export function TimeLever({ armed, busy, onPull, accent, label, retry = false, blockedReason }: Props) {
+export function TimeLever({ armed, busy, onPull, accent, label, retry = false, remake = false, blockedReason }: Props) {
   const [offset, setOffset] = useState(0);
   const [engaged, setEngaged] = useState(false);
   // Mirrors dragRef as STATE, because the stylesheet needs to know a hand is on
@@ -169,14 +188,19 @@ export function TimeLever({ armed, busy, onPull, accent, label, retry = false, b
              the only one — when the place panel covers it the frame may not
              exist at all, and announcing that it does is simply false. */
           aria-label={
-            blockedReason ?? (armed ? `Generate ${label}` : `${label} is already generated`)
+            blockedReason ??
+            (!armed
+              ? `${label} is not ready to generate`
+              : remake
+                ? `Generate ${label} again, replacing the frame you have`
+                : `Generate ${label}`)
           }
         >
           <span className="lever-grip" aria-hidden="true" />
         </button>
       </span>
       <span className="lever-label">
-        {busy ? 'generating' : armed ? 'pull to jump' : 'already here'}
+        {busy ? 'generating' : !armed ? 'held' : remake ? 'pull to remake' : 'pull to jump'}
       </span>
     </div>
   );

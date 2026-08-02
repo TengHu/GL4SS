@@ -1714,7 +1714,14 @@ export function Portal() {
             Gated on THIS STATION rather than on the app having any frame at all:
             dial to a year you have not made yet and the offer returns, because
             that is a seed waiting to be made. */}
-        {apiKey && (!scene || scene.status === 'error') && (
+        {/* OFFERED AT EVERY STATION, including ones already made.
+            Gating this on "no frame here yet" meant the only way to re-seed a
+            station from a photograph was to own no picture of it — and since
+            capturing a Street View moves the dial to the pano's own year, the
+            controls vanished the instant they were used at a year already
+            owned. A photograph is a request for a new picture, and that request
+            is legitimate wherever you are standing. */}
+        {apiKey && (
           <>
             <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />
             {/* THE THIRD WAY IN, beside the file picker and paste.
@@ -1842,7 +1849,13 @@ export function Portal() {
           pinAccent={pinnedYear !== undefined ? eraAccent(pinnedYear) : accent}
         />
         <TimeLever
-          armed={(!scene || scene.status === 'error') && !scrubbing && !placeCoversLever}
+          /* OWNING A FRAME NO LONGER DISARMS THE LEVER. It used to, which made
+             the app's one paid control dead at every station already made —
+             so "same year, generate again" was not merely cached, it was
+             unreachable. request() now forces and overwrites; this is what
+             lets anyone ask. */
+          armed={!scrubbing && !placeCoversLever}
+          remake={scene?.status === 'ready'}
           blockedReason={placeCoversLever ? 'Close the place panel to reach the lever' : undefined}
           retry={scene?.status === 'error'}
           busy={Boolean(scene) && scene?.status !== 'ready' && scene?.status !== 'error'}
