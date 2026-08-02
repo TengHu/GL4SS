@@ -1004,6 +1004,12 @@ export function buildCoreSamplePrompts(
   opts: BuildPanelsOpts,
   direction: SceneDirection,
   kind: ReferenceKind,
+  /**
+   * The years the attached frames were taken, in the order they are attached.
+   * Only meaningful for 'chained' — a supplied photograph IS this year, which is
+   * the whole difference between the two clauses.
+   */
+  referenceYears?: number[],
 ): string[] {
   const base = buildImagePromptsFromDirection(
     kind === 'photograph' ? { ...opts, photographAnchored: true } : opts,
@@ -1072,17 +1078,64 @@ export function buildCoreSamplePrompts(
     ? ` What is here in this year, specifically: ${direction.standing.trim()}`
     : '';
 
+  /**
+   * WHEN THE ATTACHMENT WAS TAKEN — stated, because the clause below hands the
+   * model a picture and tells it to keep things from it.
+   *
+   * Without a date the attached frame reads as ground truth about the scene
+   * entire, period included, and there is nothing in the prompt to say
+   * otherwise. Named plainly rather than hinted at: this is the same thing the
+   * planner is already told ("taken in <year>"), and that path reasons correctly
+   * about it. Two attachments of different years both get named — a sweep sends
+   * the neighbour AND the seed, and calling either one "the attached image" in
+   * the singular was already loose.
+   */
+  const years = (referenceYears ?? []).filter((y) => Number.isFinite(y));
+  const dated =
+    years.length === 0
+      ? `The attached image is the same place photographed from the same spot, in a different year from this one. `
+      : years.length === 1
+        ? `The attached image is the same place photographed from the same spot, in ${formatYear(years[0]!)}. `
+        : `The attached images are the same place photographed from the same spot, in ${years
+            .map((y) => formatYear(y))
+            .join(' and ')}. `;
+
   const anchor =
-    `The attached image is the same place photographed from the same spot. ` +
-    `Stand the camera exactly where it stood for that photograph — identical viewpoint, ` +
+    dated +
+    `They are evidence about WHERE — where the camera stood, what occupies the ground — and ` +
+    `the year they were taken is not this year. ` +
+    `Stand the camera exactly where it stood for them — identical viewpoint, ` +
     `identical direction, identical lens and horizon line — and keep the land itself where ` +
     `it is: the ground, the slope, the line of the hills, the run of the coast or river. ` +
     `ANYTHING ALREADY STANDING HERE IN THIS YEAR IS STILL STANDING, in the same place and ` +
     `at the same scale, shown as it looked then. Only what had not been built yet, or was ` +
     `already gone, is absent — and what is missing is replaced by whatever was actually on ` +
     `that ground at the time. The vegetation, the water and ice, the weather, the light and ` +
-    `whoever is present all belong to this year. This is the same view at a different time, ` +
-    `not the same photograph adjusted.` + standing;
+    `whoever is present all belong to this year. ` +
+    /**
+     * PORTABLE MANUFACTURE — the category the clause used to have no sentence for.
+     *
+     * Everything above is about ground, structures and weather. A sweep of Mount
+     * Rushmore seeded in the present and asked for 1943 came back with the crowd
+     * correctly dressed in 1940s cotton and carrying 1940s folding cameras on
+     * neck straps — the planner had done its job — while the same people held
+     * phones up at arm's length, copied out of the seed frame along with the
+     * gesture. Held objects were licensed by nothing and protected by nothing,
+     * so the strongest instruction in the clause ("IS STILL STANDING") reached
+     * them by default.
+     *
+     * Phrased as what things ARE, never as a list of what to omit: this file's
+     * negatives were deleted precisely because naming an absent object summons
+     * it, and "no smartphones" is the fastest way to fill a 1943 frame with them.
+     */
+    `Everything made by hand or machine that is not the ground and not a building belongs to ` +
+    `this year as well, and to this year only: what the people are wearing, and what they are ` +
+    `carrying, holding and using in their hands, and the vehicles, the road surface, the signs ` +
+    `and the lighting are all of this year's manufacture and this year's design. People hold ` +
+    `and use the objects of this year the way this year's people held and used them, in the ` +
+    `postures those objects call for. ` +
+    `This is the same view at a different time, not the same photograph adjusted.` +
+    standing;
 
   return ordered.map((p) => `${p}\n\n${anchor}`);
 }

@@ -565,7 +565,13 @@ function buildSceneDirectionPrompt(
     // those land at the second-highest weight in the image prompt.
     `  "periodMarkers": "2-4 comma-separated CONCRETE VISIBLE things that date this frame to ${formattedYear} rather than to ${neighbourEarlier} or ${neighbourLater}. Draw them from what this place actually offers in this year: the state of ice, snow, water, soil, rock and plant cover, the species present and what they are doing, the sky and the season — and, at sparse, settled or dense ONLY, garments, tools, building techniques, goods, weapons, vehicles, materials and signage. At uninhabited and traces-only every marker is a natural one and that is a complete answer; at traces-only add the condition of the made things and what has moved into them.",`,
     referenceKind === 'sweep'
-      ? `  "standing": "REQUIRED HERE. Object by object from the attached photograph: what is still standing at this spot in ${formattedYear} and how it looked then, then what is absent and what occupies that ground instead. Name the things, do not generalise. If the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance — it must not vanish.",`
+      // The trailing sentence covers PORTABLE things. `standing` reads as a
+      // question about structures and was answered as one, which left the frame's
+      // moveable contents — vehicles, and above all whatever the photograph shows
+      // in people's hands — with no verdict from the only step that can see both
+      // the picture and the date. A Rushmore sweep came back with a 1943 crowd
+      // holding present-day phones for exactly that reason.
+      ? `  "standing": "REQUIRED HERE. Object by object from the attached photograph: what is still standing at this spot in ${formattedYear} and how it looked then, then what is absent and what occupies that ground instead. Name the things, do not generalise. If the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance — it must not vanish. Then, if the photograph shows vehicles, or people carrying or holding or using anything, finish by naming what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
       : '',
     `  "leftSubject": "specific concrete subject in the LEFT panel (one short phrase, distinct from center and right)",`,
     `  "centerSubject": "specific concrete focal subject in the CENTER panel",`,

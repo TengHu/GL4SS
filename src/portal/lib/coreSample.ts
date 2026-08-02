@@ -715,17 +715,29 @@ export class CoreSampleRunner {
      * Nearest first, because order is a priority signal — the frame beside
      * this one matters more to it than the origin does.
      */
-    const referencesFor = (i: number): string[] => {
+    /**
+     * Each anchor carries ITS OWN YEAR, because the prompt has to date them.
+     * The clause tells the image model to keep the vantage and the standing
+     * structures from these pictures while replacing everything the period
+     * owns, and it cannot draw that line without knowing when they were taken.
+     * The two anchors are usually from different years, so one number would be
+     * wrong for one of them.
+     */
+    const referencesFor = (i: number): Array<{ url: string; year: number }> => {
       if (i === anchor) return [];
       const towardSeed = i > anchor ? i - 1 : i + 1;
       const neighbour = this.state.frames[towardSeed];
-      const out: string[] = [];
+      const out: Array<{ url: string; year: number }> = [];
       // A failed neighbour leaves this frame anchored to the seed alone rather
       // than chained to nothing; the next frame out re-anchors from whatever
       // did land.
-      if (neighbour?.status === 'ready' && neighbour.url) out.push(neighbour.url);
+      if (neighbour?.status === 'ready' && neighbour.url) {
+        out.push({ url: neighbour.url, year: neighbour.year });
+      }
       const seedFrame = this.state.frames[anchor];
-      if (seedFrame?.url && seedFrame.url !== out[0]) out.push(seedFrame.url);
+      if (seedFrame?.url && seedFrame.url !== out[0]?.url) {
+        out.push({ url: seedFrame.url, year: seedFrame.year });
+      }
       return out;
     };
 
@@ -735,11 +747,21 @@ export class CoreSampleRunner {
       later: this.state.frames[i + 1]?.year ?? this.state.frames[i]!.year,
     });
 
-    /** What the planner is shown: the seed if it exists, else the neighbour. */
-    const referenceForPlanner = (i: number): string | undefined => {
+    /**
+     * What the planner is shown: the seed if it exists, else the neighbour.
+     *
+     * Returns the year with it. The caller used to send the picture from here
+     * and the year from `frames[anchor]` independently, which agreed only while
+     * the seed was the one being sent — on the fallback the planner was shown
+     * the neighbour's photograph and told it was taken in the seed's year, and
+     * then asked to reason about what had changed between them.
+     */
+    const referenceForPlanner = (i: number): { url: string; year: number } | undefined => {
       if (i === anchor) return undefined;
       const seedFrame = this.state.frames[anchor];
-      if (seedFrame?.status === 'ready' && seedFrame.url) return seedFrame.url;
+      if (seedFrame?.status === 'ready' && seedFrame.url) {
+        return { url: seedFrame.url, year: seedFrame.year };
+      }
       return referencesFor(i)[0];
     };
 
@@ -779,9 +801,9 @@ export class CoreSampleRunner {
              * is how "Ward 2, 1900" became a street corner instead of the White
              * House.
              */
-            reference: referenceForPlanner(i),
+            reference: referenceForPlanner(i)?.url,
             referenceKind: 'sweep' as const,
-            referenceYear: this.state.frames[anchor]?.year,
+            referenceYear: referenceForPlanner(i)?.year,
           },
         ),
       );
@@ -839,7 +861,14 @@ export class CoreSampleRunner {
         if (!frame) continue;
         if (frame.status === 'ready') continue; // the restored seed
 
-        const references = i === anchor ? (anchorUrl ? [anchorUrl] : []) : referencesFor(i);
+        const anchors =
+          i === anchor
+            ? anchorUrl
+              ? [{ url: anchorUrl, year: frame.year }]
+              : []
+            : referencesFor(i);
+        const references = anchors.map((a) => a.url);
+        const referenceYears = anchors.map((a) => a.year);
         const reference = references[0];
 
         this.emit({ cursor: i });
@@ -874,6 +903,7 @@ export class CoreSampleRunner {
           },
           direction,
           reference ? 'chained' : 'none',
+          referenceYears,
         );
         // Without a reference the anchor sentence is absent from `prompts`, so
         // the unchained retry below has to be built from its own candidate list
