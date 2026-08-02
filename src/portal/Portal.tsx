@@ -476,16 +476,6 @@ export function Portal() {
    * and a reload loses it exactly as a film does.
    */
   const [seedPhoto, setSeedPhoto] = useState<SeedImage | null>(null);
-  /**
-   * Which of the two things to do with that photograph: anchor a drawn frame to
-   * it, or keep it AS the frame.
-   *
-   * Not sticky, and reset with the photograph rather than held across pulls.
-   * "Use my photograph as the picture" is a claim about one particular
-   * photograph, not a mode the app should still be in three stations later — the
-   * same reasoning that keeps the photograph itself off the engine.
-   */
-  const [seedVerbatim, setSeedVerbatim] = useState(false);
 
   /**
    * A PHOTOGRAPH IS A PHOTOGRAPH OF A PLACE. Move the pin and it stops being
@@ -515,8 +505,6 @@ export function Portal() {
       }
       return null;
     });
-    // The choice goes with the photograph it was made about.
-    setSeedVerbatim(false);
   }, [coordinates]);
   const [googleKey, setGoogleKey] = useState(() => safeStorage.get(STORAGE_KEY_GOOGLE) ?? '');
   const saveGoogleKey = useCallback((value: string) => {
@@ -1109,22 +1097,13 @@ export function Portal() {
      * something already paid for. force overwrites on success and leaves the old
      * frame untouched on failure.
      */
-    /**
-     * `verbatim` only means anything alongside a reference, and the engine
-     * enforces that too — but sending it bare would be a request to store a
-     * frame made of nothing, so it is narrowed here as well.
-     */
     const reference = seedPhoto?.url;
-    const verbatim = Boolean(reference) && seedVerbatim;
-    if (scene?.status === 'error') engine.retry(here, reference ? { reference, verbatim } : {});
-    else engine.request(here, 'demand', { reference, verbatim, force: true });
-    if (reference) {
-      setSeedPhoto(null);
-      setSeedVerbatim(false);
-    }
+    if (scene?.status === 'error') engine.retry(here, reference ? { reference } : {});
+    else engine.request(here, 'demand', { reference, force: true });
+    if (reference) setSeedPhoto(null);
     // The journey is spent; the next move starts a new one from here.
     setNav((cur) => ({ ...cur, origin: null }));
-  }, [engine, apiKey, year, coordinates, location, styleKey, phaseId, scene?.status, placeCoversLever, seedPhoto, seedVerbatim]);
+  }, [engine, apiKey, year, coordinates, location, styleKey, phaseId, scene?.status, placeCoversLever, seedPhoto]);
 
   const handleFrameError = useCallback(
     (key: string, message: string) => engine.markFrameError(key, message),
@@ -1787,12 +1766,7 @@ export function Portal() {
             is legitimate wherever you are standing. */}
         {apiKey && (
           <>
-            <SeedPhoto
-              photo={seedPhoto}
-              onChange={setSeedPhoto}
-              verbatim={seedVerbatim}
-              onVerbatimChange={setSeedVerbatim}
-            />
+            <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />
             {/* THE THIRD WAY IN, beside the file picker and paste.
                 It lived under the map for a while, which was wrong twice over:
                 in home mode the map IS the whole screen and its panel floats

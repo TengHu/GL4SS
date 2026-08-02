@@ -172,15 +172,12 @@ interface Job {
    * the cache key to take effect at all, and needing a control on screen to say
    * it was still on. A job carries its own copy, so the caller can forget the
    * photograph the instant it is handed over.
+   *
+   * Its presence IS the decision: a job that carries one stores it as the frame
+   * and never reaches the image call. There is no second flag to disagree with
+   * this one.
    */
   reference?: string;
-  /**
-   * THE PHOTOGRAPH IS THE FRAME. Skips the image call entirely.
-   *
-   * Meaningless without `reference`, and run() treats it that way — there is
-   * nothing to put on the glass if no photograph came with it.
-   */
-  verbatim?: boolean;
 }
 
 const MAX_CACHED_SCENES = 48;
@@ -326,12 +323,8 @@ export class SceneEngine {
     coords: SceneCoords,
     priority: 'demand' | 'prefetch' = 'demand',
     options: {
+      /** A photograph to store as this frame, instead of drawing one. */
       reference?: string;
-      /**
-       * Store the photograph as the frame instead of drawing one from it.
-       * Requires `reference`; ignored without it.
-       */
-      verbatim?: boolean;
       /**
        * MAKE A NEW ONE, even at a station already owned.
        *
@@ -410,7 +403,6 @@ export class SceneEngine {
       priority,
       abort: new AbortController(),
       reference: options.reference,
-      verbatim: options.verbatim,
     });
     this.evictMemory();
     this.emit();
@@ -469,7 +461,7 @@ export class SceneEngine {
    * and back just returns the same error. Errors are the one cache entry that
    * must not be sticky.
    */
-  retry(coords: SceneCoords, options: { reference?: string; verbatim?: boolean } = {}): Scene {
+  retry(coords: SceneCoords, options: { reference?: string } = {}): Scene {
     const key = sceneKey(coords);
 
     // Force-abort in-flight work rather than refusing to touch it. Refusing was
@@ -793,21 +785,25 @@ export class SceneEngine {
       });
 
       /**
-       * PATH C — THE PHOTOGRAPH IS THE FRAME. One text call, no image call.
+       * A PHOTOGRAPH IS THE FRAME. One text call, no image call.
        *
-       * Sited HERE, after the planner and before the prompts, because that is
-       * exactly what this path is: the whole of Path B up to the point where a
-       * picture would be drawn, and then the visitor's own picture instead of a
-       * drawn one. The narrative, the atmosphere and the direction are all real
-       * — the planner saw the photograph — so the station talks, the archive
-       * entry is complete and widen() still works on it.
+       * The attachment used to be a REFERENCE: a picture was still drawn for the
+       * year on the dial, anchored to the visitor's standpoint. It no longer is.
+       * If you brought a photograph of this place, that photograph is what the
+       * station holds — the app has nothing better to offer than the thing
+       * itself, and drawing over it was spending money to lose information.
        *
-       * The seed stops being the paid action. What the sweep needs from a seed
-       * is pixels: planStandpoint reads the geometry out of the photograph
-       * itself, and every station plans its own year. Nothing downstream asks
-       * whether a model made this.
+       * Sited HERE, after the planner and before the prompts, and that placement
+       * is the design. The planner still SEES the photograph, so the narrative,
+       * the atmosphere and the direction are all real: the station talks, the
+       * archive entry is complete, and widen() still works on it. Only the
+       * drawing is skipped.
+       *
+       * What the sweep needs from a seed is pixels. planStandpoint reads the
+       * geometry out of the photograph itself and every station plans its own
+       * year, so nothing downstream asks whether a model made this.
        */
-      if (job.verbatim && job.reference) {
+      if (job.reference) {
         const heroUrl = await toWidescreen(job.reference);
         if (job.abort.signal.aborted) return this.discardAborted(key);
 
@@ -844,57 +840,27 @@ export class SceneEngine {
        * Centre first, peripherals behind it as moderation fallbacks: an arena
        * scene's focal subject is often the violent one, while the stonemason off
        * to the side renders fine and still belongs to the same moment.
-       *
-       * With a reference photograph this also carries the anchor clause — the
-       * same paragraph every chained frame in a sweep already uses, which is why
-       * there is nothing new to write here.
        */
-      const reference = job.reference;
-      const candidates = buildCoreSamplePrompts(
-        promptFields,
-        direction,
-        reference ? 'photograph' : 'none',
-      );
+      const candidates = buildCoreSamplePrompts(promptFields, direction, 'none');
       const model = imageModelForMode('wide-field', this.config.models);
       /**
-       * NO REFERENCE, and that is the whole difference between this and a swept
-       * frame. A station reached from the dial has no predecessor to hold the
-       * camera on, so it is unanchored — free to frame the place however the
-       * model likes, which is what an independent photograph of a spacetime
-       * should be. With `reference` omitted, renderStill makes exactly the call
-       * this line has always made.
+       * ALWAYS UNANCHORED NOW, and reaching this line at all means no photograph
+       * was brought — the branch above returned if one was.
+       *
+       * That is also the whole difference between this and a swept frame. A
+       * station reached from the dial has no predecessor to hold the camera on,
+       * so it is free to frame the place however the model likes, which is what
+       * an independent photograph of a spacetime should be.
+       *
+       * The reference plumbing renderStill still offers — `references`,
+       * `unanchoredPrompts`, `onDegrade` for a moderated attachment — is used by
+       * the sweep and no longer by the lever. So is promptcraft's 'photograph'
+       * ReferenceKind, which nothing now passes.
        */
       const { url: heroUrl, moderatedCount, modelUsed } = await renderStill(
         this.config.apiKey,
-        {
-          model,
-          prompts: candidates,
-          references: reference ? [reference] : undefined,
-          // Refused references fall back to prompts that do not mention an
-          // attachment, or the model would be reading instructions about a
-          // picture that is no longer there.
-          unanchoredPrompts: reference
-            ? buildCoreSamplePrompts(promptFields, direction, 'none')
-            : undefined,
-        },
-        {
-          signal: job.abort.signal,
-          /**
-           * A refused reference USED TO BE SILENT HERE.
-           *
-           * renderStill degrades gracefully — it drops the attachment and draws
-           * the frame anyway — and the sweep marks that on the filmstrip as a
-           * seam. The lever path passed no handler at all, so someone who chose
-           * a photograph, pulled the lever and got an unanchored frame had no
-           * way to tell whether the feature had worked, failed, or was never
-           * wired up. A picture that came back on a worse path must say so; it
-           * is the same rule `degraded` already exists for.
-           */
-          onDegrade: () =>
-            this.patch(key, {
-              degraded: 'your photograph was refused — this frame is not anchored to it',
-            }),
-        },
+        { model, prompts: candidates },
+        { signal: job.abort.signal },
       );
       if (job.abort.signal.aborted) return this.discardAborted(key);
 

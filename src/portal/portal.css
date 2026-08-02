@@ -6182,36 +6182,6 @@ body {
 .seedphoto-pick { padding: 5px 11px; font-size: 10px; }
 .seedphoto-clear { padding: 4px 9px; font-size: 9.5px; flex: 0 0 auto; }
 
-/* Draw from it / keep it as-is. Two buttons rather than a checkbox because
-   neither is an on/off of the other: both are things to do with a photograph,
-   and one of them spends money. A checkbox would have hidden which is which. */
-.seedphoto-modes {
-  display: flex;
-  gap: 3px;
-  margin: 3px 0 2px;
-}
-
-.seedphoto-mode {
-  padding: 2px 7px;
-  border: 1px solid var(--chrome);
-  border-radius: 2px;
-  background: transparent;
-  color: var(--ink-faint);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
-}
-
-.seedphoto-mode:hover { color: var(--ink-dim, #b7c3cf); }
-
-.seedphoto-mode--on {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--chrome));
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  color: var(--ink-dim, #b7c3cf);
-}
-
 /* Dragging an image over the strip. The same accent the set state uses, so the
    two read as one thing arriving rather than two unrelated highlights. */
 .seedphoto--over {
