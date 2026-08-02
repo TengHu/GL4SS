@@ -411,6 +411,36 @@ function getAnachronismNegatives(year: number): string {
  * written to empty Antarctica will drain Rome unless the crowded end of the
  * scale pushes back at least as hard as the empty end.
  */
+/**
+ * THE SAME FIVE ANSWERS WITH THE CAMERA TAKEN OUT.
+ *
+ * Every clause below says two things at once: HOW MANY people are here, and HOW
+ * THE FRAME IS BUILT AROUND THEM. The first belongs to the year. The second
+ * belongs to the standpoint, and on a sweep it is the standpoint's alone.
+ *
+ * The damage is specific and it changes between frames, which is what makes it
+ * worse than a constant error: 'sparse' says the land keeps most of the picture,
+ * 'dense' says the near figures are large and sharp. A sweep whose 1900 is
+ * sparse and whose 2010 is dense is being ordered to shoot them from two
+ * different places, and it does.
+ *
+ * These keep the headcount, the behaviour and the era-appropriate business, and
+ * say nothing about scale in frame, depth arrangement or how much of the picture
+ * anything occupies.
+ */
+const HABITATION_CLAUSE_FIXED: Record<HabitationLevel, string> = {
+  uninhabited:
+    'Nobody is here and nobody has been. Every surface in view was shaped by weather, water, ice, rock and wild living things alone, and the ground carries only animal tracks and the marks of the wind.',
+  'traces-only':
+    'Nobody is present. The few made things standing here are weathered, drifted over and half reclaimed by whatever grows and blows here.',
+  sparse:
+    'A few people are here, scattered far apart and well separated, each absorbed in one task of this year.',
+  settled:
+    'This is a lived-in working place: dwellings in use, work under way in the open, and people going about the ordinary business of this year.',
+  dense:
+    'Many people are here, a crowd of them, at every distance and all busy at once with the ordinary business of this year.',
+};
+
 const HABITATION_CLAUSE: Record<HabitationLevel, string> = {
   uninhabited:
     'Wilderness fills the frame. Every surface in view was shaped by weather, water, ice, rock and wild living things alone, and the ground carries only animal tracks and the marks of the wind.',
@@ -440,10 +470,11 @@ const HABITATION_BACKDROP: Record<HabitationLevel, string> = {
 /** Empty string when the level is unknown — see buildFallbackDirection. */
 export function getHabitationClause(
   habitation: HabitationLevel | undefined,
-  opts: { isPortrait?: boolean } = {},
+  opts: { isPortrait?: boolean; fixedFraming?: boolean } = {},
 ): string {
   if (!habitation) return '';
-  return opts.isPortrait ? HABITATION_BACKDROP[habitation] : HABITATION_CLAUSE[habitation];
+  if (opts.isPortrait) return HABITATION_BACKDROP[habitation];
+  return opts.fixedFraming ? HABITATION_CLAUSE_FIXED[habitation] : HABITATION_CLAUSE[habitation];
 }
 
 // ============================================================================
@@ -608,6 +639,32 @@ function capitalise(text: string): string {
 }
 
 interface BuildPromptOpts {
+  /**
+   * THE FRAME IS ALREADY DECIDED — this is one of a series shot from a fixed
+   * standpoint, and nothing downstream may recompose it.
+   *
+   * Set only on the sweep, and only when a standpoint actually exists. Three
+   * separate instructions in this file are compositional, all of them written
+   * for a SINGLE photograph where they are exactly right, and all of them louder
+   * than a paragraph describing a camera position:
+   *
+   *   1. the panel hints — 'the centre of the scene' hands the frame's centre to
+   *      the SUBJECT, and the subject changes every year, so the composition is
+   *      rebuilt around a different object each time
+   *   2. the habitation clause — 'the near ones large and sharp' pulls the camera
+   *      down to crowd level, 'dwarfed by the land, which keeps most of the
+   *      picture' pushes it back and up. Habitation changes between years, so
+   *      this alone guarantees the viewpoint moves
+   *   3. the capture line — 'framing that sits a little loose and slightly off
+   *      centre' is a request for framing variation, in the position this file's
+   *      own header says is weighted most
+   *
+   * A Colosseum sweep came back correct in period and wrong in vantage: 1900
+   * high and wide, 2010 down at the parapet. The standpoint was never losing an
+   * argument about geometry — it was being overruled by three orders about
+   * composition.
+   */
+  fixedFraming?: boolean;
   /** The user's chosen time of day, as a sentence about the light present. */
   phase?: string;
   location: string;
@@ -664,11 +721,39 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
   const camera = args.isPortrait
     ? PORTRAIT_VIEWPOINT
     : (direction.cameraNotes || DEFAULT_VIEWPOINT);
-  const rig = args.isPortrait ? PORTRAIT_RIG : wild ? WIDE_RIG_WILD : WIDE_RIG_PEOPLED;
+  /**
+   * THE FILM LOOK, MINUS THE ONE CLAUSE THAT IS A FRAMING ORDER.
+   *
+   * "framing that sits a little loose and slightly off centre, nothing arranged"
+   * earns its place on a single photograph — it is the difference between a
+   * snapshot and a render. Across a series shot from one fixed standpoint it is
+   * a request for the frame to wander, sitting in the position this file's own
+   * header calls the most heavily weighted. Grain and highlight rolloff carry
+   * the film look on their own; only the framing half goes.
+   */
+  const filmEvidence = args.fixedFraming
+    ? 'It carries the evidence of film: grain sitting in the shadows, and the brightest highlights rolling off softly rather than clipping flat.'
+    : 'It carries the evidence of film: grain sitting in the shadows, the brightest highlights rolling off softly rather than clipping flat, and framing that sits a little loose and slightly off centre, nothing arranged.';
+  /**
+   * THE FOCAL LENGTH LEAVES THE RIG when the standpoint owns it.
+   *
+   * The house rig names a 35mm Summicron. The standpoint states its own focal
+   * length as part of a quantitative camera spec, and two different numbers in
+   * one prompt is one number too many. Body, glass family, aperture and stock
+   * all stay — those are the three things promptTemplate's research says to
+   * name, and none of them decides the field of view.
+   */
+  const rigBase = args.isPortrait ? PORTRAIT_RIG : wild ? WIDE_RIG_WILD : WIDE_RIG_PEOPLED;
+  const rig = args.fixedFraming ? rigBase.replace(/\b\d+mm /, '') : rigBase;
   const periodProcess = args.periodProcess ? periodProcessFor(args.year) : null;
   // The style's process outranks the house rig — that is what choosing it means.
   const datedRig = periodProcess ?? rigForYear(args.year, rig);
   const sideHint =
+    // Silenced wholesale under a fixed frame — the side hints are as
+    // compositional as the centre one ('left edge of a wider panorama, scene
+    // extends offscreen right' is a framing order), and they reach the sweep
+    // because the moderation fallbacks are built from all three panels.
+    args.fixedFraming ? '' :
     args.panelHint === 'left'  ? 'left edge of a wider panorama, scene extends offscreen right' :
     args.panelHint === 'right' ? 'right edge of a wider panorama, scene extends offscreen left' :
     /**
@@ -717,6 +802,7 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
     ? `The exposure runs for minutes, so nothing that moved is on the plate: the street reads as empty of traffic and of crowds, and only what held still is here — a figure resting against a wall, a horse at a post, the buildings themselves, sharp and unpeopled.`
     : getHabitationClause(direction.habitation, {
         isPortrait: args.isPortrait,
+        fixedFraming: args.fixedFraming,
       });
 
   /**
@@ -886,8 +972,8 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
      */
     capture: photographic
       ? datedRig
-        ? `Shot on ${datedRig} — ${camera}. It carries the evidence of film: grain sitting in the shadows, the brightest highlights rolling off softly rather than clipping flat, and framing that sits a little loose and slightly off centre, nothing arranged.`
-        : `${capitalise(camera)}. It carries the evidence of film: grain sitting in the shadows, the brightest highlights rolling off softly rather than clipping flat, and framing that sits a little loose and slightly off centre, nothing arranged.`
+        ? `Shot on ${datedRig} — ${camera}. ${filmEvidence}`
+        : `${capitalise(camera)}. ${filmEvidence}`
       : `Seen from ${camera}.`,
     /**
      * The two halves of {capture}, exposed separately.
@@ -956,6 +1042,8 @@ export interface BuildPanelsOpts {
    * protection.
    */
   standpoint?: string;
+  /** Derived from `standpoint` in buildCoreSamplePrompts — see BuildPromptOpts. */
+  fixedFraming?: boolean;
 }
 
 export function buildImagePromptsFromDirection(
@@ -1032,8 +1120,17 @@ export function buildCoreSamplePrompts(
   direction: SceneDirection,
   kind: ReferenceKind,
 ): string[] {
+  /**
+   * A standpoint IS a fixed frame — one flag, derived rather than passed, so the
+   * two cannot disagree. If the standpoint call failed and returned '', every
+   * compositional instruction stays exactly as it was, which is the behaviour
+   * that shipped before any of this and the right thing to degrade to.
+   */
+  const fixedFraming = Boolean(opts.standpoint?.trim());
   const base = buildImagePromptsFromDirection(
-    kind === 'photograph' ? { ...opts, photographAnchored: true } : opts,
+    kind === 'photograph'
+      ? { ...opts, photographAnchored: true, fixedFraming }
+      : { ...opts, fixedFraming },
     direction,
   );
   // Centre first — it is the focal subject, and this is a single-frame path.
