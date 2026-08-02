@@ -368,7 +368,7 @@ function combineSignals(signal: AbortSignal | undefined, timeoutMs: number): Abo
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
-async function postChat(
+export async function postChat(
   apiKey: string,
   body: unknown,
   options: RequestOptions = {},

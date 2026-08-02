@@ -77,10 +77,10 @@ export function horizonFraction(hfovDeg: number, tiltDeg: number, aspect: number
   return 0.5 - f * Math.tan((tiltDeg * Math.PI) / 180);
 }
 
-/** Lateral offsets in metres. Multiples of 4 draw heavier — a legible cadence. */
+/** Lateral offsets, in LATTICE UNITS. Multiples of 4 draw heavier — a cadence. */
 const RAILS = [-24, -16, -12, -8, -6, -4, -3, -2, -1, 0, 1, 2, 3, 4, 6, 8, 12, 16, 24];
-/** Forward distances in metres. The nearest tie is the near-occluder distance. */
-const TIES = [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 100, 160];
+/** Forward distances, in LATTICE UNITS. */
+const TIES = [0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96];
 
 /**
  * Draw the skeleton and return it as a data URL, or null if the numbers are not
@@ -94,7 +94,6 @@ export function drawCameraSkeleton(
   opts: { width?: number; height?: number } = {},
 ): string | null {
   if (!cameraIsUsable(cam)) return null;
-
   const W = opts.width ?? 1024;
   const H = opts.height ?? 576;
   const canvas = document.createElement('canvas');
@@ -102,7 +101,32 @@ export function drawCameraSkeleton(
   canvas.height = H;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  paintCameraGrid(ctx, cam, W, H);
+  return canvas.toDataURL('image/png');
+}
 
+/**
+ * Paint the grid onto an existing context — no fill, no clear.
+ *
+ * Exists so the cut-out compositor can draw it directly into the regions it has
+ * erased, rather than attaching a second reference image beside the photograph.
+ * One attachment is better than two: the model has to be told what each picture
+ * IS, and every extra convention is another instruction that can be misread.
+ *
+ * The lattice scales with eye height. A one-metre grid is right standing at a
+ * parapet and meaningless from 200 m up in a helicopter, where it would render
+ * as flat grey noise — so the spacing is derived from the altitude rather than
+ * fixed, and the same code serves a street corner and an aerial.
+ */
+export function paintCameraGrid(
+  ctx: CanvasRenderingContext2D,
+  cam: StandpointCamera,
+  W: number,
+  H: number,
+): void {
+  {
   const aspect = W / H;
   const tanV2 = Math.tan((cam.hfovDeg * Math.PI) / 360) / aspect;
   const f = H / 2 / tanV2;
@@ -137,20 +161,23 @@ export function drawCameraSkeleton(
     ctx.stroke();
   };
 
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
   ctx.lineCap = 'round';
 
-  const near = cam.nearestM;
-  for (const x of RAILS) {
+  // The lattice, in metres, sized to the altitude. See paintCameraGrid.
+  const S = Math.max(0.5, eye * 0.5);
+  const near = Math.max(cam.nearestM, S * 0.2);
+  for (const k of RAILS) {
+    const x = k * S;
     const pts: ([number, number] | null)[] = [];
-    for (let i = 0; i < 900; i++) pts.push(proj(x, near + i * 0.4));
-    const major = x % 4 === 0;
+    for (let i = 0; i < 900; i++) pts.push(proj(x, near + i * S * 0.08));
+    const major = k % 4 === 0;
     stroke(pts, major ? 1.4 : 0.8, major ? 0.85 : 0.45);
   }
-  for (const d of [near, ...TIES.filter((t) => t > near)]) {
+  for (const t of TIES) {
+    const d = S * t;
+    if (d < near) continue;
     const pts: ([number, number] | null)[] = [];
-    for (let i = 0; i <= 96; i++) pts.push(proj(-24 + i * 0.5, d));
+    for (let i = 0; i <= 96; i++) pts.push(proj((-24 + i * 0.5) * S, d));
     stroke(pts, 0.8, 0.55);
   }
 
@@ -174,6 +201,5 @@ export function drawCameraSkeleton(
   ctx.lineWidth = 1.8;
   ctx.arc(cx, horizon, 5, 0, Math.PI * 2);
   ctx.stroke();
-
-  return canvas.toDataURL('image/png');
+  }
 }

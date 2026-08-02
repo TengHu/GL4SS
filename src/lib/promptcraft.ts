@@ -1171,29 +1171,32 @@ export function buildCoreSamplePrompts(
    * removing something else.
    */
   /**
-   * THE DIAGRAM CLAUSE, FIRST OF ALL — ahead even of the standpoint prose it
-   * agrees with, because it is the only line in the prompt that reclassifies an
-   * attachment. Every other reference this app sends is a photograph of the
-   * place; this one is a drawing of the camera, and a model that mistakes it for
-   * content will draw the grid.
+   * THE READING CONVENTION, FIRST OF ALL — ahead even of the standpoint prose
+   * it agrees with, because it is the only line in the prompt that says what
+   * KIND of thing the attachment is.
    *
-   * The horizon is identified structurally, not by colour: "the horizontal line
-   * the converging lines all meet at" is unique in that drawing at any tilt, and
-   * naming a colour would invite the colour into the render.
+   * Every other reference this app sends is a photograph to be honoured. This
+   * one is a photograph with holes cut in it, and the holes carry a drawing.
+   * Unexplained, a model handed grey rectangles and a ruled grid has every
+   * reason to paint grey rectangles and a ruled grid.
    *
-   * The second sentence is the one that does the work. Where the horizon falls
-   * IS the camera's height and tilt, and putting standing people's eyes on it is
-   * the same statement in a form the model can check while it composes — it was
-   * how the drift was diagnosed in the first place.
+   * PHRASED AS WHAT IS THERE, not as a list of prohibitions. The 1900 probe
+   * asked for "no perimeter fencing, no signage, no metal railings" and got
+   * railings; the 1600 probe said "the arches meet the earth directly" and got
+   * clean masonry. Naming an absent object summons it — the rule this file's
+   * deleted negatives module exists to record — and an edit prompt is no
+   * exception to it.
    */
   const diagram = opts.cameraDiagram
-    ? `A PERSPECTIVE DIAGRAM IS ATTACHED. It is not scene content and nothing in it ` +
-      `appears in the picture — no lines, no grid, no marks. It is the camera. Its one ` +
-      `horizontal line, the one every converging line meets at, is eye level: put the ` +
-      `horizon exactly there, and place everyone standing on the ground so that their ` +
-      `eyes fall on that line however near or far they are. The converging lines are the ` +
-      `ground running away from that camera — match how fast they close. Then draw the ` +
-      `scene described below on that geometry, as an ordinary photograph.`
+    ? `THE ATTACHED IMAGE IS A PHOTOGRAPH WITH PARTS REMOVED. Read it as follows. ` +
+      `The flat grey regions are MISSING: work out what belongs there in this year and ` +
+      `render it. The thin ruled lines inside the grey are a perspective diagram of the ` +
+      `ground plane and the horizon — they say where the ground lies and how it recedes, ` +
+      `they are a drawing instrument, and the finished picture contains no lines, no grid ` +
+      `and no marks of any kind. Anything blurred is still there in this year but looked ` +
+      `different: rebuild it in the state it was in. EVERYTHING THAT IS NEITHER GREY NOR ` +
+      `BLURRED IS CORRECT — reproduce it exactly, the same stones, the same viewpoint, the ` +
+      `same framing, the same lens. The result is one ordinary photograph.`
     : '';
 
   const lead = (p: string): string => {

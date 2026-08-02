@@ -44,7 +44,8 @@ import type { ModelSelection, VideoModelCapability } from '../../lib/openrouter'
 import { audioForSequence, renderClip, renderStill } from './render';
 import { explainFailure } from '../../lib/failure';
 import { buildCoreSamplePrompts } from '../../lib/promptcraft';
-import { drawCameraSkeleton } from './cameraSkeleton';
+import { compositeCutout, segmentAnachronisms } from './timeMask';
+import type { StandpointCamera } from '../../lib/openrouter';
 import type { SceneDirection } from '../../lib/promptcraft';
 import { MAX_YEAR, MIN_YEAR, formatYear } from '../../lib/format';
 import { findPhase } from './daylight';
@@ -835,7 +836,7 @@ export class CoreSampleRunner {
        * because every frame would then agree on the wrong view.
        */
       let standpoint = '';
-      let skeleton: string | null = null;
+      let camera: StandpointCamera | undefined;
       if (anchorUrl && !abort.signal.aborted) {
         const years = this.state.frames.map((f) => f.year);
         const sp = await planStandpoint(
@@ -850,15 +851,13 @@ export class CoreSampleRunner {
         );
         standpoint = sp.text;
         /**
-         * Drawn once, from the numbers the same call returned, so the diagram
-         * and the prose are two renderings of one set of figures. Free — canvas,
-         * no request — and null rather than wrong when the numbers are out of
-         * range, which drops the sweep back to prose alone.
+         * The numbers stay; the standalone diagram goes. The grid is now painted
+         * into the cut-out's erased regions instead of shipped as a second
+         * reference — one attachment, one convention to explain.
          */
-        skeleton = drawCameraSkeleton(sp.camera);
+        camera = sp.camera;
         console.info(
-          `[looking-glass] standpoint: ${sp.camera ? JSON.stringify(sp.camera) : 'no camera numbers'}` +
-            ` · diagram ${skeleton ? 'drawn' : 'not drawn'}`,
+          `[looking-glass] standpoint: ${sp.camera ? JSON.stringify(sp.camera) : 'no camera numbers'}`,
         );
       }
       if (abort.signal.aborted) return;
@@ -908,6 +907,50 @@ export class CoreSampleRunner {
         this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
 
         /**
+         * THE SEED, CUT DOWN TO WHAT SURVIVES INTO THIS YEAR.
+         *
+         * Always from the SEED, never from a neighbouring frame. Chaining
+         * existed to keep each step's delta small, but a probe took one
+         * photograph from 2020 to 1900 in a single step with the vantage intact,
+         * so the premise is weak — and direct-from-seed buys three things
+         * chaining cannot: the reference is a real photograph rather than an
+         * interpretation of one, nothing accumulates down a chain, and every
+         * station can run at once.
+         *
+         * See timeMask.ts for what the cut does and why it is boxes.
+         */
+        let cutout: string | null = null;
+        if (anchorUrl && i !== anchor) {
+          const items = await segmentAnachronisms(
+            config.apiKey,
+            anchorUrl,
+            this.state.frames[anchor]!.year,
+            frame.year,
+            request.location,
+            config.models.text,
+            { signal: abort.signal },
+          );
+          if (abort.signal.aborted) break;
+          if (items.length) {
+            try {
+              cutout = await compositeCutout(anchorUrl, items, camera);
+            } catch (err) {
+              // A tainted canvas or an unreadable seed costs this frame its
+              // cut-out, not the sweep: it falls through to the unmasked path.
+              console.warn(
+                `[looking-glass] could not cut the seed for ${frame.year} — rendering ` +
+                  `without it. ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
+          console.info(
+            `[looking-glass] ${frame.year}: ${items.length} anachronisms ` +
+              `(${items.filter((a) => a.change === 'absent').length} absent) · ` +
+              `cut-out ${cutout ? 'built' : 'none'}`,
+          );
+        }
+
+        /**
          * NO PHOTOGRAPH IS ATTACHED. A sweep frame is drawn, not edited.
          *
          * The seed's contribution arrives as information — `standpoint` for the
@@ -928,7 +971,7 @@ export class CoreSampleRunner {
             template: config.template,
             aspect: '16:9',
             standpoint,
-            cameraDiagram: Boolean(skeleton),
+            cameraDiagram: Boolean(cutout),
           },
           direction,
           'none',
@@ -940,7 +983,7 @@ export class CoreSampleRunner {
          * about a drawing it was never given — the lesson the stills path
          * learned once already.
          */
-        const promptsNoDiagram = skeleton
+        const promptsNoDiagram = cutout
           ? buildCoreSamplePrompts(
               {
                 location: request.location,
@@ -964,7 +1007,7 @@ export class CoreSampleRunner {
             {
               model,
               prompts,
-              references: skeleton ? [skeleton] : undefined,
+              references: cutout ? [cutout] : undefined,
               unanchoredPrompts: promptsNoDiagram,
             },
             { signal: abort.signal },
