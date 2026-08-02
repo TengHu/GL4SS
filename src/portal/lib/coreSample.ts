@@ -802,7 +802,7 @@ export class CoreSampleRunner {
             aspect: '16:9',
           },
           direction,
-          Boolean(reference),
+          reference ? 'chained' : 'none',
         );
         // Without a reference the anchor sentence is absent from `prompts`, so
         // the unchained retry below has to be built from its own candidate list
@@ -821,7 +821,7 @@ export class CoreSampleRunner {
                 aspect: '16:9',
               },
               direction,
-              false,
+              'none',
             )
           : prompts;
 

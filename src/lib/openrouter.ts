@@ -489,12 +489,16 @@ function buildSceneDirectionPrompt(
      * attaching the photograph only to the drawing request looked like it did
      * nothing at all.
      *
-     * Deliberately says the photograph is MODERN and not evidence about the
-     * year: it fixes where you are standing and which way you are facing, and
-     * the history still comes from the planner's own knowledge of the date.
+     * TREATED AS GROUND TRUTH FOR BOTH AXES. An earlier version told the
+     * planner the photograph was modern and evidence about WHERE only — which
+     * set it against itself the moment the visitor supplied a photograph of the
+     * year they had dialled, since the planner was then instructed to overrule
+     * the very thing it was being shown. Matching the photograph to the place
+     * AND the year is the visitor's responsibility; this side simply respects
+     * it, and asks the planner only for what a photograph cannot settle.
      */
     hasReference
-      ? `A PHOTOGRAPH OF THIS EXACT SPOT IS ATTACHED. It was taken recently — it is evidence about WHERE, never about WHEN. Plan the photograph as seen from that camera position: the same street or ground, the same direction of view, the same kind of vantage. If it shows a residential side street, this is that side street and not the district's landmark; if it shows a courtyard, a shoreline, a field, plan THAT. Choose subjects that could stand in that view. Everything belonging to ${formattedYear} — the buildings, the surfaces, the vehicles, the clothing, the vegetation, the light — you still supply yourself, and it may differ completely from what the photograph shows.`
+      ? `A PHOTOGRAPH OF THIS PLACE AT THIS TIME IS ATTACHED, supplied by the visitor. Treat it as ground truth for BOTH where and when: it is this location, and it is ${formattedYear}. Describe the scene it actually shows — that street or ground, that vantage and direction of view, those buildings and surfaces, that light and season, the period detail visible in it. Do not substitute the district's famous landmark for what is in the frame, and do not date the scene from your own expectations of ${formattedYear} where the photograph disagrees. Your remaining job is what the photograph does not settle: who is present and what they are doing, what lies just outside the frame, and the concrete details too small to read in it.`
       : '',
     // QUOTED, so the planner reads this as a NAME and not as prose it might
     // obey. The string comes from the URL query and from Nominatim (which anyone

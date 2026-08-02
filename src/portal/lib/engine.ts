@@ -752,7 +752,11 @@ export class SceneEngine {
        * there is nothing new to write here.
        */
       const reference = job.reference;
-      const candidates = buildCoreSamplePrompts(promptFields, direction, Boolean(reference));
+      const candidates = buildCoreSamplePrompts(
+        promptFields,
+        direction,
+        reference ? 'photograph' : 'none',
+      );
       const model = imageModelForMode('wide-field', this.config.models);
       /**
        * NO REFERENCE, and that is the whole difference between this and a swept
@@ -772,7 +776,7 @@ export class SceneEngine {
           // attachment, or the model would be reading instructions about a
           // picture that is no longer there.
           unanchoredPrompts: reference
-            ? buildCoreSamplePrompts(promptFields, direction, false)
+            ? buildCoreSamplePrompts(promptFields, direction, 'none')
             : undefined,
         },
         {
