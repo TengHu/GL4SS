@@ -740,6 +740,49 @@ export class CoreSampleRunner {
      * Falls back to a neighbour when the seed never rendered — some photograph
      * of this spot is better than none for working out what stands here.
      */
+    /**
+     * WHICH PICTURE GETS CUT — the neighbour, not always the seed.
+     *
+     * The sweep is one timeline that a viewer watches evolve, and the seed is
+     * the point on it that happens to be pinned to a real photograph. It is not
+     * the hub. Reading every frame radially off the seed makes each one an
+     * independent sample, which is exactly wrong once the seed stops saying
+     * anything: a 2010 seed cut for 110 AD comes back 95% grey, so 110 and 111
+     * are two unrelated inventions that share only a camera, despite being one
+     * year apart and effectively the same world.
+     *
+     * Cut the neighbour instead and the same 110 frame arrives as 111 with a
+     * different crowd, because one year erases almost nothing.
+     *
+     * THE SEED'S PIXELS STILL REACH THE FAR END. They travel along the chain,
+     * surviving wherever history left something standing and being erased where
+     * it did not — so its authority decays at exactly the rate the world
+     * actually changed, rather than being asserted in full or not at all.
+     *
+     * SAFE NOW, AND IT WAS NOT BEFORE. The old chain propagated a 1987 crowd
+     * into 1900 with only their clothes repainted, but that was chaining UNCUT
+     * frames. Every link now passes through the cut, and people are always
+     * erased, so nobody can cross one. The camera does not travel in the pixels
+     * either — it is in the standpoint text and the grid, both year-independent
+     * — so the viewpoint drift chaining used to cause is held by something
+     * chaining cannot touch.
+     *
+     * The cost is that the sweep goes serial: this frame waits for the one
+     * beside it. The call count is unchanged — the neighbour is cut INSTEAD of
+     * the seed, not as well.
+     */
+    const cutSource = (i: number): { url: string; year: number } | undefined => {
+      if (i === anchor) return undefined;
+      // Walk back toward the seed, taking the first frame that actually landed.
+      // A failed station must not break the chain behind it.
+      const step = i > anchor ? -1 : 1;
+      for (let j = i + step; step < 0 ? j >= anchor : j <= anchor; j += step) {
+        const f = this.state.frames[j];
+        if (f?.status === 'ready' && f.url) return { url: f.url, year: f.year };
+      }
+      return undefined;
+    };
+
     const referenceForPlanner = (i: number): { url: string; year: number } | undefined => {
       if (i === anchor) return undefined;
       const seedFrame = this.state.frames[anchor];
@@ -908,24 +951,19 @@ export class CoreSampleRunner {
         this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
 
         /**
-         * THE SEED, CUT DOWN TO WHAT SURVIVES INTO THIS YEAR.
+         * THE FRAME BESIDE THIS ONE, CUT DOWN TO WHAT SURVIVES INTO THIS YEAR.
          *
-         * Always from the SEED, never from a neighbouring frame. Chaining
-         * existed to keep each step's delta small, but a probe took one
-         * photograph from 2020 to 1900 in a single step with the vantage intact,
-         * so the premise is weak — and direct-from-seed buys three things
-         * chaining cannot: the reference is a real photograph rather than an
-         * interpretation of one, nothing accumulates down a chain, and every
-         * station can run at once.
-         *
-         * See timeMask.ts for what the cut does and why it is boxes.
+         * Identical processing to what the seed used to get — same segmentation
+         * prompt, same boxes, same erase and blur, same grid. Only the picture
+         * being cut is different. See cutSource for why it is the neighbour.
          */
+        const source = cutSource(i);
         let cutout: string | null = null;
-        if (anchorUrl && i !== anchor) {
+        if (source) {
           const items = await segmentAnachronisms(
             config.apiKey,
-            anchorUrl,
-            this.state.frames[anchor]!.year,
+            source.url,
+            source.year,
             frame.year,
             request.location,
             config.models.text,
@@ -934,18 +972,18 @@ export class CoreSampleRunner {
           if (abort.signal.aborted) break;
           if (items.length) {
             try {
-              cutout = await compositeCutout(anchorUrl, items, camera);
+              cutout = await compositeCutout(source.url, items, camera);
             } catch (err) {
-              // A tainted canvas or an unreadable seed costs this frame its
+              // A tainted canvas or an unreadable source costs this frame its
               // cut-out, not the sweep: it falls through to the unmasked path.
               console.warn(
-                `[looking-glass] could not cut the seed for ${frame.year} — rendering ` +
+                `[looking-glass] could not cut ${source.year} for ${frame.year} — rendering ` +
                   `without it. ${err instanceof Error ? err.message : String(err)}`,
               );
             }
           }
           console.info(
-            `[looking-glass] ${frame.year}: ${items.length} anachronisms ` +
+            `[looking-glass] ${frame.year} from ${source.year}: ${items.length} anachronisms ` +
               `(${items.filter((a) => a.change === 'absent').length} absent) · ` +
               `cut-out ${cutout ? 'built' : 'none'}`,
           );
@@ -1017,9 +1055,17 @@ export class CoreSampleRunner {
             { signal: abort.signal },
           );
           if (abort.signal.aborted) break;
-          // `chained` is false for every sweep frame now, and honestly so: no
-          // frame is drawn from another frame's pixels.
-          this.patchFrame(i, { status: 'ready', url, chained: false });
+          /**
+           * TRUE WHEN THIS FRAME WAS ACTUALLY CUT FROM ANOTHER, which is what
+           * the player's break marker is asking about.
+           *
+           * Hardcoded false since the sweep stopped editing photographs, which
+           * flagged every frame in the strip as unanchored — a warning that
+           * fired on the healthy path and so meant nothing. A frame with no
+           * cut-out genuinely is unanchored: it was drawn from prose alone, and
+           * that is the seam the marker exists to show.
+           */
+          this.patchFrame(i, { status: 'ready', url, chained: Boolean(cutout) });
         } catch (err) {
           if (abort.signal.aborted) break;
           // A failed frame costs only itself. Nothing downstream was drawn from

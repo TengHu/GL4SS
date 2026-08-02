@@ -10,8 +10,8 @@ other stations on the ladder.
 
 ## The idea in one line
 
-**Cut the seed down to what survives into the target year, and let the drawing
-model refill the holes.**
+**Cut the picture beside this one down to what survives into the target year,
+and let the drawing model refill the holes.**
 
 Everything else follows from that.
 
@@ -29,8 +29,10 @@ the same patch of sky across ninety years — and it missed the white trainers,
 which were still on the same seated figure in 1900. A wardrobe department, not a
 time machine.
 
-**Chaining frame to frame.** Each year drawn from its neighbour, to keep every
-step small. It propagated the same problem down the chain and added drift on top.
+**Chaining frame to frame, UNCUT.** Each year drawn from its neighbour to keep
+every step small. It propagated the same crowd down the chain and added drift on
+top. Note what actually failed: not the chaining, the *uncut*. Every link now
+passes through the cut and the chain is back — see *The chain*.
 
 **Describing the camera in words.** No attachment at all; the vantage carried by
 a written standpoint. Measured across one Colosseum sweep, prose fixed the focal
@@ -66,8 +68,12 @@ contradict each other.
 
 **3. The anachronism pass** — one text call, `segmentAnachronisms()`.
 
-> *"This photograph was taken in 2020. List everything visible that would not be
-> present, unchanged, at this spot in 1900."*
+> *"This photograph was taken in 111. List everything visible that would not be
+> present, unchanged, at this spot in 110."*
+
+The picture it is asked about is **the frame beside this one**, not the seed —
+except for the first frame out from the seed, which has nothing else to use. Same
+prompt, same boxes, same treatment either way; only the input picture differs.
 
 Returns boxes with labels and a verdict of `absent` or `altered`. **Open
 vocabulary — nothing in the code knows what a person is, or a building, or a
@@ -84,6 +90,7 @@ Measured against the live API:
 ~6 seconds, ~$0.003 each.
 
 **4. The cut-out** — **no API call**, `compositeCutout()`, entirely in the browser.
+Identical processing whatever picture was cut.
 
 Three states end up in the picture, and every pixel is in exactly one of them:
 
@@ -145,14 +152,19 @@ subjects, and `standing` — what stood here in this year.
 **6. Generate** — one image call. The cut-out is the *only* attachment.
 
 ```
-seed photograph
-   │
-   ├── standpoint  ──── camera numbers ──┐
-   │                                     │
-   ├── anachronism pass (per year) ──► cut-out ──► image call ──► frame
-   │                                     │
-   └── planner (per year) ──── prose ────┘
+seed photograph ──► standpoint ──► camera numbers ─────────┐
+      │                                                    │
+      └─► cut for 1987 ─► FRAME 1987                        │
+                              │                             │
+                              └─► cut for 1943 ─► FRAME 1943 │
+                                                     │      │
+                                                     └─► cut for 1900 ─► FRAME 1900
+                                                                              ▲
+                          planner (per year) ─── prose ─────────────────────┘
 ```
+
+The standpoint is read once from the seed and reaches every frame unchanged. The
+pixels travel along the chain.
 
 **Per station: 2 text calls + 1 image call.** Per sweep: one extra text call.
 The cut-out is free — canvas, no network, no cache.
@@ -161,11 +173,34 @@ The cut-out is free — canvas, no network, no cache.
 
 ## Two rules that are load-bearing
 
-**Direct from the seed, never from a neighbour.** A probe took one photograph
-from 2020 to 1900 in a single step with the vantage intact, so the "keep each
-step small" premise is weak. Direct-from-seed buys three things chaining cannot:
-the reference is a real photograph rather than an interpretation of one, nothing
-accumulates down a chain, and every station can run at once.
+**The chain, pinned at the seed.** Each frame cuts the frame beside it — the one
+one step nearer the seed, always finished already because the order walks
+outward. The seed is not a hub; it is the point where the timeline is pinned to a
+real photograph.
+
+This was a star for a while, every frame reading the seed independently, and it
+breaks the moment the seed stops saying anything. A 2010 seed cut for 110 AD
+comes back **95% grey** — the whole modern city gone — so 110 and 111 were two
+unrelated inventions sharing only a camera, despite being one year apart and
+effectively the same world. Cut 111 for 110 instead and only the people are
+erased: the frame arrives as 111 with a different crowd, which is what a viewer
+watching a timeline expects.
+
+**The seed's pixels still reach the far end.** They travel along the chain,
+surviving wherever history left something standing and being erased where it did
+not, so its authority decays at exactly the rate the world actually changed —
+rather than being asserted in full or not at all.
+
+**Safe now, and it was not before.** The old chain carried a 1987 crowd into 1900
+with their clothes repainted, but that was chaining UNCUT frames. Every link now
+passes through the cut, people are always erased, so nobody can cross one. The
+camera does not travel in the pixels either — it is in the standpoint text and
+the grid, both year-independent — so the drift chaining used to cause is held by
+something chaining cannot touch.
+
+**What it costs: the sweep runs serially.** This frame waits for the one beside
+it. The call count does not change — the neighbour is cut INSTEAD of the seed,
+not as well.
 
 **Prompts are phrased as what IS there.** The 1900 probe asked for *"no fencing,
 no signage, no railings"* and got railings back. The 1600 probe said *"the arches
@@ -278,12 +313,13 @@ it was not before, because a cut-out contains no people to propagate.
 
 ```
 [looking-glass] standpoint: {"eyeHeightM":1.6,"tiltDeg":7.2,"hfovDeg":74,…}
-[looking-glass] 1900: 22 anachronisms (9 absent) · cut-out built
+[looking-glass] 1900 from 1943: 22 anachronisms (9 absent) · cut-out built
 ```
 
 | what you see | what it means |
 |---|---|
-| `0 anachronisms` | the pass failed or found nothing — **this frame goes out with the whole seed intact**, so anything modern in it survives |
+| `1900 from 1943` | which picture was cut. Near the seed this says the seed; further out it names the neighbour |
+| `0 anachronisms` | the pass failed or found nothing — **this frame goes out with the source picture intact**, so anything not of its year survives |
 | `cut-out none` | boxes came back but compositing failed (a tainted cross-origin canvas is the usual cause); falls through to unmasked |
 | no standpoint line | the call failed — holes still get erased, but no grid is painted into them |
 | a low `absent` count on a distant year | distrust it. 1900 should be erasing a lot |
@@ -315,6 +351,13 @@ Nothing here fails the run. In order of severity:
   architecture and dropped the people and street furniture entirely.
 - **Degree is binary.** `absent` or `altered`, nothing between, so lightly
   weathered and completely rebuilt get the same 14 px of blur.
+- **The sweep is serial.** Each frame waits for the one beside it, so a
+  24-station sweep is 24 sequential rounds rather than all at once. That is the
+  price of the chain and the only thing it costs.
+- **Drift accumulates.** Each link is an interpretation of an interpretation.
+  Bounded — the standpoint holds the camera and the planner supplies each year's
+  history independently — but not eliminated. The far end of a long sweep is
+  several generations from any real photograph.
 - **Two steps decide what is present.** The anachronism pass has coordinates and
   shows its answer in the pixels; the planner's `standing` says it in prose. They
   are separate calls and can disagree — a walkway marked `altered` appears
