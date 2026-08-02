@@ -95,8 +95,10 @@ function targetIcon(): L.DivIcon {
   return L.divIcon({
     className: 'place-marker',
     html: '<span class="place-marker-ring"></span><span class="place-marker-core"></span>',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    // Roomy on purpose: the reticle's arms reach well outside the ring, and a
+    // tight box would clip them.
+    iconSize: [64, 64],
+    iconAnchor: [32, 32],
   });
 }
 
