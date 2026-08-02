@@ -67,6 +67,18 @@ export function StreetViewSeed({ apiKey, coordinates, onCaptured }: Props) {
     setError(null);
     setLooking(true);
     try {
+      /**
+       * Wait for the stage to be laid out before constructing the sphere.
+       *
+       * The container is display:none until `looking` flips, and React applies
+       * that on the next paint — so on a warm SDK the constructor could run
+       * against a zero-size element. Google Maps initialises its controls and
+       * hit regions from the container's box at construction time and does not
+       * recover when it later gains a size: the sphere renders and refuses to
+       * turn. Two frames is one to commit the state and one to be sure layout
+       * has settled.
+       */
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       pano.current = await openPanorama(
         apiKey,
         host.current,

@@ -5325,6 +5325,17 @@ body {
   pointer-events: auto;
 }
 
+/* THE SPHERE IS A DIV, AND HOME MODE ONLY EXEMPTS BUTTONS AND LINKS.
+   `.portal--home .portal-caption` drops pointer events so the map underneath
+   keeps its dragging, and re-enables them for `button` and `a` alone. Street
+   view's viewer is neither, so every drag fell through to Leaflet and the
+   panorama could be opened but never turned. It needs the exemption too — and
+   it is the only non-button in the caption that is meant to be dragged. */
+.portal--home .portal-caption .sv-stage,
+.portal--home .portal-caption .sv-pano {
+  pointer-events: auto;
+}
+
 /* Not legible under the era wash and the veiling glare, and not raisable above
    them without splitting the panel across two roots. The header's SEARCH button
    opens the real panel, which lands above everything and carries the globe
