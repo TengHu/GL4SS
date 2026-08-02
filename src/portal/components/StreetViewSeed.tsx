@@ -104,11 +104,22 @@ export function StreetViewSeed({ apiKey, coordinates, onCaptured }: Props) {
     }
   };
 
-  if (!apiKey) return null;
-
   return (
     <div className="sv">
-      {!looking && (
+      {/* SAYS SO WITHOUT A KEY, rather than rendering nothing.
+          Returning null made the whole feature invisible: there was no way to
+          learn it existed except by finding an optional field in Settings and
+          guessing what it unlocked. A capability nobody can discover is the same
+          as one that is not there. */}
+      {!apiKey && (
+        <div className="sv-row">
+          <span className="sv-dot" aria-hidden="true" />
+          <span className="sv-meta">
+            street view — add a Google Maps key in Settings to seed from a real photograph
+          </span>
+        </div>
+      )}
+      {apiKey && !looking && (
         <div className="sv-row">
           <span className={`sv-dot${here ? ' sv-dot--on' : ''}`} aria-hidden="true" />
           <span className="sv-meta">
@@ -130,7 +141,7 @@ export function StreetViewSeed({ apiKey, coordinates, onCaptured }: Props) {
       {/* Kept mounted once opened: the sphere is a live SDK object bound to this
           element, and unmounting it would throw away a panorama already paid
           for. Hidden rather than removed. */}
-      <div className="sv-stage" style={looking ? undefined : { display: 'none' }}>
+      <div className="sv-stage" style={apiKey && looking ? undefined : { display: 'none' }}>
         <div className="sv-pano" ref={host} />
         <div className="sv-bar">
           <span className="sv-meta">
