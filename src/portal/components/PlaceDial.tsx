@@ -195,16 +195,53 @@ export function PlaceDial({
     };
     // Intentionally not re-running on coordinate changes — that's the fly-to
     // effect's job. Re-running here would tear the map down on every pick.
+    //
+    // `home` IS here, and has to be: the panel is portalled to document.body in
+    // home mode and rendered inline otherwise (see the return at the foot of
+    // this file), so crossing that boundary moves the subtree between parents
+    // and React remounts it. `hostRef` then points at a NEW element while this
+    // map is still bound to the removed one — a live Leaflet instance attached
+    // to a detached div, and an empty div on screen. The symptom was a black
+    // map with zero tiles the moment M was pressed, permanent, with no
+    // recovery: measured 1400x860 with 48 tiles before, 418x250 with none
+    // after. Not a resize — a different element.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, view]);
+  }, [expanded, view, home]);
 
-  /** Resizing the container needs Leaflet told, or half the panel stays grey. */
+  /**
+   * Resizing the container needs Leaflet told, or half the panel stays grey.
+   *
+   * This watched `fullscreen` alone, and missed the larger of the two resizes.
+   * HOME MODE also changes the box — from the full viewport to a 418x250 panel
+   * the moment M is pressed — and Leaflet, never told, kept its old pixel origin
+   * and rendered ZERO tiles. Not half a grey panel: a black one, permanently,
+   * with no recovery. Measured at 1400x860 with 48 tiles before the keypress and
+   * 418x250 with none after it.
+   *
+   * So it observes the element instead of guessing which state changes imply a
+   * resize. A ResizeObserver cannot miss a cause the way a dependency list can,
+   * and there is no third flag to remember next time — the CSS can change the
+   * box however it likes.
+   *
+   * Coalesced to one call per frame: the transition between the two layouts
+   * fires the observer continuously, and invalidateSize does real work each
+   * time.
+   */
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const t = setTimeout(() => map.invalidateSize(), 260);
-    return () => clearTimeout(t);
-  }, [fullscreen]);
+    const host = hostRef.current;
+    if (!map || !host) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => mapRef.current?.invalidateSize());
+    });
+    observer.observe(host);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [expanded, view, home]);
 
   // --- THE FIX: keep the camera and marker on the selected coordinates -----
   useEffect(() => {
