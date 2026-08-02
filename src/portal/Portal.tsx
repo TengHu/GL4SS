@@ -16,7 +16,7 @@
  *    stepping onward with the arrow keys is usually instant.
  */
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { PortalView } from './components/PortalView';
 import { TimeDial } from './components/TimeDial';
 import { PlaceDial } from './components/PlaceDial';
