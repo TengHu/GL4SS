@@ -686,6 +686,25 @@ export function Portal() {
   // --- demand: generate what the user settled on ---------------------------
   useEffect(() => {
     if (!apiKey || scrubbing) return;
+    /**
+     * A CHOSEN PHOTOGRAPH OUTRANKS ANYTHING ALREADY ON DISK.
+     *
+     * Restoring here is free and instant and that is normally exactly right —
+     * but a photograph in hand is an explicit statement that the visitor wants a
+     * NEW picture of this station, and the old one arriving on top of it both
+     * hides that the photograph is armed and looks like the app ignored them.
+     *
+     * It bites hardest through Street View, which moves the year as a side
+     * effect of capturing: the pano is dated, the dial jumps to that station,
+     * and if the station happens to be one already owned the stale frame lands
+     * before the visitor has touched anything. Opening at 100 AD, capturing a
+     * 2010 pano and being shown a 2010 frame full of smartphones is this, and it
+     * reads as a cache bug rather than as the restore it is.
+     *
+     * Nothing is lost by waiting: the frame stays on disk, and the lever — which
+     * now always forces — is one press away.
+     */
+    if (seedPhoto) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       // Never spend money before we know what we already own. Without this the
@@ -715,7 +734,7 @@ export function Portal() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [engine, apiKey, scrubbing, year, coordinates, location, styleKey, phaseId]);
+  }, [engine, apiKey, scrubbing, year, coordinates, location, styleKey, phaseId, seedPhoto]);
 
   // --- speculation: once we've landed, prepare the neighbours --------------
   useEffect(() => {
