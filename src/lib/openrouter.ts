@@ -9,7 +9,7 @@
  * each branch named and a clear failure mode.
  */
 
-import type { ViewMode } from '../types';
+import type { Coordinates, ViewMode } from '../types';
 import { formatYear, getEraDescription } from './format';
 import type { HabitationLevel, SceneDirection } from './promptcraft';
 import {
