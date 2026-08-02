@@ -1100,17 +1100,58 @@ export function buildCoreSamplePrompts(
             .map((y) => formatYear(y))
             .join(' and ')}. `;
 
+  /**
+   * WHICH WAY THIS FRAME IS LOOKING, said before the rule that depends on it.
+   *
+   * A sweep runs outward from the seed in both directions and the clause was
+   * written as if it only ran one way — it names both the not-yet-built case and
+   * the already-gone case, but leaves the model to work out which one the
+   * attachments call for. That is the entire question when the attachment shows
+   * a thing the target year predates, and it is answerable from the dates alone.
+   */
+  const earlierThanAll = years.length > 0 && years.every((y) => opts.year < y);
+  const laterThanAll = years.length > 0 && years.every((y) => opts.year > y);
+  const travel = earlierThanAll
+    ? `This year comes BEFORE the year they were taken, so some of what they show had not been made yet. `
+    : laterThanAll
+      ? `This year comes AFTER the year they were taken, so some of what they show had not arrived yet, and some of it stands here changed or worn. `
+      : '';
+
   const anchor =
     dated +
     `They are evidence about WHERE — where the camera stood, what occupies the ground — and ` +
     `the year they were taken is not this year. ` +
+    travel +
     `Stand the camera exactly where it stood for them — identical viewpoint, ` +
     `identical direction, identical lens and horizon line — and keep the land itself where ` +
     `it is: the ground, the slope, the line of the hills, the run of the coast or river. ` +
     `ANYTHING ALREADY STANDING HERE IN THIS YEAR IS STILL STANDING, in the same place and ` +
-    `at the same scale, shown as it looked then. Only what had not been built yet, or was ` +
-    `already gone, is absent — and what is missing is replaced by whatever was actually on ` +
-    `that ground at the time. The vegetation, the water and ice, the weather, the light and ` +
+    `at the same scale, shown as it looked then. ` +
+    /**
+     * THE ABSENCE HALF, RAISED TO THE WEIGHT OF THE PRESENCE HALF.
+     *
+     * The two halves of this rule were never equal. Presence got capitals, a
+     * clause of its own and two qualifiers; absence got a subordinate "Only what
+     * had not been built yet ... is absent" tucked behind it. That asymmetry
+     * lands on top of the image model's own bias — with a reference attached the
+     * default behaviour is to preserve, and deleting the dominant subject of the
+     * attachment is the hardest edit there is.
+     *
+     * It shows: a Rushmore sweep seeded in 2019 rendered 1920 with all four
+     * heads finished. Carving began in 1927. The frame is not a little early, it
+     * is a monument seven years before the first charge was set.
+     *
+     * Phrased as what the ground DOES show rather than as a deletion, for the
+     * usual reason — "no faces on the mountain" is a request for faces on the
+     * mountain.
+     */
+    `AND ANYTHING NOT YET MADE IN THIS YEAR IS NOT HERE IN ANY FORM: where it will one day ` +
+    `stand, this frame shows the bare ground, rock, water or growth that occupied that space ` +
+    `in this year, finished and complete as its own subject. A thing under construction in ` +
+    `this year appears at exactly the stage it had reached in this year and no further. ` +
+    `What was already gone by this year is likewise absent, and what is missing is replaced ` +
+    `by whatever was actually on that ground at the time. ` +
+    `The vegetation, the water and ice, the weather, the light and ` +
     `whoever is present all belong to this year. ` +
     /**
      * PORTABLE MANUFACTURE — the category the clause used to have no sentence for.
@@ -1137,7 +1178,22 @@ export function buildCoreSamplePrompts(
     `This is the same view at a different time, not the same photograph adjusted.` +
     standing;
 
-  return ordered.map((p) => `${p}\n\n${anchor}`);
+  /**
+   * FIRST, not appended — the same move the photograph path made, for the same
+   * reason, finally applied to the path that needs it more.
+   *
+   * The note above the photograph clause says it plainly: promptcraft's guidance
+   * is that the most important thing goes first, and appending the one
+   * instruction that governs what the picture IS after eight blocks of scene
+   * description puts it in the weakest position in the prompt. That was fixed
+   * there and left alone here, so the chained anchor — which carries the
+   * standing/absent rule AND the planner's per-frame historical verdict — was
+   * the literal last thing the image model read, behind the style suffix.
+   *
+   * It is worse here than it was there, because this clause is fighting an
+   * attached image rather than agreeing with one.
+   */
+  return ordered.map((p) => `${anchor}\n\n${p}`);
 }
 
 export function buildCinematicPromptFromDirection(

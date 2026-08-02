@@ -571,7 +571,13 @@ function buildSceneDirectionPrompt(
       // in people's hands — with no verdict from the only step that can see both
       // the picture and the date. A Rushmore sweep came back with a 1943 crowd
       // holding present-day phones for exactly that reason.
-      ? `  "standing": "REQUIRED HERE. Object by object from the attached photograph: what is still standing at this spot in ${formattedYear} and how it looked then, then what is absent and what occupies that ground instead. Name the things, do not generalise. If the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance — it must not vanish. Then, if the photograph shows vehicles, or people carrying or holding or using anything, finish by naming what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
+      // LEADS WITH ABSENCE, because that is the half the image model resists.
+      // Asked to lead with "what is still standing", the field was answered as a
+      // survival list and the not-yet-built case trailed off the end of it — a
+      // 2019-seeded sweep planned 1920 at Mount Rushmore with the carving intact,
+      // seven years before the first charge was set. Naming the date the work
+      // started is what makes the answer checkable rather than impressionistic.
+      ? `  "standing": "REQUIRED HERE. Work through the attached photograph object by object. FIRST, absence: name anything visible in it that did not exist yet at this spot in ${formattedYear} — give the year that thing was built, begun or installed, and say what occupied that ground in ${formattedYear} instead. If it was under construction in ${formattedYear}, say exactly what stage it had reached that year. Name anything that was already gone by ${formattedYear} too. SECOND, survival: what is still standing here in ${formattedYear} and how it looked then — if the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance, because it must not vanish. Name the things, do not generalise. THIRD, if the photograph shows vehicles, or people carrying or holding or using anything, name what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
       : '',
     `  "leftSubject": "specific concrete subject in the LEFT panel (one short phrase, distinct from center and right)",`,
     `  "centerSubject": "specific concrete focal subject in the CENTER panel",`,
