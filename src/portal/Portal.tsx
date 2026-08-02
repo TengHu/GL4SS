@@ -1434,10 +1434,35 @@ export function Portal() {
 
       {/* ---- top bar ---- */}
       <header className="portal-top">
-        <div className="brand">
+        {/* THE WORDMARK IS THE WAY BACK.
+            Home — the full-bleed map the app opens on — is gated on there being
+            no picture at all (`!displayed && !mapExpanded`), and `displayed`
+            is never cleared, so from the first successful pull onward it was
+            unreachable for the rest of the session. The empty state was a place
+            you could leave and not return to.
+
+            On the wordmark rather than as a fifth chip in a row that already
+            runs to the edge: it is the conventional way back, it is already
+            top-left where a home control belongs, and it costs no space.
+
+            NOTHING IS LOST. Frames stay in the archive, so the station you were
+            standing on restores free the moment you return to it. This clears
+            what is ON SCREEN, not what you own — which is why it can be one
+            click with no confirmation. */}
+        <button
+          className="brand"
+          onClick={() => {
+            setDisplayed(null);
+            setSeedPhoto(null);
+            setMapExpanded(false);
+            setPin(null);
+            setGalleryOpen(false);
+          }}
+          title="Back to the map"
+        >
           <span className="brand-mark" />
           <span className="brand-text">THE LOOKING GLASS</span>
-        </div>
+        </button>
 
         <div className="top-right">
           <LookPicker

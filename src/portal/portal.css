@@ -860,6 +860,26 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* A button now — the way back to the map. Carries no button chrome, because
+     the wordmark is already the right shape and a bordered cap here would read
+     as a fifth control rather than as the title. */
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.brand:hover .brand-text { color: var(--ink); }
+.brand:hover .brand-mark {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
 }
 
 /* THE ERA LIGHT IN A STEEL BEZEL — no longer a glowing logo dot.
