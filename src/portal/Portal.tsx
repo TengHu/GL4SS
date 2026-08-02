@@ -476,6 +476,36 @@ export function Portal() {
    * and a reload loses it exactly as a film does.
    */
   const [seedPhoto, setSeedPhoto] = useState<SeedImage | null>(null);
+
+  /**
+   * A PHOTOGRAPH IS A PHOTOGRAPH OF A PLACE. Move the pin and it stops being
+   * evidence about where you are standing.
+   *
+   * pickPlace and takeJourney change the coordinates and the location and knew
+   * nothing about the seed photograph, so one stayed armed across the other:
+   * capture a Street View pano at the Colosseum, click somewhere else on the
+   * map, pull the lever, and the app generated open Atlantic with a photograph
+   * of Rome attached to the request. The photograph then vanished from the
+   * panel — because the lever spends it — so the only visible symptom was a
+   * reference that disappeared and a frame that ignored it.
+   *
+   * Keyed on the coordinates rather than added to each caller, because every
+   * route in changes them: the map, the search box, a journey card and the URL
+   * parameters. A rule enforced at one of four doors is not a rule.
+   */
+  const lastPlace = useRef<Coordinates | null>(null);
+  useEffect(() => {
+    const prev = lastPlace.current;
+    lastPlace.current = coordinates;
+    if (!prev) return; // first run: nothing has moved yet
+    if (prev.lat === coordinates.lat && prev.lng === coordinates.lng) return;
+    setSeedPhoto((photo) => {
+      if (photo) {
+        console.info('[looking-glass] the pin moved — the chosen photograph was dropped.');
+      }
+      return null;
+    });
+  }, [coordinates]);
   const [googleKey, setGoogleKey] = useState(() => safeStorage.get(STORAGE_KEY_GOOGLE) ?? '');
   const saveGoogleKey = useCallback((value: string) => {
     const trimmed = value.trim();
