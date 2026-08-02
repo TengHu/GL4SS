@@ -49,8 +49,14 @@ export interface StillSpec {
    * moment rather than to nothing.
    */
   prompts: string[];
-  /** A frame to hold the camera on. Absent for an ordinary single station. */
-  reference?: string;
+  /**
+   * Frames to hold the camera on. Absent for an ordinary single station.
+   *
+   * A sweep passes two: the neighbour one step nearer the seed, and the seed
+   * itself. The first keeps consecutive frames continuous with each other; the
+   * second stops the original viewpoint decaying as the chain gets longer.
+   */
+  references?: string[];
   /**
    * Prompts to use if the reference is refused.
    *
@@ -85,11 +91,11 @@ export async function renderStill(
   spec: StillSpec,
   options: { signal?: AbortSignal; onDegrade?: (note: string) => void } = {},
 ): Promise<StillResult> {
-  if (spec.reference) {
+  if (spec.references?.length) {
     try {
       const r = await generateImageWithFallback(apiKey, spec.prompts, spec.model, {
         signal: options.signal,
-        reference: spec.reference,
+        references: spec.references,
       });
       return { url: r.url, anchored: true, moderatedCount: r.moderatedCount, modelUsed: r.modelUsed };
     } catch (err) {
@@ -119,6 +125,16 @@ export async function renderStill(
 
 export interface ClipSpec {
   prompt: string;
+  /**
+   * The prompt to use if the CLOSING frame is refused.
+   *
+   * Required to differ for the same reason `unanchoredPrompts` does on the still
+   * path: a pinned prompt says "arrive exactly on the last image", and retrying
+   * with it after that image has been dropped tells the model to land on
+   * something it was never given. The stills path learned this; the clip path
+   * kept sending the same words.
+   */
+  unpinnedPrompt?: string;
   model: string;
   seconds: number;
   resolution: '720p' | '1080p';
@@ -175,7 +191,14 @@ export async function renderClip(
     onDegrade?: (note: string) => void;
   } = {},
 ): Promise<ClipResult> {
-  const base = {
+  const base: {
+    model: string;
+    prompt: string;
+    duration: number;
+    resolution: '720p' | '1080p';
+    aspect_ratio: '16:9';
+    generate_audio: boolean;
+  } = {
     model: spec.model,
     prompt: spec.prompt,
     duration: spec.seconds,
@@ -211,6 +234,7 @@ export async function renderClip(
     } catch (err) {
       if (options.signal?.aborted || !refused(err)) throw err;
       options.onDegrade?.('closing frame refused — this join will be a cut');
+      if (spec.unpinnedPrompt) base.prompt = spec.unpinnedPrompt;
     }
   }
 

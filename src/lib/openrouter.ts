@@ -427,8 +427,10 @@ function buildSceneDirectionPrompt(
    * WITHIN THE ERA BAND (getEraPhase), and the two are entirely different axes.
    */
   dayPhase?: string,
-  /** True when a photograph of the spot is attached to this request. */
-  hasReference?: boolean,
+  /** What kind of image is attached, if any. See generateSceneDirection. */
+  referenceKind?: 'photograph' | 'sweep',
+  /** The year the attached image was taken, for 'sweep'. */
+  referenceYear?: number,
 ): string {
   const formattedYear = formatYear(year);
   const era = getEraDescription(year);
@@ -497,9 +499,25 @@ function buildSceneDirectionPrompt(
      * AND the year is the visitor's responsibility; this side simply respects
      * it, and asks the planner only for what a photograph cannot settle.
      */
-    hasReference
+    referenceKind === 'photograph'
       ? `A PHOTOGRAPH OF THIS PLACE AT THIS TIME IS ATTACHED, supplied by the visitor. Treat it as ground truth for BOTH where and when: it is this location, and it is ${formattedYear}. Describe the scene it actually shows — that street or ground, that vantage and direction of view, those buildings and surfaces, that light and season, the period detail visible in it. Do not substitute the district's famous landmark for what is in the frame, and do not date the scene from your own expectations of ${formattedYear} where the photograph disagrees. Your remaining job is what the photograph does not settle: who is present and what they are doing, what lies just outside the frame, and the concrete details too small to read in it.`
-      : '',
+      : referenceKind === 'sweep'
+        /**
+         * THE REASONING STEP THIS WHOLE FILE WAS MISSING.
+         *
+         * A photograph of one year is attached and another year is asked for.
+         * Whether a given building is in the frame is a question about history,
+         * and only something that can SEE the photograph and KNOWS the date can
+         * answer it. Nothing did: the planner never saw the picture, and the
+         * image prompt guessed by category — land survives, built things do not
+         * — which removed the White House from a view of the White House.
+         *
+         * So the planner is asked to work through the frame object by object
+         * and commit the answer to `standing`, which then reaches the image
+         * prompt as a fact rather than a rule of thumb.
+         */
+        ? `A PHOTOGRAPH OF THIS EXACT SPOT IS ATTACHED, taken in ${formatYear(referenceYear ?? year)}. You are planning THE SAME VIEW in ${formattedYear} — same camera position, same direction, same framing. It is evidence about WHERE and about WHAT STANDS HERE; the year is the thing you are reasoning about.\n\nWork through the photograph before you write anything: for each building, structure, road, bridge, wall and planting visible in it, decide whether it existed at this spot in ${formattedYear}. Something already standing in ${formattedYear} IS STILL IN THE FRAME — same position, same scale — and you say how it looked then, which may differ in colour, wear, extension or surroundings. Something not yet built, or already demolished, is absent, and you say what was actually on that ground instead. Do not relocate the view to a more typical scene of ${formattedYear}: this is this spot.`
+        : '',
     // QUOTED, so the planner reads this as a NAME and not as prose it might
     // obey. The string comes from the URL query and from Nominatim (which anyone
     // with an OpenStreetMap account can edit), and it lands in a prompt billed to
@@ -546,6 +564,9 @@ function buildSceneDirectionPrompt(
     // bug: after 12,000 BC it demanded "garments, tools ... or signage", and
     // those land at the second-highest weight in the image prompt.
     `  "periodMarkers": "2-4 comma-separated CONCRETE VISIBLE things that date this frame to ${formattedYear} rather than to ${neighbourEarlier} or ${neighbourLater}. Draw them from what this place actually offers in this year: the state of ice, snow, water, soil, rock and plant cover, the species present and what they are doing, the sky and the season — and, at sparse, settled or dense ONLY, garments, tools, building techniques, goods, weapons, vehicles, materials and signage. At uninhabited and traces-only every marker is a natural one and that is a complete answer; at traces-only add the condition of the made things and what has moved into them.",`,
+    referenceKind === 'sweep'
+      ? `  "standing": "REQUIRED HERE. Object by object from the attached photograph: what is still standing at this spot in ${formattedYear} and how it looked then, then what is absent and what occupies that ground instead. Name the things, do not generalise. If the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance — it must not vanish.",`
+      : '',
     `  "leftSubject": "specific concrete subject in the LEFT panel (one short phrase, distinct from center and right)",`,
     `  "centerSubject": "specific concrete focal subject in the CENTER panel",`,
     // The four mode keys used to be requested on EVERY call with "Empty string if
@@ -654,6 +675,7 @@ const SCENE_FIELDS: (keyof SceneDirection)[] = [
   'cameraNotes',
   'periodMarkers',
   'biome',
+  'standing',
   'leftSubject',
   'centerSubject',
   'rightSubject',
@@ -749,6 +771,18 @@ export async function generateSceneDirection(
      * for /images.
      */
     reference?: string;
+    /**
+     * What the attached image IS, which changes the question entirely.
+     *
+     *   'photograph'  the visitor's own, of this place AT THIS YEAR. Ground
+     *                 truth on both axes; describe what it shows.
+     *   'sweep'       a frame from elsewhere in this run, taken in a DIFFERENT
+     *                 year. Ground truth about the PLACE and the viewpoint only
+     *                 — the year is the thing being reasoned about.
+     */
+    referenceKind?: 'photograph' | 'sweep';
+    /** The year the attached frame is from. Only meaningful for 'sweep'. */
+    referenceYear?: number;
   } = {},
 ): Promise<SceneDirection> {
   const prompt = buildSceneDirectionPrompt(
@@ -759,7 +793,8 @@ export async function generateSceneDirection(
     styleSuffix,
     options.neighbours,
     options.phase,
-    Boolean(options.reference),
+    options.reference ? (options.referenceKind ?? 'photograph') : undefined,
+    options.referenceYear,
   );
   const content = options.reference
     ? [
@@ -873,7 +908,7 @@ async function generateImageWithReference(
   apiKey: string,
   prompt: string,
   model: string,
-  reference: string,
+  references: string[],
   options: { signal?: AbortSignal } = {},
 ): Promise<string> {
   const controller = new AbortController();
@@ -891,7 +926,19 @@ async function generateImageWithReference(
         model,
         prompt,
         aspect_ratio: '16:9',
-        input_references: [{ type: 'image_url', image_url: { url: reference } }],
+        /**
+         * MORE THAN ONE, when the caller has more than one to give.
+         *
+         * A sweep sends the NEIGHBOUR — for continuity with the frame beside it
+         * — and the SEED, so fidelity to the original viewpoint does not decay
+         * with distance down the chain. Every model in the catalog advertises
+         * room for several (FLUX 2 takes 8, Gemini 14); we sent exactly one for
+         * as long as this function existed.
+         */
+        input_references: references.map((url) => ({
+          type: 'image_url',
+          image_url: { url },
+        })),
       }),
     });
   } finally {
@@ -925,10 +972,10 @@ export async function generateImage(
   apiKey: string,
   prompt: string,
   model: string = DEFAULT_WIDE_FIELD_MODEL,
-  options: { signal?: AbortSignal; reference?: string } = {},
+  options: { signal?: AbortSignal; references?: string[] } = {},
 ): Promise<string> {
-  if (options.reference) {
-    return generateImageWithReference(apiKey, prompt, model, options.reference, {
+  if (options.references?.length) {
+    return generateImageWithReference(apiKey, prompt, model, options.references, {
       signal: options.signal,
     });
   }
@@ -997,7 +1044,7 @@ export async function generateImageWithFallback(
   apiKey: string,
   prompts: string[],
   model: string = DEFAULT_WIDE_FIELD_MODEL,
-  options: { fallbackModel?: string | null; signal?: AbortSignal; reference?: string } = {},
+  options: { fallbackModel?: string | null; signal?: AbortSignal; references?: string[] } = {},
 ): Promise<{ url: string; promptIndex: number; moderatedCount: number; modelUsed: string }> {
   let moderatedCount = 0;
   let lastModeration: unknown = null;
@@ -1014,7 +1061,7 @@ export async function generateImageWithFallback(
       try {
         const url = await generateImage(apiKey, prompt, candidateModel, {
           signal: options.signal,
-          reference: options.reference,
+          references: options.references,
         });
         return { url, promptIndex: i, moderatedCount, modelUsed: candidateModel };
       } catch (err) {

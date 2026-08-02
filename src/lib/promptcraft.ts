@@ -108,6 +108,23 @@ export interface SceneDirection {
    * path, which is exactly when the era table should still win.
    */
   biome?: string;
+  /**
+   * WHAT IN THE REFERENCE PHOTOGRAPH IS STILL HERE IN THIS YEAR, and how it
+   * looked then — plus what is missing and what stands in its place.
+   *
+   * Only ever filled when a reference image was shown to the planner. It exists
+   * because the question "is that building here in 1900?" is a question about
+   * history, and the image model has no way to ask it: handed a photograph and a
+   * year, it will either keep everything or replace everything, and the prompt
+   * that used to guess for it guessed by category — landforms survive, built
+   * things do not — which deleted the White House from a view of the White
+   * House.
+   *
+   * The planner can see the picture and knows the date, so it answers per
+   * object, and that answer goes into the image prompt at the weight a fact
+   * deserves.
+   */
+  standing?: string;
   leftSubject: string;      // distinct main subject of the left panel
   centerSubject: string;    // focal/main subject of the center panel
   rightSubject: string;     // distinct main subject of the right panel
@@ -457,6 +474,31 @@ const WIDE_RIG_PEOPLED = 'a Leica M6 with a 35mm Summicron at f/8, on Kodak Port
 const WIDE_RIG_WILD = 'a Leica M6 with a 35mm Summicron at f/8, on Kodak Ektar 100 film';
 const PORTRAIT_RIG = 'a Leica M6 with a 50mm Summilux wide open at f/1.4, on Kodak Portra 400 film';
 
+/**
+ * THE FIRST LINE OF EVERY PROMPT USED TO NAME A CAMERA THAT DID NOT EXIST.
+ *
+ * "Shot on a Leica M6 ... on Kodak Portra 400 film" was emitted for 40,000 BC as
+ * readily as for 1987 — a 1954 body and a stock introduced in 1998 — four lines
+ * above the sentence that says "nothing from a later age has arrived yet". The
+ * prompt contradicted itself, in the position FLUX.2's own guide (quoted in this
+ * file's header) says is weighted most.
+ *
+ * The look is still wanted; the hardware claim is what has to go when the year
+ * cannot support it. Before photography the frame is asked to LOOK like a
+ * photograph without being told it was taken on anything.
+ *
+ * 1839 is the daguerreotype, and the earliest date at which naming a camera is
+ * not an anachronism. Colour film is later still, but a stock name at 1900 is a
+ * far smaller lie than one at 40,000 BC, and the single threshold is the part
+ * worth being sure of.
+ */
+const PHOTOGRAPHY_BEGINS = 1839;
+
+/** Fills {capture}'s hardware half, or nothing when the year cannot carry it. */
+function rigForYear(year: number, rig: string): string | null {
+  return year >= PHOTOGRAPHY_BEGINS ? rig : null;
+}
+
 /** Fills {camera} — the planner now owns viewpoint, not glass and not aperture. */
 const DEFAULT_VIEWPOINT = 'eye level, a short walk back from the subject';
 const PORTRAIT_VIEWPOINT = 'eye level, about two metres away';
@@ -574,6 +616,7 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
     ? PORTRAIT_VIEWPOINT
     : (direction.cameraNotes || DEFAULT_VIEWPOINT);
   const rig = args.isPortrait ? PORTRAIT_RIG : wild ? WIDE_RIG_WILD : WIDE_RIG_PEOPLED;
+  const datedRig = rigForYear(args.year, rig);
   const sideHint =
     args.panelHint === 'left'  ? 'left edge of a wider panorama, scene extends offscreen right' :
     args.panelHint === 'right' ? 'right edge of a wider panorama, scene extends offscreen left' :
@@ -639,7 +682,19 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
       ? `The ground, the water, the ice, the weather and every living thing in frame are exactly as they were here in ${formattedYear}.`
       : direction.habitation === 'traces-only'
         ? `Whatever stands here was built before ${formattedYear} and has been weathering ever since; the ground, the water and the growth around it are as they were here in ${formattedYear}.`
-        : `Everything visible belongs to this exact moment: the materials, clothing, tools and construction are those of ${era} in ${formattedYear}, and nothing from a later age has arrived yet.`;
+        /**
+         * THE YEAR LEADS, AND THE BAND IS A HINT.
+         *
+         * This read "the materials, clothing, tools and construction are those
+         * of ${era} in ${formattedYear}" — naming the BAND first, and bands are
+         * wide. `early-modern` runs 1900-1950, so a frame set in 1900 was told
+         * its construction was that of an era whose most iconic content is the
+         * 1940s, and duly came back with War Bonds posters and steel helmets.
+         * The band cannot separate years inside itself; that is the whole reason
+         * periodMarkers exists. So the year is the claim and the band is context
+         * for it, in that order.
+         */
+        : `Everything visible belongs to ${formattedYear} EXACTLY — not to the decades either side of it, and not to the ${era} in general. The materials, clothing, tools and construction are those of that single year, and nothing from a later age has arrived yet.`;
 
   /**
    * THE ERA WASH YIELDS ON WILD FRAMES.
@@ -772,7 +827,9 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
      * parses it as language.
      */
     capture: photographic
-      ? `Shot on ${rig} — ${camera}. It carries the evidence of film: grain sitting in the shadows, the brightest highlights rolling off softly rather than clipping flat, and framing that sits a little loose and slightly off centre, nothing arranged.`
+      ? datedRig
+        ? `Shot on ${datedRig} — ${camera}. It carries the evidence of film: grain sitting in the shadows, the brightest highlights rolling off softly rather than clipping flat, and framing that sits a little loose and slightly off centre, nothing arranged.`
+        : `${capitalise(camera)}. It carries the evidence of film: grain sitting in the shadows, the brightest highlights rolling off softly rather than clipping flat, and framing that sits a little loose and slightly off centre, nothing arranged.`
       : `Seen from ${camera}.`,
     /**
      * The two halves of {capture}, exposed separately.
@@ -924,15 +981,48 @@ export function buildCoreSamplePrompts(
     return ordered.map((p) => `${clause}\n\n${p}`);
   }
 
+  /**
+   * WHAT SURVIVES IS NOT A PROPERTY OF BEING A LANDFORM.
+   *
+   * This clause used to protect "the landforms that outlive centuries ... the
+   * line of the hills, the run of the coast or river, the shape of the skyline
+   * behind", and then license everything else: "whatever is built here ... may
+   * and should change completely."
+   *
+   * In a city the skyline IS what is built, so the two halves contradicted each
+   * other — and the second half won. Seeded on the White House in 2019 and asked
+   * for 1900, the model removed the building, which had stood there since 1800.
+   * It was doing what it was told.
+   *
+   * The rule is not landform versus structure. It is WHETHER THE THING EXISTED
+   * IN THE TARGET YEAR, which is a question about history and therefore the
+   * planner's to answer — see `standing` in SceneDirection. This clause now
+   * defers to that answer instead of guessing from the category of the object.
+   */
+  /**
+   * The planner's per-object verdict, appended to the anchor clause.
+   *
+   * The clause states the RULE — what stood here still stands. This states the
+   * ANSWER for this particular frame, which only something that could see the
+   * photograph and knew the date could produce. Rule without answer is what
+   * removed the White House; answer without rule would leave the image model
+   * free to treat it as description rather than instruction.
+   */
+  const standing = direction.standing?.trim()
+    ? ` What is here in this year, specifically: ${direction.standing.trim()}`
+    : '';
+
   const anchor =
     `The attached image is the same place photographed from the same spot. ` +
     `Stand the camera exactly where it stood for that photograph — identical viewpoint, ` +
-    `identical direction, identical lens and horizon line — and keep the landforms that ` +
-    `outlive centuries where they are: the line of the hills, the run of the coast or ` +
-    `river, the shape of the skyline behind. Everything that belongs to a period may and ` +
-    `should change completely: the vegetation, the water and ice, the weather, the light, ` +
-    `whatever is built here, and whoever is present. This is the same view at a different ` +
-    `time, not the same photograph adjusted.`;
+    `identical direction, identical lens and horizon line — and keep the land itself where ` +
+    `it is: the ground, the slope, the line of the hills, the run of the coast or river. ` +
+    `ANYTHING ALREADY STANDING HERE IN THIS YEAR IS STILL STANDING, in the same place and ` +
+    `at the same scale, shown as it looked then. Only what had not been built yet, or was ` +
+    `already gone, is absent — and what is missing is replaced by whatever was actually on ` +
+    `that ground at the time. The vegetation, the water and ice, the weather, the light and ` +
+    `whoever is present all belong to this year. This is the same view at a different time, ` +
+    `not the same photograph adjusted.` + standing;
 
   return ordered.map((p) => `${p}\n\n${anchor}`);
 }

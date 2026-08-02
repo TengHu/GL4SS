@@ -46,7 +46,7 @@ import { buildCoreSamplePrompts } from '../../lib/promptcraft';
 import type { SceneDirection } from '../../lib/promptcraft';
 import { MAX_YEAR, MIN_YEAR, formatYear } from '../../lib/format';
 import { findPhase } from './daylight';
-import { STATIONS, nearestStationIndex, neighbourContrast } from './stations';
+import { STATIONS, nearestStationIndex } from './stations';
 import { getFrame } from './frameStore';
 import { sceneKey } from './engine';
 
@@ -451,15 +451,23 @@ export function bestFilmResolution(
  * asked to cover a specific interval, and "centuries" and "eleven years" want
  * visibly different rates of change.
  */
-function buildTransitionPrompt(location: string, from: number, to: number): string {
+function buildTransitionPrompt(
+  location: string,
+  from: number,
+  to: number,
+  pinned: boolean,
+): string {
   return (
-    `A locked-off time-lapse at ${location}. The camera does not move, pan or zoom: ` +
-    `it is bolted to one spot and stays there for the whole shot. Time runs forward ` +
-    `from ${formatYear(from)} to ${formatYear(to)} within the shot, and the world ` +
-    `changes through that interval — light crossing the sky, weather passing, ` +
-    `vegetation and water shifting, whatever stands here being built, weathering or ` +
-    `going. Begin exactly on the first image and arrive exactly on the last. ` +
-    `One continuous take, no cuts, no dissolves, no camera movement.`
+    `One continuous shot at ${location}, from a camera standing in one place. ` +
+    `The viewpoint is fixed: no pan, no zoom, no dolly — only the small settling a ` +
+    `camera makes on a tripod. Within the shot, time carries the place from ` +
+    `${formatYear(from)} to ${formatYear(to)}: the light moves, weather passes, ` +
+    `growth and water shift, and what stands here is built, weathers or goes. ` +
+    (pinned
+      ? `Begin on the first attached image and finish on the second, and take whatever ` +
+        `small reframing is needed to arrive there exactly. `
+      : `Begin on the attached image and carry it forward through that interval. `) +
+    `No cuts, no dissolves, no title cards.`
   );
 }
 
@@ -583,7 +591,8 @@ export class CoreSampleRunner {
         const { url, pinned } = await renderClip(
           config.apiKey,
           {
-            prompt: buildTransitionPrompt(this.state.location, a.year, b.year),
+            prompt: buildTransitionPrompt(this.state.location, a.year, b.year, true),
+            unpinnedPrompt: buildTransitionPrompt(this.state.location, a.year, b.year, false),
             model: opts.model,
             seconds: opts.seconds,
             resolution: opts.resolution,
@@ -660,6 +669,78 @@ export class CoreSampleRunner {
      * and rate-limit itself before a single image existed. The lookahead keeps a
      * small queue warm without turning the opening moment into a burst.
      */
+    /**
+     * THE SWEEP GROWS OUT OF THE SEED, IN BOTH DIRECTIONS.
+     *
+     * The seed is the station the lever was pulled at — the picture already on
+     * the glass, already paid for, already in the archive. Years earlier than
+     * it extend backwards; years later extend forwards. Both directions chain
+     * the same way, each frame drawn while looking at its neighbour nearer the
+     * seed, so one camera position propagates outward through the whole sweep.
+     *
+     *   1900  ◀──  1980  ──▶  1987  ──▶  2020
+     *              seed
+     *
+     * This used to assume the seed was the EARLIEST year and only ever grow
+     * forward. With the lever pulled at 1980 and 1900 in the queue, that
+     * ignored the 1980 picture entirely, generated 1900 out of nothing, and
+     * charged for a frame the visitor already owned — the one thing the
+     * archive exists to prevent.
+     *
+     * Only the seed is restored from disk. Substituting other owned frames
+     * mid-chain would save more money and wreck the product: an unchained
+     * frame in the middle is exactly where the camera visibly jumps, and
+     * continuity is the entire reason this feature exists.
+     */
+    const anchor = (() => {
+      if (request.anchorYear === undefined) return 0;
+      const i = this.state.frames.findIndex((f) => f.year === request.anchorYear);
+      return i < 0 ? 0 : i;
+    })();
+
+    /**
+     * TWO ANCHORS: the neighbour, and the seed.
+     *
+     * The neighbour one step nearer the seed keeps consecutive frames
+     * continuous with each other. The seed keeps the whole sweep faithful to
+     * the viewpoint it grew out of — without it the seed's influence passes
+     * through every intervening frame and decays, so frame twelve is a copy of
+     * a copy of a copy and the camera has quietly walked away.
+     *
+     * Sending both costs nothing: every image model in the catalog advertises
+     * room for several references (FLUX 2 takes 8, Gemini 14) and we sent one.
+     *
+     * Nearest first, because order is a priority signal — the frame beside
+     * this one matters more to it than the origin does.
+     */
+    const referencesFor = (i: number): string[] => {
+      if (i === anchor) return [];
+      const towardSeed = i > anchor ? i - 1 : i + 1;
+      const neighbour = this.state.frames[towardSeed];
+      const out: string[] = [];
+      // A failed neighbour leaves this frame anchored to the seed alone rather
+      // than chained to nothing; the next frame out re-anchors from whatever
+      // did land.
+      if (neighbour?.status === 'ready' && neighbour.url) out.push(neighbour.url);
+      const seedFrame = this.state.frames[anchor];
+      if (seedFrame?.url && seedFrame.url !== out[0]) out.push(seedFrame.url);
+      return out;
+    };
+
+    /** The years either side of this frame WITHIN THE SWEEP. */
+    const sweepNeighbours = (i: number) => ({
+      earlier: this.state.frames[i - 1]?.year ?? this.state.frames[i]!.year,
+      later: this.state.frames[i + 1]?.year ?? this.state.frames[i]!.year,
+    });
+
+    /** What the planner is shown: the seed if it exists, else the neighbour. */
+    const referenceForPlanner = (i: number): string | undefined => {
+      if (i === anchor) return undefined;
+      const seedFrame = this.state.frames[anchor];
+      if (seedFrame?.status === 'ready' && seedFrame.url) return seedFrame.url;
+      return referencesFor(i)[0];
+    };
+
     const directions = new Map<number, Promise<SceneDirection>>();
     const planAt = (i: number): void => {
       const frame = this.state.frames[i];
@@ -677,41 +758,34 @@ export class CoreSampleRunner {
           {
             signal: abort.signal,
             phase,
-            neighbours: neighbourContrast(frame.year),
+            /**
+             * THE SWEEP'S OWN NEIGHBOURS, not the dial's.
+             *
+             * neighbourContrast() returns the stations either side on the
+             * ladder — for 1987 that is 1986 and 1988. A sweep stepping 35 years
+             * was being told to make its frames distinguishable from years one
+             * apart, which is differentiation at a scale nobody asked for, while
+             * nothing asked for continuity at the scale that actually exists.
+             */
+            neighbours: sweepNeighbours(i),
+            /**
+             * The planner sees the frame this one is drawn from, and is told
+             * what it is: a photograph of this spot in a DIFFERENT year. That is
+             * what lets it reason about which structures were standing in the
+             * target year — see `standing` in SceneDirection. Without it, every
+             * station was planned in isolation from its place name alone, which
+             * is how "Ward 2, 1900" became a street corner instead of the White
+             * House.
+             */
+            reference: referenceForPlanner(i),
+            referenceKind: 'sweep' as const,
+            referenceYear: this.state.frames[anchor]?.year,
           },
         ),
       );
     };
 
     try {
-      /**
-       * THE SWEEP GROWS OUT OF THE SEED, IN BOTH DIRECTIONS.
-       *
-       * The seed is the station the lever was pulled at — the picture already on
-       * the glass, already paid for, already in the archive. Years earlier than
-       * it extend backwards; years later extend forwards. Both directions chain
-       * the same way, each frame drawn while looking at its neighbour nearer the
-       * seed, so one camera position propagates outward through the whole sweep.
-       *
-       *   1900  ◀──  1980  ──▶  1987  ──▶  2020
-       *              seed
-       *
-       * This used to assume the seed was the EARLIEST year and only ever grow
-       * forward. With the lever pulled at 1980 and 1900 in the queue, that
-       * ignored the 1980 picture entirely, generated 1900 out of nothing, and
-       * charged for a frame the visitor already owned — the one thing the
-       * archive exists to prevent.
-       *
-       * Only the seed is restored from disk. Substituting other owned frames
-       * mid-chain would save more money and wreck the product: an unchained
-       * frame in the middle is exactly where the camera visibly jumps, and
-       * continuity is the entire reason this feature exists.
-       */
-      const anchor = (() => {
-        if (request.anchorYear === undefined) return 0;
-        const i = this.state.frames.findIndex((f) => f.year === request.anchorYear);
-        return i < 0 ? 0 : i;
-      })();
 
       let anchorUrl: string | undefined;
       const seed = this.state.frames[anchor];
@@ -754,15 +828,8 @@ export class CoreSampleRunner {
         }
       }
 
-      /** Each frame is drawn from its neighbour ONE STEP NEARER THE SEED. */
-      const referenceFor = (i: number): string | undefined => {
-        if (i === anchor) return undefined;
-        const towardSeed = i > anchor ? i - 1 : i + 1;
-        const neighbour = this.state.frames[towardSeed];
-        // A failed neighbour leaves this one unanchored rather than chaining it
-        // to nothing; the next frame out then re-anchors from whatever did land.
-        return neighbour?.status === 'ready' ? neighbour.url : undefined;
-      };
+
+
 
       for (const i of order) {
         if (abort.signal.aborted) break;
@@ -770,7 +837,8 @@ export class CoreSampleRunner {
         if (!frame) continue;
         if (frame.status === 'ready') continue; // the restored seed
 
-        const reference = i === anchor ? anchorUrl : referenceFor(i);
+        const references = i === anchor ? (anchorUrl ? [anchorUrl] : []) : referencesFor(i);
+        const reference = references[0];
 
         this.emit({ cursor: i });
         for (const ahead of order.slice(order.indexOf(i), order.indexOf(i) + DIRECTION_LOOKAHEAD)) {
@@ -832,7 +900,7 @@ export class CoreSampleRunner {
           // again from here.
           const { url, anchored } = await renderStill(
             config.apiKey,
-            { model, prompts, reference, unanchoredPrompts: unchainedPrompts },
+            { model, prompts, references, unanchoredPrompts: unchainedPrompts },
             { signal: abort.signal },
           );
           if (abort.signal.aborted) break;

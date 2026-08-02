@@ -771,7 +771,7 @@ export class SceneEngine {
         {
           model,
           prompts: candidates,
-          reference,
+          references: reference ? [reference] : undefined,
           // Refused references fall back to prompts that do not mention an
           // attachment, or the model would be reading instructions about a
           // picture that is no longer there.
