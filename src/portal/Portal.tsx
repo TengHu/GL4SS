@@ -1158,7 +1158,24 @@ export function Portal() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
-        if (e.key === 'Escape') el.blur();
+        if (e.key === 'Escape') {
+          el.blur();
+          /**
+           * ONE ESCAPE, NOT TWO.
+           *
+           * Opening the place panel autofocuses its search box, so M — the key
+           * that opened it, and the key the hints advertise — cannot close it:
+           * it types "m" into the field. Escape then only blurred, leaving a
+           * second Escape to actually close, and until something took focus
+           * away there was no keyboard way out at all. A toggle that works in
+           * one direction reads as no way back.
+           *
+           * Scoped to the place panel rather than dismissing whatever is open:
+           * Escape inside the key dialog or the year box still means "leave
+           * this field", which is the thing those fields are for.
+           */
+          if (el.closest('.place-panel')) setMapExpanded(false);
+        }
         return;
       }
       // While the key dialog is up, the app behind it is not operable. Arrows
