@@ -48,6 +48,96 @@ contents are removed before it is handed over.
 
 ---
 
+## At a glance
+
+Years `1900 1943 1987 [2010] 2030 2050`, seed at 2010.
+
+### Topology — two chains from one pin
+
+```
+        <------------ past          future ------------>
+
+   1900  <--  1943  <--  1987  <-- [2010] -->  2030  -->  2050
+                                    seed
+                                   (owned,
+                                  not cut)
+
+   each arrow = "is cut from"
+```
+
+The seed is a **pin, not a hub**. Its pixels reach 1900 *through* 1987 and 1943,
+surviving wherever history left something standing and erased where it did not.
+
+### Order — alternating outward
+
+```
+step   1      2      3      4      5
+      2030   1987   2050   1943   1900
+       |      |      |      |      |
+      cut    cut    cut    cut    cut
+      from   from   from   from   from
+      2010   2010   2030   1987   1943
+```
+
+Alternating keeps the next picture adjacent to the one on screen, instead of
+marching to one end and filling in behind.
+
+### The per-station pipeline
+
+```
+  +- source = nearest finished frame toward the seed
+  |
+  +--> gemini-2.5-flash ...... "what in this 1943 picture
+  |                             isn't there in 1900?"
+  |                             -> [{box, label, absent|altered}]
+  |
+  +--> canvas ................ absent  -> grey (box grown ~8px)
+  |    (no network)            altered -> blurred (~14px)
+  |                            rest    -> untouched
+  |                            + perspective grid INTO the grey
+  |
+  +--> planner ............... this year's people, light, history
+  |    (runs alongside)
+  |
+  +--> image model ........... the cut-out is the ONLY attachment
+                               -> FRAME 1900
+```
+
+**2 text calls + 1 image call.** The canvas step is free.
+
+Nothing is cropped — regions are erased in place, and there is a third treatment
+(blur) between keeping and erasing.
+
+### What flows, and how
+
+```
+ seed --> standpoint (ONCE) --> camera numbers --> every frame, unchanged
+   |                                                    ^
+   |                                              never travels
+   |                                              in the pixels
+   |
+   +--> pixels --> 1987 --> 1943 --> 1900
+                  (attenuating: erased where history erased)
+```
+
+Two things propagate by two different routes. **The camera is text, so it cannot
+decay.** The pixels decay exactly as fast as the world changed.
+
+### The loop
+
+```
+for each station, outward from the seed:
+    if already owned  -> skip (free)
+    source = nearest finished frame toward the seed
+    if none           -> generate from prose alone, mark unanchored
+    else              -> run the pipeline above
+until every station is done
+```
+
+Serial by construction: 1900 cannot start until 1943 lands.
+
+---
+
 ## The pipeline
 
 ### Once per sweep
