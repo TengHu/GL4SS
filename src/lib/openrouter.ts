@@ -1200,13 +1200,17 @@ async function generateImageWithReference(
         prompt,
         aspect_ratio: '16:9',
         /**
-         * MORE THAN ONE, when the caller has more than one to give.
+         * An array, though today every caller passes exactly one.
          *
-         * A sweep sends the NEIGHBOUR — for continuity with the frame beside it
-         * — and the SEED, so fidelity to the original viewpoint does not decay
-         * with distance down the chain. Every model in the catalog advertises
-         * room for several (FLUX 2 takes 8, Gemini 14); we sent exactly one for
-         * as long as this function existed.
+         * WHAT GETS ATTACHED IS NOW A DIAGRAM OR A PHOTOGRAPH, never a frame of
+         * our own. This used to carry a sweep's neighbour AND its seed, which is
+         * how a 1987 crowd's poses reached 1900 with only their clothes changed.
+         * A sweep sends a computed perspective skeleton instead — the camera and
+         * nothing else — and the visitor's own photograph still comes through
+         * here, because there the picture genuinely IS the year.
+         *
+         * The array stays because the models take one (FLUX 2 up to 8, Gemini
+         * 14) and because the photograph path may yet want a second.
          */
         input_references: references.map((url) => ({
           type: 'image_url',
