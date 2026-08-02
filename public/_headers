@@ -16,12 +16,20 @@
   # directly, and Google Fonts serves a stylesheet.
   # img-src must allow arbitrary https: because generated frames can come back as
   # provider CDN URLs rather than data: URLs, and map tiles come from Esri.
+  # STREET VIEW widens three lines, deliberately and for one optional feature.
+  # script-src takes maps.googleapis.com because capturing what someone is
+  # LOOKING AT needs getPov(), which only the JS panorama exposes — the free
+  # Embed iframe is write-only and its pixels are unreadable. connect-src takes
+  # the same host for the metadata check and the Static capture, both of which
+  # are fetched as bytes precisely so the key-bearing URL never leaves. img-src
+  # and worker-src cover the SDK's tiles and workers, on Google's static hosts.
+  # None of this is reached without a Google key, which is absent by default.
   # media-src is required for the same reason as img-src: rendered films come
   # back as provider-hosted video URLs. Without it they fall back to default-src
   # 'self' and every clip is refused — a failure that appears ONLY in production,
   # since neither `vite dev` nor `vite preview` applies this file, and after the
   # visitor has already paid for a several-minute render.
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://openrouter.ai https://nominatim.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://openrouter.ai https://nominatim.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
 
 # Vite fingerprints every asset filename, so these can never go stale.
 /assets/*

@@ -29,6 +29,7 @@ import { SunDial } from './components/SunDial';
 import { JourneyGallery } from './components/JourneyGallery';
 import { ManyPicturesPath } from './components/ManyPicturesPath';
 import { SeedPhoto } from './components/SeedPhoto';
+import { StreetViewSeed } from './components/StreetViewSeed';
 import type { SeedImage } from './lib/seedImage';
 import { SampleWarning } from './components/SampleWarning';
 import { SamplePlayer } from './components/SamplePlayer';
@@ -79,6 +80,14 @@ const STORAGE_KEY_CUSTOM_STYLE = 'looking-glass-custom-style';
 const STORAGE_KEY_FILM_WARNED = 'looking-glass-film-warned';
 const STORAGE_KEY_PHASE = 'looking-glass-day-phase';
 const STORAGE_KEY_PREFETCH = 'looking-glass-prefetch';
+/**
+ * A SECOND CREDENTIAL, and the app's pitch is one key that is yours.
+ *
+ * Kept to the same rules as the first: this browser only, sent to Google and
+ * nowhere else, absent by default so nothing asks for it until street view is
+ * wanted. Distinct storage key so clearing one does not take the other.
+ */
+const STORAGE_KEY_GOOGLE = 'looking-glass-google-maps-key';
 const STORAGE_KEY_SAMPLE_SPAN = 'looking-glass-sample-span';
 const STORAGE_KEY_SAMPLE_LENGTH = 'looking-glass-sample-length';
 
@@ -467,6 +476,12 @@ export function Portal() {
    * and a reload loses it exactly as a film does.
    */
   const [seedPhoto, setSeedPhoto] = useState<SeedImage | null>(null);
+  const [googleKey, setGoogleKey] = useState(() => safeStorage.get(STORAGE_KEY_GOOGLE) ?? '');
+  const saveGoogleKey = useCallback((value: string) => {
+    const trimmed = value.trim();
+    setGoogleKey(trimmed);
+    safeStorage.set(STORAGE_KEY_GOOGLE, trimmed);
+  }, []);
 
   const styleKey = useMemo(() => {
     const hash = (text: string) => {
@@ -1693,6 +1708,31 @@ export function Portal() {
       {/* ---- controls ---- */}
       <div className="portal-bottom">
         <PlaceDial
+          /**
+           * The street-view control is composed in here rather than built
+           * inside PlaceDial: that file owns a map and a geocoder and should
+           * not also learn about Google keys and reference photographs. It
+           * knows WHERE, which is all this needs.
+           *
+           * A capture lands exactly where a paste does — and brings its own
+           * year, so the dial moves to what the picture actually shows. That
+           * keeps the reference contract ("this photograph is this place at
+           * this time") true without anyone having to think about it.
+           */
+          streetView={
+            <StreetViewSeed
+              apiKey={googleKey}
+              coordinates={coordinates}
+              onCaptured={(photo, capturedYear) => {
+                setSeedPhoto(photo);
+                if (capturedYear !== null) {
+                  setIndex(nearestStationIndex(capturedYear));
+                  setExactYear(STATIONS.includes(capturedYear) ? null : capturedYear);
+                }
+                setMapExpanded(false);
+              }}
+            />
+          }
           coordinates={coordinates}
           location={location}
           onPick={pickPlace}
@@ -1833,6 +1873,8 @@ export function Portal() {
           onTemplateChange={setTemplate}
           prefetchEnabled={prefetchEnabled}
           onPrefetchChange={setPrefetchEnabled}
+          googleKey={googleKey}
+          onGoogleKeyChange={saveGoogleKey}
         />
       )}
     </div>

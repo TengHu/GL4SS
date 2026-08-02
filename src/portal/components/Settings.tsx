@@ -38,6 +38,9 @@ interface Props {
   onTemplateChange: (value: string) => void;
   prefetchEnabled: boolean;
   onPrefetchChange: (value: boolean) => void;
+  /** Google Maps key — street view only, and optional. */
+  googleKey: string;
+  onGoogleKeyChange: (value: string) => void;
   models: ModelSelection;
   onModelsChange: (models: ModelSelection) => void;
 }
@@ -120,6 +123,8 @@ export function Settings({
   onTemplateChange,
   prefetchEnabled,
   onPrefetchChange,
+  googleKey,
+  onGoogleKeyChange,
   models,
   onModelsChange,
 }: Props) {
@@ -327,6 +332,28 @@ export function Settings({
               Makes arrow-stepping instant. Costs two extra frames every time you land — on
               your key. Off by default.
             </span>
+          </span>
+        </label>
+
+        {/* A SECOND KEY, and the app advertises one — so it is optional, it is
+            last, and it says exactly what it buys and what it costs. Nothing
+            asks for it until street view is wanted, and without it the map
+            panel simply never mentions panoramas. */}
+        <label className="field">
+          <span className="field-label">Google Maps key — optional</span>
+          <input
+            type="password"
+            value={googleKey}
+            placeholder="for street view only"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => onGoogleKeyChange(e.target.value)}
+          />
+          <span className="toggle-hint">
+            Lets you seed a frame from a real photograph of the place: open street view on the
+            map, aim it, keep what you see. Stored in this browser, sent to Google and nowhere
+            else — the picture itself goes to OpenRouter as bytes, never as a Google URL.
+            Opening a panorama costs $0.014, each capture $0.007, both with a monthly free tier.
           </span>
         </label>
 

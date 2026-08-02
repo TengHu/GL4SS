@@ -41,13 +41,55 @@
 
   #viewer { display:none; padding:0 18px 18px }
   #viewer.on { display:block }
-  #viewer iframe { width:100%; height:60vh; min-height:320px; border:1px solid var(--line);
-                   border-radius:6px; background:#0e0e15 }
-  #viewer .bar { display:flex; justify-content:space-between; align-items:baseline;
-                 padding:10px 0; font-size:11px; color:var(--dim) }
+  /* Capped at 960 deliberately. The Static API clamps the LONG side to 640, so a 2000px-wide
+     viewer yields a 640x192 sliver, while a 960x600 viewer yields 640x400 — more than twice
+     the pixels for the identical view. Narrower viewer, sharper seed. */
+  #viewer-pano { width:100%; max-width:960px; height:56vh; min-height:320px;
+                 border:1px solid var(--line); border-radius:6px; background:#0e0e15;
+                 overflow:hidden }
+  #viewer .bar { display:flex; justify-content:space-between; align-items:center;
+                 gap:12px; padding:10px 0; font-size:11px; color:var(--dim) }
   #viewer .bar b { color:var(--ink) }
-  #viewer .bar button { width:auto; margin:0; padding:4px 10px; font-size:10px;
+  #viewer .acts { display:flex; gap:8px; flex:none }
+  #viewer .bar button { width:auto; margin:0; padding:5px 12px; font-size:10px;
                         background:transparent; color:var(--dim); border:1px solid var(--line) }
+  #viewer .bar button.primary { background:var(--violet); color:#0b0b10; border-color:var(--violet) }
+  #viewer .bar button:disabled { opacity:.45 }
+
+  #compare { display:none }
+  #compare.on { display:block }
+  #compare .lbl { padding:8px 0 6px; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+                  color:var(--mint) }
+  /* Same width as the sphere so geometry lines up; it IS upscaled here, which is the point of
+     the pixel readout in the label — judge alignment here, judge sharpness in the seed panel. */
+  #compare img { display:block; width:100%; max-width:960px; border:1px solid var(--mint);
+                 border-radius:6px }
+
+  #shots { display:flex; gap:10px; overflow-x:auto; padding:12px 0 2px }
+  #shots:empty { display:none }
+  .shot { flex:none; width:150px; border:1px solid var(--line); border-radius:5px;
+          overflow:hidden; background:var(--panel) }
+  .shot img { display:block; width:150px; height:150px; object-fit:cover }
+  .shot span { display:block; padding:5px 7px; font-size:9px; color:var(--dim); line-height:1.5 }
+  .shot .acts { display:flex; gap:6px; padding:0 7px 7px }
+  .shot button, .shot a { flex:1; text-align:center; padding:4px 0; font:inherit; font-size:9px;
+        letter-spacing:.06em; text-transform:uppercase; text-decoration:none; cursor:pointer;
+        border-radius:3px; border:1px solid var(--line); background:transparent; color:var(--dim);
+        width:auto; margin:0 }
+  .shot button.use { background:var(--mint); color:#0b0b10; border-color:var(--mint); font-weight:700 }
+
+  #seed { display:none; padding:0 18px 28px }
+  #seed.on { display:block }
+  #seed .bar { padding:10px 0; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+               color:var(--mint) }
+  #seed .body { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start }
+  /* 1:1, never upscaled — the seed panel is where sharpness is judged honestly. */
+  #seed img { max-width:100%; border:1px solid var(--line); border-radius:6px;
+              image-rendering:auto }
+  #seed-meta { font-size:11px; color:var(--dim); margin-bottom:10px }
+  #seed-payload { margin:0; padding:12px; background:#0e0e15; border:1px solid var(--line);
+                  border-radius:6px; font-size:11px; color:var(--ink); overflow-x:auto;
+                  max-width:100%; white-space:pre }
   figure { cursor:pointer }
   figure.live { outline:2px solid var(--violet); outline-offset:-2px }
 
@@ -80,7 +122,7 @@
 
 <header>
   <h1>street probe</h1>
-  <div class="sub">give it a coordinate — it reports every street-level panorama within the radius, and opens any of them in 360. costs nothing.</div>
+  <div class="sub">give it a coordinate — it finds every street-level panorama within the radius, opens any of them in 360, and captures exactly what you are looking at.</div>
 </header>
 
 <main>
@@ -105,11 +147,10 @@
 
     <div class="note">
       Click the map to move the point. Keys persist to <code>localStorage</code> only.<br><br>
-      <b>Nothing on this page can be billed.</b> The panorama walk
-      (<code>StreetViewService</code>), the availability checks (metadata), and the 360 viewer
-      (Embed API) are all unmetered. The one billable call in Street View — the Static image
-      endpoint — is never requested, which is why Google results show a year rather than a
-      thumbnail. Mapillary is free throughout.
+      Free: the panorama walk (<code>StreetViewService</code>), the availability checks
+      (metadata), the year tiles, and all of Mapillary.<br>
+      Billed: opening a sphere is <b>$0.014</b> per panorama (5k/mo free) — dragging within one
+      is free. Each capture is <b>$0.007</b> (10k/mo free).
     </div>
   </aside>
 
@@ -121,10 +162,28 @@
 <section id="viewer">
   <div class="bar">
     <span id="viewer-label"></span>
-    <button id="viewer-close">close</button>
+    <span class="acts">
+      <button id="viewer-capture" class="primary">capture this view</button>
+      <button id="viewer-close">close</button>
+    </span>
   </div>
-  <iframe id="viewer-frame" referrerpolicy="no-referrer-when-downgrade"
-          allowfullscreen loading="lazy"></iframe>
+  <div id="viewer-pano"></div>
+  <div id="compare">
+    <div class="lbl">↑ live sphere &nbsp;·&nbsp; ↓ last capture, same width — they should be identical</div>
+    <img id="last-shot" alt="last capture">
+  </div>
+  <div id="shots"></div>
+</section>
+
+<section id="seed">
+  <div class="bar">chosen seed — this is what the image model receives</div>
+  <div class="body">
+    <img id="seed-img" alt="chosen seed">
+    <div>
+      <div id="seed-meta"></div>
+      <pre id="seed-payload"></pre>
+    </div>
+  </div>
 </section>
 
 <div id="grid"></div>
@@ -275,8 +334,8 @@ async function nearestPano(at, radius, key) {
 }
 
 function viewerMessage(html) {
-  $('viewer-frame').src = 'about:blank';
-  $('viewer-frame').style.display = 'none';   // an empty iframe reads as a broken viewer
+  $('viewer-pano').style.display = 'none';    // an empty sphere reads as a broken viewer
+  $('viewer-capture').disabled = true;        // nothing to capture
   $('viewer-label').innerHTML = html;
   $('viewer').classList.add('on');
 }
@@ -289,20 +348,164 @@ function viewerMessage(html) {
  * nearest and can land on a different panorama (a user photosphere, say) than the frame the
  * user just clicked. The pano ID pins it to exactly the image they were looking at.
  */
-function show360({ pano, at, heading = 0, label }) {
-  const p = new URLSearchParams({ key: GKEY, fov: 90, pitch: 0, heading: Math.round(heading) });
-  if (pano) p.set('pano', pano); else p.set('location', `${at.lat},${at.lng}`);
+let viewerPano = null;
 
-  $('viewer-frame').src = `https://www.google.com/maps/embed/v1/streetview?${p}`;
-  $('viewer-frame').style.display = '';
+/**
+ * The sphere, as a real StreetViewPanorama rather than an Embed iframe.
+ *
+ * The iframe was free but write-only: it takes an opening heading and never reports where the
+ * user dragged to, and being cross-origin its pixels can't be read either. Capturing what the
+ * user is ACTUALLY looking at needs `getPov()`, which only the JS panorama exposes. That moves
+ * the viewer onto the Dynamic Street View SKU — billed per panorama loaded, not per drag.
+ */
+async function show360({ pano, at, heading = 0, label }) {
   $('viewer-label').innerHTML = label ?? '';
   $('viewer').classList.add('on');
+  $('viewer-pano').style.display = '';
+  $('viewer-capture').disabled = false;
   $('viewer').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  await loadGoogle(GKEY);
+  const pov = { heading, pitch: 0 };
+
+  if (!viewerPano) {
+    viewerPano = new google.maps.StreetViewPanorama($('viewer-pano'), {
+      ...(pano ? { pano } : { position: at }),
+      pov, zoom: 1,
+      addressControl: false, motionTracking: false, motionTrackingControl: false,
+    });
+  } else {
+    if (pano) viewerPano.setPano(pano); else viewerPano.setPosition(at);
+    viewerPano.setPov(pov);
+  }
 }
+
+/**
+ * Capture exactly what is on screen.
+ *
+ * Reads live camera state off the panorama, then re-requests that same view from the Static API
+ * as a JPEG. Three details make it WYSIWYG rather than approximately-right:
+ *   · getPano(), not the id we opened with — the user may have walked down the street via arrows
+ *   · zoom → fov, since zooming in the sphere is a narrower lens, not a bigger image
+ *   · heading normalised, as getPov() happily returns negative or >360 values
+ */
+let shotCount = 0;
+
+async function capture() {
+  if (!viewerPano) return;
+  const btn = $('viewer-capture');
+  const pov = viewerPano.getPov();
+  const id = viewerPano.getPano();
+  const zoom = viewerPano.getZoom() ?? 1;
+  const wantFov = 180 / 2 ** zoom;
+  const fov = Math.max(10, Math.min(120, wantFov));
+  const heading = ((pov.heading % 360) + 360) % 360;
+  const pos = viewerPano.getPosition();
+
+  // Match the viewer's SHAPE, not just its angles. `fov` is horizontal only, so asking for a
+  // square crop of a wide viewer keeps the left-right extent right while showing far more sky
+  // and road than the user could see. Same aspect ratio → same picture.
+  // 640 is the standard-tier ceiling on either side.
+  const box = $('viewer-pano').getBoundingClientRect();
+  const scale = 640 / Math.max(box.width, box.height);
+  const w = Math.max(16, Math.round(box.width * scale));
+  const h = Math.max(16, Math.round(box.height * scale));
+
+  const q = new URLSearchParams({
+    size: `${w}x${h}`, pano: id,
+    heading: heading.toFixed(2), pitch: pov.pitch.toFixed(2), fov: fov.toFixed(1),
+    key: GKEY, return_error_code: 'true'
+  });
+
+  // Above 120° the Static API simply cannot reproduce what the sphere is showing.
+  if (wantFov > 120) $('viewer-label').innerHTML +=
+    ` · <span style="color:var(--pink)">zoomed out past 120° — capture will be tighter than the view</span>`;
+
+  btn.disabled = true; btn.textContent = 'capturing…';
+  try {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/streetview?${q}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+
+    // The model takes bytes inline, not a URL — openrouter.ts wants an `image_url` content
+    // block and `image_url.url` accepts a data URL. Deliberately NOT passing the Street View
+    // URL directly: it carries the API key, and that would hand the key to the inference
+    // provider and whatever it logs.
+    const dataUrl = await new Promise((ok, fail) => {
+      const fr = new FileReader();
+      fr.onload = () => ok(fr.result);
+      fr.onerror = () => fail(new Error('could not encode'));
+      fr.readAsDataURL(blob);
+    });
+
+    addShot(blob, dataUrl, { heading, pitch: pov.pitch, fov, pos, w, h });
+  } catch (e) {
+    $('viewer-label').innerHTML += ` · <span style="color:var(--pink)">capture failed: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'capture this view';
+  }
+}
+
+function addShot(blob, dataUrl, { heading, pitch, fov, pos, w, h }) {
+  const lat = pos?.lat().toFixed(5) ?? '?', lng = pos?.lng().toFixed(5) ?? '?';
+
+  // Rendered at the sphere's exact width directly beneath it, so any drift in angle, zoom or
+  // aspect is visible by eye rather than taken on trust.
+  $('last-shot').src = dataUrl;
+  $('compare').classList.add('on');
+  $('compare').querySelector('.lbl').innerHTML =
+    `↑ live sphere &nbsp;·&nbsp; ↓ last capture, same width — geometry should match exactly. ` +
+    `true size <b>${w}×${h}</b>${w >= 640 || h >= 640 ? ' (at the 640 px ceiling)' : ''}, ` +
+    `shown upscaled — judge sharpness in the seed panel below.`;
+  const kb = (dataUrl.length / 1024).toFixed(0);
+
+  const item = document.createElement('div');
+  item.className = 'shot';
+  item.innerHTML = `
+    <img src="${dataUrl}" alt="capture">
+    <span>${lat}, ${lng}<br>h ${heading.toFixed(0)}° · p ${pitch.toFixed(0)}° · fov ${fov.toFixed(0)}°</span>
+    <span class="acts">
+      <button class="use">use as seed</button>
+      <a download="gl4ss_${lat}_${lng}_h${Math.round(heading)}.jpg" href="${dataUrl}">save</a>
+    </span>`;
+
+  item.querySelector('.use').addEventListener('click', () => useAsSeed(dataUrl, {
+    lat, lng, heading, pitch, fov, kb, w, h
+  }));
+  $('shots').prepend(item);
+
+  shotCount++;
+  $('viewer-label').innerHTML +=
+    ` · <b>${shotCount}</b> captured (≈ $${(shotCount * 0.007).toFixed(3)})`;
+}
+
+/**
+ * Hand the chosen frame to the model. This is the payload `openrouter.ts` already understands —
+ * an `image_url` content block whose url is a data URL — so the portal would drop this straight
+ * into the messages array next to the era prompt.
+ */
+function useAsSeed(dataUrl, meta) {
+  $('seed-img').src = dataUrl;
+  $('seed-meta').innerHTML =
+    `<b>${meta.lat}, ${meta.lng}</b> · heading ${meta.heading.toFixed(1)}° · ` +
+    `pitch ${meta.pitch.toFixed(1)}° · fov ${meta.fov.toFixed(0)}°<br>` +
+    `<b>${meta.w}×${meta.h}</b> shown 1:1 — this is the real detail the model gets · ` +
+    `<b>${meta.kb} KB</b> base64`;
+  $('seed-payload').textContent = JSON.stringify({
+    role: 'user',
+    content: [
+      { type: 'text', text: '<era prompt goes here>' },
+      { type: 'image_url', image_url: { url: `${dataUrl.slice(0, 48)}…[${meta.kb} KB]` } }
+    ]
+  }, null, 2);
+  $('seed').classList.add('on');
+  $('seed').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+$('viewer-capture').addEventListener('click', capture);
 
 $('viewer-close').addEventListener('click', () => {
   $('viewer').classList.remove('on');
-  $('viewer-frame').src = 'about:blank';          // stop it rendering offscreen
   document.querySelectorAll('figure.live').forEach(f => f.classList.remove('live'));
 });
 
@@ -466,7 +669,6 @@ $('go').addEventListener('click', async () => {
       `<span class="stat">found <b>${hits.length}</b></span>` +
       `<span class="stat">distinct <b>${shown.length}</b></span>` +
       `<span class="stat">free calls <b>${freeCalls}</b></span>` +
-      `<span class="stat cost">billed <b>0</b> · $0.00</span>` +
       (span.length ? `<span class="stat">span <b>${span[0]} → ${span.at(-1)}</b></span>` : '') +
       `<span class="stat">${((performance.now() - t0) / 1000).toFixed(1)}s</span>` +
       (errors.length ? `<div style="color:#ff9ad5;margin-top:8px">${errors.join(' · ')}</div>` : '');

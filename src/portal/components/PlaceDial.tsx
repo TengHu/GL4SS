@@ -36,6 +36,15 @@ interface Props {
   coordinates: Coordinates;
   location: string;
   onPick: (coordinates: Coordinates, location: string) => void;
+  /**
+   * The street-view seed control, injected rather than built here.
+   *
+   * PlaceDial owns a Leaflet map and a geocoder; it has no business also
+   * knowing about Google keys, panoramas or reference photographs. It only
+   * knows WHERE, which is the one thing the control needs, so the composition
+   * happens in Portal and this file stays about place.
+   */
+  streetView?: React.ReactNode;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   /**
@@ -104,6 +113,7 @@ export function PlaceDial({
   coordinates,
   location,
   onPick,
+  streetView,
   expanded,
   onExpandedChange,
   home = false,
@@ -381,6 +391,12 @@ export function PlaceDial({
           </Suspense>
         )}
       </div>
+
+      {/* Between the map and the coordinates, because it is about the point the
+          map is showing. Renders nothing without a Google key, and says "no
+          street view here" far more often than not — most of Earth is not a
+          road. */}
+      {streetView}
 
       <div className="place-panel-foot">
         <span>{location}</span>
