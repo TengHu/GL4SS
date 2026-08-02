@@ -13,9 +13,19 @@
  * reaches anything but OpenRouter, on the visitor's own key, and a reload loses
  * it.
  *
- * It is a REFERENCE, not a replacement. The picture that comes back is still
- * generated for the year on the dial — your photograph only fixes where the
- * camera stands. Saying "replace" would promise the wrong thing.
+ * TWO THINGS CAN BE DONE WITH IT, and the choice is offered here because it is a
+ * choice about this photograph rather than a setting the app should hold:
+ *
+ *   ANCHOR (default) — a reference. The picture that comes back is still drawn
+ *   for the year on the dial; the photograph only fixes where the camera stands.
+ *
+ *   VERBATIM — the photograph IS the frame. No image call, so no cost and no
+ *   drawing, and the archive gets a real photograph of a real moment. The
+ *   planner still runs, so the station still has its prose.
+ *
+ * The default stays ANCHOR. Verbatim is the honest answer when you already have
+ * the picture you want; it is the wrong answer to "show me this place in 1900",
+ * which is what the app is for.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -25,9 +35,11 @@ import { readSeedImage } from '../lib/seedImage';
 interface Props {
   photo: SeedImage | null;
   onChange: (photo: SeedImage | null) => void;
+  verbatim: boolean;
+  onVerbatimChange: (verbatim: boolean) => void;
 }
 
-export function SeedPhoto({ photo, onChange }: Props) {
+export function SeedPhoto({ photo, onChange, verbatim, onVerbatimChange }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -101,16 +113,52 @@ export function SeedPhoto({ photo, onChange }: Props) {
   };
 
   if (photo) {
+    /**
+     * Verbatim COVER-CROPS to the portal's 16:9, so a portrait photograph gives
+     * up most of its height. Said before the lever is pulled, not after: the
+     * loss is silent otherwise, and the frame it produces is the one thing in
+     * the archive that cannot be made again.
+     */
+    const cropped = Math.abs(photo.width / photo.height - 16 / 9) >= 0.005;
+
     return (
       <div className={`seedphoto seedphoto--set${dragging ? ' seedphoto--over' : ''}`} {...dragProps}>
         <img className="seedphoto-thumb" src={photo.url} alt="" />
         <div className="seedphoto-body">
-          <span className="seedphoto-title">Your photograph anchors this picture</span>
+          <span className="seedphoto-title">
+            {verbatim ? 'Your photograph IS this picture' : 'Your photograph anchors this picture'}
+          </span>
+          <div className="seedphoto-modes" role="group" aria-label="what to do with this photograph">
+            <button
+              className={`seedphoto-mode${verbatim ? '' : ' seedphoto-mode--on'}`}
+              aria-pressed={!verbatim}
+              onClick={() => onVerbatimChange(false)}
+            >
+              draw from it
+            </button>
+            <button
+              className={`seedphoto-mode${verbatim ? ' seedphoto-mode--on' : ''}`}
+              aria-pressed={verbatim}
+              onClick={() => onVerbatimChange(true)}
+            >
+              keep it as-is
+            </button>
+          </div>
           <span className="seedphoto-meta">
-            {error ?? `${photo.name} · ${photo.width}×${photo.height} · used by the next lever pull`}
+            {error ??
+              (verbatim
+                ? `${photo.name} · stored as the frame, nothing drawn, no image cost` +
+                  (cropped ? ' · cropped to 16:9' : '')
+                : `${photo.name} · ${photo.width}×${photo.height} · used by the next lever pull`)}
           </span>
         </div>
-        <button className="ghost-btn seedphoto-clear" onClick={() => onChange(null)}>
+        <button
+          className="ghost-btn seedphoto-clear"
+          onClick={() => {
+            onChange(null);
+            onVerbatimChange(false);
+          }}
+        >
           remove
         </button>
       </div>

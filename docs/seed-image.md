@@ -12,20 +12,21 @@ happens afterwards, when this frame becomes a sweep's seed.
 
 ---
 
-## Two paths
+## Three paths
 
-Everything below forks on one question: **is a photograph attached?**
+The first fork is **is a photograph attached?** The second, only reachable with
+one, is **should it be drawn from, or kept?**
 
-| | no photograph | with a photograph |
-|---|---|---|
-| what the model gets | a description of a spacetime | a picture of this place, and a description |
-| what the attachment IS | — | **the subject** — reproduce it |
-| framing | free, deliberately loose | that photograph's standpoint, recomposed to 16:9 |
-| era palette | applied | stands aside — the photograph authors its own colour |
-| calls | 1 text + 1 image | 1 text + 1 image (the photo rides along on both) |
+| | A · no photograph | B · anchored | C · verbatim |
+|---|---|---|---|
+| what the model gets | a description of a spacetime | a picture of this place, and a description | a picture of this place, and a description |
+| what the attachment IS | — | **the subject** — reproduce it | **the frame** — nothing draws it |
+| framing | free, deliberately loose | that photograph's standpoint, recomposed to 16:9 | that photograph, cover-cropped to 16:9 |
+| era palette | applied | stands aside — the photograph authors its own colour | never consulted |
+| calls | 1 text + 1 image | 1 text + 1 image | **1 text, no image** |
 
-Both produce a frame stored under the same key. **A station is a station**, and
-whichever picture is there is the one you keep.
+All three produce a frame stored under the same key. **A station is a station**,
+and whichever picture is there is the one you keep.
 
 ---
 
@@ -186,6 +187,63 @@ Nothing fails, so nothing reports. That bug shipped once.
 
 ---
 
+## Path C — the photograph IS the frame
+
+Chosen on the control itself: **draw from it** (the default, Path B) or **keep it
+as-is**. The choice is about *this photograph*, so it is cleared with it — by the
+lever, and by the pin moving.
+
+Everything in Path B's planner still happens, and that is the point of where the
+branch sits: `run()` forks **after `generateSceneDirection` and before the
+prompts are built**. So the station still has its narrative, its atmosphere and a
+real `direction` — the planner *saw* the photograph — and `widen()` still works
+on the archive entry. What is skipped is `buildCoreSamplePrompts` and
+`renderStill`.
+
+**One text call. No image call, so no image cost.** The seed stops being the paid
+action; the sweep becomes the only thing that spends real money.
+
+### Why nothing downstream notices
+
+What a sweep needs from a seed is **pixels**. `planStandpoint` reads the geometry
+out of the seed photograph itself, and every station plans its own year. Nothing
+in `coreSample.ts` asks whether a model made the picture it is cutting — it asks
+for `stored.heroUrl`. A kept photograph is a *better* seed by the doc's own
+argument in [multi-image.md](multi-image.md): a photograph is the only thing that
+fixes a viewpoint, and this one has not been through a generation first.
+
+### It is cover-cropped, and that is a real loss
+
+`toWidescreen` crops centred to 16:9. Path B never needs this — the anchor clause
+asks the model to *recompose*, which extends the view rather than discarding any
+of it — but Path C has no model to do that, and a frame that is not 16:9 is cut
+at the wrong shape by every sweep that grows out of it.
+
+**Cover, not contain.** Letterbox bars baked into the pixels get cropped straight
+back off by the portal's own `object-fit: cover`, so the same edges are lost
+either way and the frame would carry black borders into every cut-out. A portrait
+photograph gives up most of its height. The control says so before the lever is
+pulled.
+
+### The frame must declare itself
+
+`verbatim` is stored on the frame and shown on the glass. Two reasons, and the
+second is the sharp one:
+
+- Every other picture in the archive was drawn. An undeclared photograph sitting
+  among them reads as an unusually good generation.
+- **The photograph is not in the `sceneKey`** — see *Storage* — so the next lever
+  pull at that station overwrites it with a drawn frame. Every other frame in the
+  app can be made again. This one cannot. The visitor is owed that warning while
+  it is still on screen.
+
+It survives a reload because the question it answers ("was this drawn?") cannot
+be recovered by looking at the pixels. Rows written before the flag existed read
+back `undefined`, which means what it always meant: generated. No migration, and
+none possible.
+
+---
+
 ## If the photograph is refused
 
 Providers moderate input images **separately from prompts**. `renderStill` drops
@@ -222,6 +280,13 @@ station and the second frame overwrites the first**, photograph or no. That is
 deliberate — the lever always makes a new picture, and it upserts rather than
 deleting first, so a regeneration that fails leaves the frame you had.
 
+Path C sharpens that consequence without changing the rule. A drawn frame
+overwritten by another drawn frame loses a roll of the dice; a **kept** frame
+overwritten loses the visitor's photograph, which nothing can make again. The
+answer is the warning on the glass rather than a fingerprint in the key — putting
+it in the key was already tried and rejected above, and the reason it was
+rejected does not get weaker here.
+
 ---
 
 ## Files
@@ -230,7 +295,8 @@ deleting first, so a regeneration that fails leaves the frame you had.
 |---|---|
 | `src/portal/lib/engine.ts` | the queue, the cache, `request`/`retry`, and the generation path |
 | `src/portal/Portal.tsx` | `pullLever`, the seed-photo lifecycle, `sceneKey`'s style half |
-| `src/portal/components/SeedPhoto.tsx` | file picker, paste and drop |
+| `src/portal/components/SeedPhoto.tsx` | file picker, paste and drop, and the draw-from-it / keep-it choice |
+| `src/portal/lib/seedImage.ts` | reading and downscaling a photograph, and `toWidescreen` |
 | `src/portal/components/StreetViewSeed.tsx` | the Google panorama route |
 | `src/lib/openrouter.ts` | `generateSceneDirection`, `generateImageWithReference` |
 | `src/lib/promptcraft.ts` | prompt assembly and the photograph clause |

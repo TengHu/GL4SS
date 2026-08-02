@@ -52,6 +52,7 @@ import {
   FRAME_STORE_TARGET_BYTES,
 } from './frameStore';
 import type { FrameIndex } from './frameStore';
+import { toWidescreen } from './seedImage';
 import { neighbourContrast } from './stations';
 
 export type SceneStatus =
@@ -107,6 +108,15 @@ export interface Scene {
   modelUsed?: string;
   /** True when this frame came back from disk rather than the models. */
   restored?: boolean;
+  /**
+   * True when this frame IS the visitor's photograph — no image call was made.
+   *
+   * Kept distinct from `restored`, which says where the pixels were read from.
+   * This says what they are, and it has to survive a reload: an era palette or a
+   * style re-render applied to a real photograph would silently destroy the one
+   * frame in the archive that nothing can regenerate.
+   */
+  verbatim?: boolean;
   /**
    * Set when the frame is real but was produced on a degraded path — currently
    * only a scene-direction parse failure. Distinct from `error`: there IS a
@@ -164,6 +174,13 @@ interface Job {
    * photograph the instant it is handed over.
    */
   reference?: string;
+  /**
+   * THE PHOTOGRAPH IS THE FRAME. Skips the image call entirely.
+   *
+   * Meaningless without `reference`, and run() treats it that way — there is
+   * nothing to put on the glass if no photograph came with it.
+   */
+  verbatim?: boolean;
 }
 
 const MAX_CACHED_SCENES = 48;
@@ -311,6 +328,11 @@ export class SceneEngine {
     options: {
       reference?: string;
       /**
+       * Store the photograph as the frame instead of drawing one from it.
+       * Requires `reference`; ignored without it.
+       */
+      verbatim?: boolean;
+      /**
        * MAKE A NEW ONE, even at a station already owned.
        *
        * Pulling the lever is the app's one paid action — browsing is free and
@@ -382,7 +404,14 @@ export class SceneEngine {
     }
 
     this.scenes.set(key, scene);
-    this.queue.push({ key, coords, priority, abort: new AbortController(), reference: options.reference });
+    this.queue.push({
+      key,
+      coords,
+      priority,
+      abort: new AbortController(),
+      reference: options.reference,
+      verbatim: options.verbatim,
+    });
     this.evictMemory();
     this.emit();
     this.pump();
@@ -425,6 +454,7 @@ export class SceneEngine {
       atmosphere: stored.atmosphere,
       direction: stored.direction as SceneDirection | undefined,
       modelUsed: stored.modelUsed,
+      verbatim: stored.verbatim,
       restored: true,
     });
     void touchFrame(key, viewed);
@@ -439,7 +469,7 @@ export class SceneEngine {
    * and back just returns the same error. Errors are the one cache entry that
    * must not be sticky.
    */
-  retry(coords: SceneCoords, options: { reference?: string } = {}): Scene {
+  retry(coords: SceneCoords, options: { reference?: string; verbatim?: boolean } = {}): Scene {
     const key = sceneKey(coords);
 
     // Force-abort in-flight work rather than refusing to touch it. Refusing was
@@ -762,6 +792,38 @@ export class SceneEngine {
         degraded: direction.isFallback ? 'scene planning failed — generic imagery' : undefined,
       });
 
+      /**
+       * PATH C — THE PHOTOGRAPH IS THE FRAME. One text call, no image call.
+       *
+       * Sited HERE, after the planner and before the prompts, because that is
+       * exactly what this path is: the whole of Path B up to the point where a
+       * picture would be drawn, and then the visitor's own picture instead of a
+       * drawn one. The narrative, the atmosphere and the direction are all real
+       * — the planner saw the photograph — so the station talks, the archive
+       * entry is complete and widen() still works on it.
+       *
+       * The seed stops being the paid action. What the sweep needs from a seed
+       * is pixels: planStandpoint reads the geometry out of the photograph
+       * itself, and every station plans its own year. Nothing downstream asks
+       * whether a model made this.
+       */
+      if (job.verbatim && job.reference) {
+        const heroUrl = await toWidescreen(job.reference);
+        if (job.abort.signal.aborted) return this.discardAborted(key);
+
+        this.patch(key, { status: 'ready', heroUrl, verbatim: true });
+        void this.persist(key, {
+          heroUrl,
+          narrative: direction.narrative,
+          atmosphere: direction.atmosphere,
+          direction,
+          verbatim: true,
+          coords,
+          viewed: job.priority === 'demand',
+        });
+        return;
+      }
+
       const promptFields = {
         location: coords.location,
         coordinates: coords.coordinates,
@@ -898,6 +960,7 @@ export class SceneEngine {
       atmosphere?: string;
       direction?: SceneDirection;
       modelUsed?: string;
+      verbatim?: boolean;
       coords: SceneCoords;
       viewed: boolean;
     },
@@ -916,6 +979,7 @@ export class SceneEngine {
       atmosphere: data.atmosphere,
       direction: data.direction,
       modelUsed: data.modelUsed,
+      verbatim: data.verbatim,
       bytes,
       viewed: data.viewed,
       createdAt: now,

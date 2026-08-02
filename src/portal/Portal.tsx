@@ -476,6 +476,16 @@ export function Portal() {
    * and a reload loses it exactly as a film does.
    */
   const [seedPhoto, setSeedPhoto] = useState<SeedImage | null>(null);
+  /**
+   * Which of the two things to do with that photograph: anchor a drawn frame to
+   * it, or keep it AS the frame.
+   *
+   * Not sticky, and reset with the photograph rather than held across pulls.
+   * "Use my photograph as the picture" is a claim about one particular
+   * photograph, not a mode the app should still be in three stations later — the
+   * same reasoning that keeps the photograph itself off the engine.
+   */
+  const [seedVerbatim, setSeedVerbatim] = useState(false);
 
   /**
    * A PHOTOGRAPH IS A PHOTOGRAPH OF A PLACE. Move the pin and it stops being
@@ -505,6 +515,8 @@ export function Portal() {
       }
       return null;
     });
+    // The choice goes with the photograph it was made about.
+    setSeedVerbatim(false);
   }, [coordinates]);
   const [googleKey, setGoogleKey] = useState(() => safeStorage.get(STORAGE_KEY_GOOGLE) ?? '');
   const saveGoogleKey = useCallback((value: string) => {
@@ -1097,13 +1109,22 @@ export function Portal() {
      * something already paid for. force overwrites on success and leaves the old
      * frame untouched on failure.
      */
+    /**
+     * `verbatim` only means anything alongside a reference, and the engine
+     * enforces that too — but sending it bare would be a request to store a
+     * frame made of nothing, so it is narrowed here as well.
+     */
     const reference = seedPhoto?.url;
-    if (scene?.status === 'error') engine.retry(here, reference ? { reference } : {});
-    else engine.request(here, 'demand', { reference, force: true });
-    if (reference) setSeedPhoto(null);
+    const verbatim = Boolean(reference) && seedVerbatim;
+    if (scene?.status === 'error') engine.retry(here, reference ? { reference, verbatim } : {});
+    else engine.request(here, 'demand', { reference, verbatim, force: true });
+    if (reference) {
+      setSeedPhoto(null);
+      setSeedVerbatim(false);
+    }
     // The journey is spent; the next move starts a new one from here.
     setNav((cur) => ({ ...cur, origin: null }));
-  }, [engine, apiKey, year, coordinates, location, styleKey, phaseId, scene?.status, placeCoversLever, seedPhoto]);
+  }, [engine, apiKey, year, coordinates, location, styleKey, phaseId, scene?.status, placeCoversLever, seedPhoto, seedVerbatim]);
 
   const handleFrameError = useCallback(
     (key: string, message: string) => engine.markFrameError(key, message),
@@ -1664,6 +1685,19 @@ export function Portal() {
           </div>
         )}
 
+        {/* A verbatim frame must SAY it is one. Every other picture in the
+            archive was drawn, so an undeclared photograph sitting among them
+            reads as an unusually good generation — and the next lever pull at
+            this station will overwrite it with a drawn one, because the
+            photograph is not in the sceneKey. The visitor is owed the warning
+            while the frame is still on screen. */}
+        {scene?.verbatim && status === 'ready' && (
+          <div className="caption-stage caption-stage--verbatim" aria-live="polite">
+            <span className="stage-pip" style={{ color: '#7fb2d6' }} />
+            your photograph, kept as-is — pulling the lever here replaces it
+          </div>
+        )}
+
         {/* A degraded frame is still a frame, so it gets a quiet note rather than
             the error treatment — but it does not get to pass as a good one. */}
         {scene?.degraded && status === 'ready' && (
@@ -1753,7 +1787,12 @@ export function Portal() {
             is legitimate wherever you are standing. */}
         {apiKey && (
           <>
-            <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />
+            <SeedPhoto
+              photo={seedPhoto}
+              onChange={setSeedPhoto}
+              verbatim={seedVerbatim}
+              onVerbatimChange={setSeedVerbatim}
+            />
             {/* THE THIRD WAY IN, beside the file picker and paste.
                 It lived under the map for a while, which was wrong twice over:
                 in home mode the map IS the whole screen and its panel floats

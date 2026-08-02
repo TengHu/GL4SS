@@ -77,6 +77,14 @@ export interface StoredFrame {
   atmosphere?: string;
   /** Set when a moderation rescue rendered on a different model than selected. */
   modelUsed?: string;
+  /**
+   * True when this frame IS a photograph the visitor brought — nothing drew it.
+   *
+   * Optional, so v2 rows written before this existed read back as undefined and
+   * mean what they always meant: generated. No migration, and none possible —
+   * there is no way to look at old pixels and tell.
+   */
+  verbatim?: boolean;
   /** Approximate cost in bytes, used for quota accounting without re-measuring. */
   bytes: number;
   /**
