@@ -535,6 +535,19 @@ interface BuildPromptOpts {
    * own "foliage RENDERED in vivid magenta" as a 3D render.
    */
   stylePhotographic?: boolean;
+  /**
+   * A photograph supplied by the visitor is attached to this request.
+   *
+   * It authors its own colour and light, exactly as a style does, so the era
+   * tables step aside for the same reason: the photograph shows this place at
+   * this hour in this year, and telling the model on top of that which colours
+   * the century runs to is a second opinion about something already settled.
+   *
+   * Only the reference path sets this. A chained sweep frame does NOT — its
+   * attachment is a picture we generated, not evidence, and the era tables are
+   * what keep neighbouring centuries from looking alike.
+   */
+  photographAnchored?: boolean;
   aspect?: string;
   /** User-editable meta-prompt. Falls back to DEFAULT_IMAGE_TEMPLATE. */
   template?: string;
@@ -679,14 +692,18 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
     ? `The ground and everything living on it: ${direction.biome}.`
     : '';
 
+  // A supplied photograph yields the era's colour and texture for the same
+  // reason a style does — see photographAnchored. Both keep the era's SUBSTANCE:
+  // the period, the materials, what is standing here.
+  const authored = styled || Boolean(args.photographAnchored);
   const lightSentence = [
     args.phase ? `${capitalise(args.phase)}.` : '',
-    wild || styled
+    wild || authored
       ? `The air is ${direction.atmosphere}.`
       : args.phase
         ? `The air is ${direction.atmosphere}. Colours run to ${atm.palette}.`
         : `The air is ${direction.atmosphere}, lit by ${atm.lighting}. Colours run to ${atm.palette}.`,
-    wild ? '' : `Surfaces are ${atm.texture}.`,
+    wild || authored ? '' : `Surfaces are ${atm.texture}.`,
   ]
     .filter(Boolean)
     .join(' ');
@@ -806,6 +823,8 @@ export interface BuildPanelsOpts {
   aspect?: string;
   /** User-editable meta-prompt. Falls back to DEFAULT_IMAGE_TEMPLATE. */
   template?: string;
+  /** Set only by the reference path — see BuildPromptOpts.photographAnchored. */
+  photographAnchored?: boolean;
 }
 
 export function buildImagePromptsFromDirection(
@@ -869,7 +888,10 @@ export function buildCoreSamplePrompts(
   direction: SceneDirection,
   kind: ReferenceKind,
 ): string[] {
-  const base = buildImagePromptsFromDirection(opts, direction);
+  const base = buildImagePromptsFromDirection(
+    kind === 'photograph' ? { ...opts, photographAnchored: true } : opts,
+    direction,
+  );
   // Centre first — it is the focal subject, and this is a single-frame path.
   const ordered = [base[1] ?? base[0]!, base[0]!, base[2]!].filter(Boolean);
   if (kind === 'none') return ordered;
