@@ -34,50 +34,70 @@ the Static image endpoint — is never requested, which is why Google results sh
 a year rather than a thumbnail."* Mapillary hands back `thumb_1024_url` and is
 free at any volume.
 
-## 2. The decision that follows
+## 2. Street View, and it is the easier of the two
 
-**Mapillary is the provider for the reference image. Street View is at best a
-viewer.**
+The probe avoids the Static endpoint because a free diagnostic page should stay
+free. That is a property of the probe, not a constraint on the app — and once
+the app is allowed to spend $0.007, Street View is not merely usable, it is
+**simpler than Mapillary by a wide margin.**
 
-Not a preference — an asymmetry in what each can supply:
+Three things I verified against the live API rather than the docs:
 
-| | enumerate | view in 360 | **hand us image bytes** |
-| --- | --- | --- | --- |
-| Street View | free (graph walk) | free (Embed iframe) | **billable, and the URL carries the API key** |
-| Mapillary | free (radius search) | free (equirect JPEG) | **free** |
+**The Static endpoint sends `access-control-allow-origin: *`.** So the browser
+can fetch the bytes itself and turn them into a data URL. The key stays in the
+page, exactly as the OpenRouter key already does, and **only the bytes go to
+OpenRouter — never the URL.** That was the objection that killed Street View
+earlier, and it does not survive contact with the response headers.
 
-The key point is not only the billing. A Static API URL has the key in its query
-string, so handing that URL to OpenRouter as a reference would post a Google
-credential to a third party — the exact thing `toPlayableUrl` already has a long
-comment guarding against. Fetching the bytes ourselves instead means widening
-`connect-src`, which `public/_headers` calls "the load-bearing line".
+**The metadata endpoint is free, and also `access-control-allow-origin: *`.** It
+answers "is there imagery here, which panorama, and when was it taken" for
+nothing.
 
-Street View can still earn its place as the **browsing** surface — its coverage
-is far better, and the Embed viewer is free — with the honest limitation that a
-Street View panorama can be looked at but not used. Whether that is a useful
-half-feature or a confusing one is §6.
+**`pano` + `heading` + `pitch` + `fov` compose.** Which means Google performs the
+projection server-side.
 
-## 3. The technical core: a panorama is not a photograph
+That last one deletes the hardest part of this feature. Mapillary hands back an
+**equirectangular** sphere — every view at once, distorted — so using it would
+mean building an equirect-to-rectilinear renderer in three.js and getting the
+field of view convincing enough that no seed inherits a bulge. Street View's
+Static endpoint *is* that renderer, already written, for less than a cent.
 
-Mapillary panoramas are **equirectangular** — a whole sphere flattened into a
-2:1 strip. Handing one to an image model as "stand where this camera stood" is
-meaningless: it is not a view, it is every view at once, distorted.
+| | enumerate | image bytes | projection | coverage |
+| --- | --- | --- | --- | --- |
+| **Street View** | free | **$0.007, CORS-open** | **server-side** | very good |
+| Mapillary | free | free | **we build it** | thin outside cities |
 
-So the feature's real work is **projecting a rectilinear view out of the sphere
-at a chosen heading** — which is precisely what Street View's Static endpoint
-sells and what we would be doing ourselves.
+Cost in the app's own terms: a reference is **$0.007 against roughly $0.04 for
+the frame it seeds** — about a seventh of one picture, and 10,000 free events a
+month before any of it bills. It still gets said out loud, because "browsing is
+free and only the lever spends" is a promise this app keeps.
 
-Three things make that cheap here:
+## 3. The simplest version needs no Maps JS at all
 
-- **three.js already ships** in this app, for the wormhole and the globe. An
-  equirect on a sphere with a perspective camera is its standard trick.
-- **The heading is already computed** — the probe's `bearing(camera, clicked)`.
-- **The output size is already fixed** — 16:9, and `seedImage.ts` already
-  downscales and encodes whatever it is handed.
+The probe loads the Maps JavaScript API to walk the panorama graph, which is the
+right tool for *enumerating* every camera in a radius. Choosing among several
+panoramas is a refinement, though — and the nearest one is what a visitor almost
+always wants.
 
-So the pipeline is: equirect JPEG → sphere → camera at the bearing → render to a
-16:9 canvas → the exact same `SeedImage` the file picker produces. Everything
-downstream is untouched, because from that point on it *is* an uploaded photo.
+So v1 is three plain HTTPS calls and no SDK:
+
+```
+  1  GET /maps/api/streetview/metadata?location=LAT,LNG   free   → pano id, date, exact camera position
+  2  bearing(cameraPosition → clickedPoint)               local  → which way to face
+  3  GET /maps/api/streetview?pano=…&heading=…&size=640x360&fov=90&return_error_code=true
+                                                          $0.007 → the reference image
+```
+
+Then `seedImage.ts` takes those bytes and produces the same `SeedImage` the file
+picker does. Everything downstream is untouched, because from that point on it
+**is** an uploaded photograph.
+
+`return_error_code=true` matters more than it looks: without it Google returns a
+grey placeholder image with HTTP 200 for a location with no coverage, and we
+would cheerfully seed a frame from a grey rectangle.
+
+The graph walk earns its place only when someone wants to *pick* an angle rather
+than accept the nearest — see §8.
 
 ## 4. What the visitor does
 
@@ -115,38 +135,37 @@ is the anchor a sweep is supposed to grow out of. Real 2019, then chain back to
 
 ## 6. Decisions needed
 
-1. **Does Street View appear at all?** It cannot supply a reference, only a view.
-   Showing panoramas you can look at but not use is either honest breadth or a
-   trap. Recommend: **Mapillary only at first**, and add Street View as a
-   labelled "view only" tier if coverage turns out to be the blocker.
-2. **A second credential.** Mapillary needs a client token. The app's whole pitch
-   is one key that is yours; this is a second, weaker one (read-only, free), and
-   it needs the same "stays in your browser" treatment as the OpenRouter key.
-   Optional and absent by default seems right — the box says what it needs.
-3. **CSP.** `connect-src` gains `graph.mapillary.com` and the image CDN.
-   `public/_headers` calls that line load-bearing, so this is a deliberate
-   widening to be written down rather than slipped in.
-4. **Coverage.** Mapillary is thin outside cities and roads, and this app's range
-   includes open ocean and Antarctica. The box has to be comfortable saying
-   "nothing here" most of the time, and must not look broken when it does.
-5. **Heading, pitch and field of view.** Bearing gives heading. Pitch and FOV are
-   free choices — recommend level and ~75°, close to what an ordinary photograph
-   looks like, and both worth exposing later rather than now.
-6. **Does the heading become a seed axis?** Right now it is consumed by the
-   projection and forgotten. Keeping it would let the sweep re-render every frame
-   from the same bearing, which is a real improvement — and a larger change than
-   this feature.
+1. **A second credential.** A Google Maps key, alongside the OpenRouter one. The
+   app's pitch is one key that is yours; this is a second, and it needs the same
+   treatment — stored in this browser, sent to Google and nowhere else, and
+   absent by default so the box simply says what it needs.
+2. **CSP.** `connect-src` gains `https://maps.googleapis.com`. `public/_headers`
+   calls that line load-bearing, so this is a deliberate widening to be written
+   down rather than slipped in. Note it does NOT need `script-src` widening in
+   v1, because v1 loads no SDK.
+3. **640×640 is the ceiling.** So 640×360 for 16:9 — smaller than the 1280 long
+   edge `seedImage.ts` normally keeps. Fine for a reference, which guides
+   composition rather than being displayed, but it is a real limit and worth
+   confirming by eye before building on it.
+4. **Coverage.** Street View follows roads. This app's range includes open ocean
+   and interior Antarctica, so the box must be comfortable saying "nothing here"
+   most of the time and must not look broken when it does.
+5. **Pitch and field of view.** Heading comes from the bearing. Pitch level and
+   fov 90 (the default; 120 is the maximum) are close to an ordinary photograph.
+   Worth exposing later, not now.
+6. **Does the heading become a seed axis?** Right now it is consumed and
+   forgotten. Keeping it would let the sweep re-render every frame from the same
+   bearing — a real improvement, and a larger change than this feature.
 
 ## 7. Risks
 
-- **The projection has to look like a photograph.** An equirect crop at too wide
-  an FOV bulges; too narrow and it reads as a telephoto compression no walking
-  camera would produce. This is the one part with no fallback: get it wrong and
-  every seed built from it inherits the distortion.
-- **Licensing.** Mapillary imagery is CC-BY-SA. Using it as a conditioning input
-  is not obviously either fair use or a derivative work, and the app is AGPL and
-  public. Worth a real answer before shipping, not after — this is the risk I
-  would resolve first.
+- **Grey placeholders.** Without `return_error_code=true`, a location with no
+  coverage returns a grey image and HTTP 200. Seeding a frame from that would be
+  the quietest failure in the app.
+- **Terms of service.** Google's Maps Platform terms govern what may be done
+  with Street View imagery, and using it as a conditioning input to an image
+  model is not a use they had in mind. This is the risk I would resolve first —
+  it is the only one that cannot be fixed after shipping.
 - **Quality.** Street-level captures are frequently blown out, rain-streaked, or
   half-blocked by a parked van. A bad reference is worse than none, and the
   visitor cannot tell before spending. The thumbnail has to be big enough to
@@ -158,14 +177,16 @@ is the anchor a sweep is supposed to grow out of. Real 2019, then chain back to
 
 ## 8. Phasing
 
-1. **The box, Mapillary only, viewer only.** Click the map, list what exists,
-   show thumbnails. No projection, no seeding. Proves coverage and quality are
-   good enough to bother with — which is the assumption everything else rests on.
-2. **The projection.** Equirect → three.js sphere → 16:9 render → `SeedImage`.
-   Drop it into the existing photograph flow and it seeds a frame with no other
-   changes.
-3. **The date binding.** Selecting a panorama moves the dial to its capture year.
-4. **Street View as a view-only tier**, if and only if coverage demands it.
+1. **Metadata only.** Click the map; the box reports whether imagery exists here
+   and when it was taken. Free, no image, no spending. Proves coverage where the
+   visitor actually goes.
+2. **The reference.** One Static call at the computed bearing, into
+   `seedImage.ts`, into the photograph flow that already exists. This is the
+   whole feature, and it is small — Google does the projection.
+3. **The date binding.** Selecting imagery moves the dial to its capture year.
+4. **The graph walk**, if choosing among angles turns out to matter. This is
+   where the Maps JS SDK and the probe's breadth-first search come in, and it is
+   the only step that widens `script-src`.
 
-Step 1 is a day and answers the question the rest depends on. Step 2 is where the
-actual engineering is.
+Steps 1–3 are the feature. Step 4 is a refinement, and the probe is already the
+prototype for it.
