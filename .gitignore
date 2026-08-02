@@ -20,6 +20,11 @@ dist
 dist-ssr
 *.local
 
+# Private working notes. Extends the *.local convention above so a scratch doc
+# can keep a .md extension and still stay out of the tree — launch planning,
+# personal TODOs, anything written for one person rather than for the repo.
+*.local.md
+
 # Local editor/tooling config.
 .claude/
 
