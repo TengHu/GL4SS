@@ -499,6 +499,50 @@ function rigForYear(year: number, rig: string): string | null {
   return year >= PHOTOGRAPHY_BEGINS ? rig : null;
 }
 
+/**
+ * THE PROCESS THAT ACTUALLY EXISTED, for the Period Process style.
+ *
+ * A far stronger era signal than any palette word, because it changes how the
+ * image is FORMED rather than what colours are in it: a wet-collodion plate is
+ * blind to red, so the sky blows to white and lips go dark, and no amount of
+ * "colours run to sepia" produces that.
+ *
+ * Deliberately opt-in. Applied always it would wreck the sweep — the whole point
+ * of a core sample is one camera that never moved, and stepping from an
+ * orthochromatic plate to Kodachrome to digital puts a rendering discontinuity
+ * at every join. Off by default, the sweep keeps its continuity.
+ *
+ * Descending, matched on the first `from` at or below the year. Below 1839 there
+ * is no entry and none is wanted: photography does not exist, so the style has
+ * nothing to say and the frame falls back to looking like a photograph without
+ * being told what took it.
+ */
+const PERIOD_PROCESSES: { from: number; capture: string }[] = [
+  { from: 2005, capture: 'a digital sensor — clean, sharp corner to corner, no grain at all, colour neutral and even' },
+  { from: 1970, capture: 'colour negative film — fine grain, soft highlight roll-off, faithful but warm colour' },
+  { from: 1935, capture: 'early colour transparency film — dense saturated colour, deep shadows, reds and blues strongest' },
+  { from: 1900, capture: 'orthochromatic roll film — insensitive to red, so skies blow out to bare white and lips and skin go dark, edges soft, grain visible' },
+  { from: 1880, capture: 'a gelatin dry plate — exposures now short enough for people to hold still, greys long and delicate, corners falling off into softness' },
+  { from: 1855, capture: 'a wet collodion glass plate — blind to red, skies bare white, dark lips and skin, the plate edges and pour marks visible, fine detail at the centre' },
+  { from: PHOTOGRAPHY_BEGINS, capture: 'a daguerreotype — a mirror-bright silvered plate, no true blacks, tones sliding between positive and negative with the angle, exquisite fine detail' },
+];
+
+/**
+ * Before this, exposures ran to seconds or minutes, so ANYTHING THAT MOVED
+ * simply is not on the plate.
+ *
+ * This is the one place the style has to override a field rather than add to
+ * the prompt: the planner may have said `dense`, and the prompt would then
+ * insist people fill the frame at every distance, which in 1850 cannot be true
+ * of a photograph. The historically correct picture — an avenue empty but for
+ * the one person who happened to stand still — is also the more striking one.
+ */
+const EXPOSURES_SHORTEN = 1880;
+
+function periodProcessFor(year: number): string | null {
+  return PERIOD_PROCESSES.find((p) => year >= p.from)?.capture ?? null;
+}
+
 /** Fills {camera} — the planner now owns viewpoint, not glass and not aperture. */
 const DEFAULT_VIEWPOINT = 'eye level, a short walk back from the subject';
 const PORTRAIT_VIEWPOINT = 'eye level, about two metres away';
@@ -590,6 +634,11 @@ interface BuildPromptOpts {
    * what keep neighbouring centuries from looking alike.
    */
   photographAnchored?: boolean;
+  /**
+   * The Period Process style is active — render as the process that existed in
+   * this year. See PERIOD_PROCESSES.
+   */
+  periodProcess?: boolean;
   aspect?: string;
   /** User-editable meta-prompt. Falls back to DEFAULT_IMAGE_TEMPLATE. */
   template?: string;
@@ -616,7 +665,9 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
     ? PORTRAIT_VIEWPOINT
     : (direction.cameraNotes || DEFAULT_VIEWPOINT);
   const rig = args.isPortrait ? PORTRAIT_RIG : wild ? WIDE_RIG_WILD : WIDE_RIG_PEOPLED;
-  const datedRig = rigForYear(args.year, rig);
+  const periodProcess = args.periodProcess ? periodProcessFor(args.year) : null;
+  // The style's process outranks the house rig — that is what choosing it means.
+  const datedRig = periodProcess ?? rigForYear(args.year, rig);
   const sideHint =
     args.panelHint === 'left'  ? 'left edge of a wider panorama, scene extends offscreen right' :
     args.panelHint === 'right' ? 'right edge of a wider panorama, scene extends offscreen left' :
@@ -657,9 +708,16 @@ function buildPanelPrompt(args: BuildPanelPromptArgs, direction: SceneDirection)
   const periodClause = direction.periodMarkers ? `${direction.periodMarkers}.` : '';
 
   // Who is in the frame. Second position, directly behind the subject.
-  const habitationClause = getHabitationClause(direction.habitation, {
-    isPortrait: args.isPortrait,
-  });
+  const stillsOnly =
+    Boolean(args.periodProcess) &&
+    args.year >= PHOTOGRAPHY_BEGINS &&
+    args.year < EXPOSURES_SHORTEN;
+
+  const habitationClause = stillsOnly
+    ? `The exposure runs for minutes, so nothing that moved is on the plate: the street reads as empty of traffic and of crowds, and only what held still is here — a figure resting against a wall, a horse at a post, the buildings themselves, sharp and unpeopled.`
+    : getHabitationClause(direction.habitation, {
+        isPortrait: args.isPortrait,
+      });
 
   /**
    * THE ANACHRONISM GUARD, branched on presence rather than asserted everywhere.
@@ -882,6 +940,8 @@ export interface BuildPanelsOpts {
   template?: string;
   /** Set only by the reference path — see BuildPromptOpts.photographAnchored. */
   photographAnchored?: boolean;
+  /** See BuildPromptOpts.periodProcess. */
+  periodProcess?: boolean;
 }
 
 export function buildImagePromptsFromDirection(

@@ -27,6 +27,16 @@ export interface StylePreset {
    * graphicnovel and custom.
    */
   photographic?: boolean;
+  /**
+   * Render as the photographic process that actually existed in the year.
+   *
+   * The only style whose text cannot be a fixed suffix — a daguerreotype and a
+   * digital sensor are different sentences — so it is a flag, and the year to
+   * process table lives in promptcraft next to the other era logic. The `suffix`
+   * below still carries the general claim, which is what makes the era palette
+   * stand aside as it does for every other style.
+   */
+  periodProcess?: boolean;
   /** The free-text slot: its suffix is whatever the user typed in settings. */
   isCustom?: boolean;
 }
@@ -109,6 +119,15 @@ export const STYLE_PRESETS: StylePreset[] = [
     color: '#fcd34d',
     suffix:
       'Tilt-shift photography, extremely shallow plane of focus with strong blur above and below, saturated colour, the scene reading as a meticulously built miniature.',
+  },
+  {
+    id: 'period',
+    label: 'Period Process',
+    color: '#b8a894',
+    suffix:
+      'Photographed by the process that actually existed in this year, with its real limitations rather than a modern camera made to look old.',
+    photographic: true,
+    periodProcess: true,
   },
   {
     id: 'custom',

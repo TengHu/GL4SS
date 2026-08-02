@@ -325,6 +325,8 @@ export interface SampleConfig {
   apiKey: string;
   models: ModelSelection;
   styleOverride: string | null;
+  /** The Period Process style is active — see promptcraft's PERIOD_PROCESSES. */
+  periodProcess?: boolean;
   template?: string;
 }
 
@@ -865,6 +867,7 @@ export class CoreSampleRunner {
             year: frame.year,
             mode: 'wide-field',
             styleSuffix: config.styleOverride,
+            periodProcess: config.periodProcess,
             phase,
             template: config.template,
             aspect: '16:9',
@@ -884,6 +887,7 @@ export class CoreSampleRunner {
                 year: frame.year,
                 mode: 'wide-field',
                 styleSuffix: config.styleOverride,
+                periodProcess: config.periodProcess,
                 phase,
                 template: config.template,
                 aspect: '16:9',

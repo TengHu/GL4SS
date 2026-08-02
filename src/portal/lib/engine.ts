@@ -203,6 +203,7 @@ export class SceneEngine {
    * text that no lookup table can know, and the template is editable.
    */
   private styleOverride: string | null = null;
+  private stylePeriodProcess = false;
   private template: string | undefined;
 
   /** Stations with a film in flight. Not Jobs, so the queue cannot protect them. */
@@ -254,9 +255,10 @@ export class SceneEngine {
     return this.persisted.totalBytes;
   }
 
-  setStyleOverride(suffix: string | null, template: string): void {
+  setStyleOverride(suffix: string | null, template: string, periodProcess = false): void {
     this.styleOverride = suffix;
     this.template = template;
+    this.stylePeriodProcess = periodProcess;
   }
 
   setConfig(config: EngineConfig): void {
@@ -574,6 +576,7 @@ export class SceneEngine {
         year: scene.year,
         mode: 'cinematic',
         styleSuffix: this.styleOverride,
+        periodProcess: this.stylePeriodProcess,
         phase: findPhase(scene.phaseId).prompt,
         seconds,
       },
@@ -634,6 +637,7 @@ export class SceneEngine {
         year: scene.year,
         mode: 'wide-field',
         styleSuffix: this.styleOverride,
+        periodProcess: this.stylePeriodProcess,
         phase: findPhase(scene.phaseId).prompt,
         template: this.template,
         // The portal is full-bleed, so a square or portrait frame gets cropped
@@ -733,6 +737,7 @@ export class SceneEngine {
         year: coords.year,
         mode: 'wide-field' as const,
         styleSuffix: this.styleOverride,
+        periodProcess: this.stylePeriodProcess,
         phase: findPhase(coords.phaseId).prompt,
         template: this.template,
         // The hero fills the screen, so this matters here MORE than in widen().

@@ -778,10 +778,13 @@ export function Portal() {
     return preset.isCustom ? (customStyle.trim() || null) : preset.suffix;
   }, [styleId, customStyle]);
 
+  /** The one style whose text varies by year, so it travels as a flag. */
+  const periodProcess = findStyle(styleId).periodProcess === true;
+
   // Threaded into the engine so a style change re-keys the cache.
   useEffect(() => {
-    engine.setStyleOverride(styleSuffix, effectiveTemplate);
-  }, [engine, styleSuffix, effectiveTemplate]);
+    engine.setStyleOverride(styleSuffix, effectiveTemplate, periodProcess);
+  }, [engine, styleSuffix, effectiveTemplate, periodProcess]);
 
 
   // --- input ---------------------------------------------------------------
@@ -936,6 +939,7 @@ export function Portal() {
         models,
         styleOverride: styleSuffix,
         template: effectiveTemplate,
+        periodProcess,
       },
     );
   }, [
@@ -950,6 +954,7 @@ export function Portal() {
     models,
     styleSuffix,
     effectiveTemplate,
+    periodProcess,
   ]);
 
   /**
@@ -981,14 +986,14 @@ export function Portal() {
     setFilmPending(null);
     if (!pending) return;
     void sampler.renderFilm(
-      { apiKey, models, styleOverride: styleSuffix, template: effectiveTemplate },
+      { apiKey, models, styleOverride: styleSuffix, template: effectiveTemplate, periodProcess },
       {
         model: pending.choice.model,
         seconds: pending.seconds,
         resolution: pending.resolution,
       },
     );
-  }, [filmPending, sampler, apiKey, models, styleSuffix, effectiveTemplate]);
+  }, [filmPending, sampler, apiKey, models, styleSuffix, effectiveTemplate, periodProcess]);
 
   /** Throw the lever: this is the only path that starts a paid generation. */
   const pullLever = useCallback(async () => {
