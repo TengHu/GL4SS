@@ -45,6 +45,7 @@ import { audioForSequence, renderClip, renderStill } from './render';
 import { explainFailure } from '../../lib/failure';
 import { buildCoreSamplePrompts } from '../../lib/promptcraft';
 import { compositeCutout, segmentAnachronisms } from './timeMask';
+import { cameraIsUsable } from './cameraSkeleton';
 import type { StandpointCamera } from '../../lib/openrouter';
 import type { SceneDirection } from '../../lib/promptcraft';
 import { MAX_YEAR, MIN_YEAR, formatYear } from '../../lib/format';
@@ -972,6 +973,9 @@ export class CoreSampleRunner {
             aspect: '16:9',
             standpoint,
             cameraDiagram: Boolean(cutout),
+            // Whether a grid was PAINTED, not whether one was wanted — the clause
+            // must not describe lines the compositor decided not to draw.
+            cameraGrid: Boolean(cutout) && cameraIsUsable(camera),
           },
           direction,
           'none',

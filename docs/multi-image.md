@@ -315,6 +315,17 @@ Nothing here fails the run. In order of severity:
   architecture and dropped the people and street furniture entirely.
 - **Degree is binary.** `absent` or `altered`, nothing between, so lightly
   weathered and completely rebuilt get the same 14 px of blur.
+- **Two steps decide what is present.** The anachronism pass has coordinates and
+  shows its answer in the pixels; the planner's `standing` says it in prose. They
+  are separate calls and can disagree — a walkway marked `altered` appears
+  blurred but visible while the text says it was never built. The conflict is not
+  removed, it is given a deterministic winner: the clause tells the model *"where
+  the description and this picture disagree about whether something is present,
+  THE PICTURE IS CORRECT."*
+- **Aspect is guarded, not reconciled.** The image call hardcodes 16:9 and the
+  cut-out keeps the seed's shape. Every seed is an app-generated frame and every
+  frame is asked for at 16:9, so they agree today — a mismatch logs a warning
+  rather than being corrected.
 - **Kept pixels are byte-identical to the seed** — same sun angle, same shadows,
   same haze, same white balance. The building is right and the *photograph* is the
   2020 one, which is what makes a frame read as an edit rather than as a separate

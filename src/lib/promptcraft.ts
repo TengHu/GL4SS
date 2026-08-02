@@ -1052,6 +1052,8 @@ export interface BuildPanelsOpts {
    * grid and a horizon has every reason to draw a grid and a horizon.
    */
   cameraDiagram?: boolean;
+  /** A perspective grid was actually painted into the erased regions. */
+  cameraGrid?: boolean;
 }
 
 export function buildImagePromptsFromDirection(
@@ -1134,11 +1136,34 @@ export function buildCoreSamplePrompts(
    * compositional instruction stays exactly as it was, which is the behaviour
    * that shipped before any of this and the right thing to degrade to.
    */
-  const fixedFraming = Boolean(opts.standpoint?.trim());
+  /**
+   * EITHER of them fixes the frame, and they do not arrive together.
+   *
+   * This was gated on the standpoint alone while the cut-out was gated on the
+   * seed being on disk — different conditions, so a failed standpoint call left
+   * a cut-out attached beside "framing that sits a little loose", "the centre of
+   * the scene" and "the near ones large and sharp". Every recompose order this
+   * flag exists to silence came back, in exactly the case where the frame is
+   * most tightly pinned. A picture with holes in it is a stronger statement
+   * about the framing than any paragraph.
+   */
+  const fixedFraming = Boolean(opts.standpoint?.trim()) || Boolean(opts.cameraDiagram);
+
+  /**
+   * A CUT-OUT AUTHORS ITS OWN COLOUR, exactly as a supplied photograph does.
+   *
+   * Most of that attachment is verbatim modern colour photography and the clause
+   * says to reproduce it exactly — then the era block said "colours run to sepia
+   * and faded olive, surfaces are wool suiting". One of the two had to lose. The
+   * flag for this already existed and simply was not set here: see
+   * photographAnchored, which yields the era's colour and texture while keeping
+   * its SUBSTANCE — the period, the materials, what is standing. The
+   * reconstructed regions still get their colour from the planner's per-year
+   * atmosphere, which is the year-specific half and the half worth keeping.
+   */
+  const anchored = kind === 'photograph' || Boolean(opts.cameraDiagram);
   const base = buildImagePromptsFromDirection(
-    kind === 'photograph'
-      ? { ...opts, photographAnchored: true, fixedFraming }
-      : { ...opts, fixedFraming },
+    { ...opts, photographAnchored: anchored || undefined, fixedFraming },
     direction,
   );
   // Centre first — it is the focal subject, and this is a single-frame path.
@@ -1190,23 +1215,46 @@ export function buildCoreSamplePrompts(
   const diagram = opts.cameraDiagram
     ? `THE ATTACHED IMAGE IS A PHOTOGRAPH WITH PARTS REMOVED. Read it as follows. ` +
       `The flat grey regions are MISSING: work out what belongs there in this year and ` +
-      `render it. The thin ruled lines inside the grey are a perspective diagram of the ` +
-      `ground plane and the horizon — they say where the ground lies and how it recedes, ` +
-      `they are a drawing instrument, and the finished picture contains no lines, no grid ` +
-      `and no marks of any kind. Anything blurred is still there in this year but looked ` +
-      `different: rebuild it in the state it was in. EVERYTHING THAT IS NEITHER GREY NOR ` +
-      `BLURRED IS CORRECT — reproduce it exactly, the same stones, the same viewpoint, the ` +
-      `same framing, the same lens. The result is one ordinary photograph.`
+      `render it. ` +
+      /**
+       * ONLY CLAIMED WHEN ONE WAS ACTUALLY DRAWN. The grid is painted only when
+       * the standpoint returned usable camera numbers, and the clause used to
+       * describe it unconditionally — telling the model to disregard ruled lines
+       * that were not in the picture. At best that is noise; at worst it draws
+       * some so there is something to disregard.
+       */
+      (opts.cameraGrid
+        ? `The thin ruled lines inside the grey are a perspective diagram of the ground ` +
+          `plane and the horizon — they say where the ground lies and how it recedes, they ` +
+          `are a drawing instrument, and the finished picture contains no lines, no grid ` +
+          `and no marks of any kind. `
+        : '') +
+      `Anything blurred is still there in this year but looked different: rebuild it in ` +
+      `the state it was in. EVERYTHING THAT IS NEITHER GREY NOR BLURRED IS CORRECT — ` +
+      `reproduce it exactly, the same stones, the same viewpoint, the same framing, the ` +
+      `same lens. ` +
+      /**
+       * PRECEDENCE, STATED. Two independent steps decide what is present: the
+       * anachronism pass, which has coordinates and shows its answer in the
+       * pixels, and the planner's `standing`, which is prose. They are separate
+       * calls with separate prompts and can disagree — a walkway marked
+       * `altered` appears blurred but visible while the text says it was never
+       * built. Rather than drop one, the conflict is given a deterministic
+       * winner, and it is the one the model can see.
+       */
+      `Where the description below and this picture disagree about whether something is ` +
+      `present, THE PICTURE IS CORRECT. The result is one ordinary photograph.`
     : '';
 
   const lead = (p: string): string => {
     const parts: string[] = [];
     if (diagram) parts.push(diagram);
     if (opts.standpoint?.trim()) {
-      parts.push(
-        `Every photograph in this series is made from one fixed spot, framed the same way. ` +
-          `THE STANDPOINT: ${opts.standpoint.trim()}`,
-      );
+      // No preamble: parseStandpoint already closes the camera sentence with
+      // "every photograph in this series is made from that exact position with
+      // that exact lens", and the two were saying it twice because neither knew
+      // about the other.
+      parts.push(`THE STANDPOINT: ${opts.standpoint.trim()}`);
     }
     if (direction.standing?.trim()) {
       parts.push(`WHAT IS DIFFERENT IN THIS YEAR: ${direction.standing.trim()}`);

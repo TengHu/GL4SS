@@ -170,6 +170,26 @@ export async function compositeCutout(
   const W = img.naturalWidth || 1024;
   const H = img.naturalHeight || 576;
 
+  /**
+   * THE ATTACHMENT AND THE REQUEST MUST AGREE ABOUT SHAPE.
+   *
+   * The image call hardcodes aspect_ratio 16:9 while this cut-out keeps whatever
+   * shape the seed had, and the prompt then asks for "the same framing" — three
+   * claims that cannot all hold if they differ. In practice they do not: the
+   * seed is always a frame this app generated, and every frame is asked for at
+   * 16:9. So this is a guard against a future where a seed arrives from
+   * somewhere else — a Street View capture is sized to the viewport box, an
+   * upload is whatever it is — and it says so rather than producing a frame that
+   * is quietly cropped against its own reference.
+   */
+  const ASPECT = 16 / 9;
+  if (Math.abs(W / H - ASPECT) > 0.08) {
+    console.warn(
+      `[looking-glass] the seed is ${W}x${H} (${(W / H).toFixed(2)}:1) but the drawing ` +
+        `request asks for 16:9 — the frame will not line up with its own reference.`,
+    );
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
