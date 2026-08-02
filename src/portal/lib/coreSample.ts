@@ -36,6 +36,7 @@
 import type { Coordinates } from '../../types';
 import {
   generateSceneDirection,
+  planStandpoint,
   imageModelForMode,
   videoModelSupports,
 } from '../../lib/openrouter';
@@ -716,29 +717,53 @@ export class CoreSampleRunner {
      * this one matters more to it than the origin does.
      */
     /**
-     * Each anchor carries ITS OWN YEAR, because the prompt has to date them.
-     * The clause tells the image model to keep the vantage and the standing
-     * structures from these pictures while replacing everything the period
-     * owns, and it cannot draw that line without knowing when they were taken.
-     * The two anchors are usually from different years, so one number would be
-     * wrong for one of them.
+     * NEAREST IN TIME, AND ONLY IF THE PLANNER SAYS IT HOLDS.
+     *
+     * Two rules replace the two-anchor scheme this used to implement.
+     *
+     * THE SEED IS NO LONGER A PERMANENT SECOND REFERENCE. It was added to stop
+     * the viewpoint drifting as the chain lengthened — frame twelve being a copy
+     * of a copy — which is a real problem, but attaching a photograph carries
+     * everything in it, not just the viewpoint. Seeded in 2019 and swept back to
+     * 1910, it carried a finished monument and the same bird in the same patch
+     * of sky into every frame. The standpoint paragraph does that job now: same
+     * text in every frame, no decay, no pixels.
+     *
+     * AND THE ATTACHMENT IS GATED. A reference is only useful for carrying the
+     * IDENTITY of something that exists in both years — this ridge, that
+     * building. Where nothing built survives into the target year there is no
+     * identity to carry, and the photograph is pure contamination: an image
+     * model handed a picture of a monument and told to un-build it will keep the
+     * monument, because there is no strength parameter to turn it down with
+     * (probed 2026-08-02: not one model in the catalog has one).
+     *
+     * Each anchor still carries its own year — the prompt has to date what it is
+     * given.
      */
-    const referencesFor = (i: number): Array<{ url: string; year: number }> => {
+    const referencesFor = (
+      i: number,
+      holds: 'yes' | 'no' | undefined,
+    ): Array<{ url: string; year: number }> => {
       if (i === anchor) return [];
+      // Absent verdict means no. See parseReferenceHolds: the cheap failure is
+      // a frame that drifts, not a frame that is a century out of date.
+      if (holds !== 'yes') return [];
       const towardSeed = i > anchor ? i - 1 : i + 1;
       const neighbour = this.state.frames[towardSeed];
-      const out: Array<{ url: string; year: number }> = [];
-      // A failed neighbour leaves this frame anchored to the seed alone rather
-      // than chained to nothing; the next frame out re-anchors from whatever
-      // did land.
       if (neighbour?.status === 'ready' && neighbour.url) {
-        out.push({ url: neighbour.url, year: neighbour.year });
+        return [{ url: neighbour.url, year: neighbour.year }];
       }
-      const seedFrame = this.state.frames[anchor];
-      if (seedFrame?.url && seedFrame.url !== out[0]?.url) {
-        out.push({ url: seedFrame.url, year: seedFrame.year });
+      /**
+       * The neighbour failed or was skipped. Reach one further along the same
+       * line rather than falling back to the seed — a gap in the chain is not a
+       * reason to re-import the year the sweep is trying to get away from.
+       */
+      const beyond = i > anchor ? i - 2 : i + 2;
+      const further = this.state.frames[beyond];
+      if (further?.status === 'ready' && further.url) {
+        return [{ url: further.url, year: further.year }];
       }
-      return out;
+      return [];
     };
 
     /** The years either side of this frame WITHIN THE SWEEP. */
@@ -756,13 +781,31 @@ export class CoreSampleRunner {
      * the neighbour's photograph and told it was taken in the seed's year, and
      * then asked to reason about what had changed between them.
      */
+    /**
+     * DELIBERATELY UNGATED, unlike the drawing request. This is not an oversight.
+     *
+     * The planner is the dispatcher and it should hold every report that has
+     * come back, always — it is a vision model reading a picture to write text,
+     * which is how it knows there is a monument here at all, what the rock looks
+     * like and where the camera stood. It is also the step that decides
+     * `referenceHolds`, and it plainly cannot answer "does the thing in the
+     * photograph exist in this year" without the photograph.
+     *
+     * Only the draughtsman is gated. The seed briefs everyone; it is handed to
+     * nobody's camera.
+     */
     const referenceForPlanner = (i: number): { url: string; year: number } | undefined => {
       if (i === anchor) return undefined;
       const seedFrame = this.state.frames[anchor];
       if (seedFrame?.status === 'ready' && seedFrame.url) {
         return { url: seedFrame.url, year: seedFrame.year };
       }
-      return referencesFor(i)[0];
+      const towardSeed = i > anchor ? i - 1 : i + 1;
+      const neighbour = this.state.frames[towardSeed];
+      if (neighbour?.status === 'ready' && neighbour.url) {
+        return { url: neighbour.url, year: neighbour.year };
+      }
+      return undefined;
     };
 
     const directions = new Map<number, Promise<SceneDirection>>();
@@ -836,6 +879,34 @@ export class CoreSampleRunner {
       }
 
       /**
+       * THE STANDPOINT, WRITTEN ONCE, BEFORE ANYTHING IS DRAWN.
+       *
+       * Needs the seed, so it cannot happen until the restore above has run;
+       * needed by every frame, so it cannot happen any later. One text call.
+       *
+       * Only possible when the seed is actually on disk. A sweep whose seed was
+       * never rendered has no photograph to read the geometry out of, and
+       * inventing one from the place name would produce a paragraph that sounds
+       * authoritative and describes somewhere else — worse than having none,
+       * because every frame would then agree on the wrong view.
+       */
+      let standpoint = '';
+      if (anchorUrl && !abort.signal.aborted) {
+        const years = this.state.frames.map((f) => f.year);
+        standpoint = await planStandpoint(
+          config.apiKey,
+          request.location,
+          request.coordinates,
+          anchorUrl,
+          this.state.frames[anchor]!.year,
+          { earliest: Math.min(...years), latest: Math.max(...years) },
+          config.models.text,
+          { signal: abort.signal },
+        );
+      }
+      if (abort.signal.aborted) return;
+
+      /**
        * Outward, nearest first: the seed, then its neighbours, then theirs.
        *
        * Walking forward-then-backward instead would leave the far past until
@@ -861,16 +932,6 @@ export class CoreSampleRunner {
         if (!frame) continue;
         if (frame.status === 'ready') continue; // the restored seed
 
-        const anchors =
-          i === anchor
-            ? anchorUrl
-              ? [{ url: anchorUrl, year: frame.year }]
-              : []
-            : referencesFor(i);
-        const references = anchors.map((a) => a.url);
-        const referenceYears = anchors.map((a) => a.year);
-        const reference = references[0];
-
         this.emit({ cursor: i });
         for (const ahead of order.slice(order.indexOf(i), order.indexOf(i) + DIRECTION_LOOKAHEAD)) {
           planAt(ahead);
@@ -889,6 +950,20 @@ export class CoreSampleRunner {
 
         this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
 
+        /**
+         * DECIDED HERE, NOT ABOVE, because it now depends on the planner.
+         *
+         * `referenceHolds` is the planner's answer to whether the photograph is
+         * even about this year, so the attachment cannot be chosen until the
+         * direction has come back. It used to be picked before the planning call
+         * was awaited, which is why the gate could not have existed earlier
+         * however the prompt was worded.
+         */
+        const anchors = referencesFor(i, direction.referenceHolds);
+        const references = anchors.map((a) => a.url);
+        const referenceYears = anchors.map((a) => a.year);
+        const reference = references[0];
+
         const prompts = buildCoreSamplePrompts(
           {
             location: request.location,
@@ -900,6 +975,7 @@ export class CoreSampleRunner {
             phase,
             template: config.template,
             aspect: '16:9',
+            standpoint,
           },
           direction,
           reference ? 'chained' : 'none',
@@ -921,6 +997,7 @@ export class CoreSampleRunner {
                 phase,
                 template: config.template,
                 aspect: '16:9',
+                standpoint,
               },
               direction,
               'none',

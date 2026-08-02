@@ -125,6 +125,22 @@ export interface SceneDirection {
    * deserves.
    */
   standing?: string;
+  /**
+   * DOES THE ATTACHED PHOTOGRAPH'S DOMINANT BUILT SUBJECT EXIST HERE IN THIS
+   * YEAR — the one question that decides whether the frame gets a photograph at
+   * all.
+   *
+   * The same reasoning `standing` does, in a form the runner can branch on.
+   * Prose cannot gate an API call: `standing` could say "the carved heads do not
+   * exist, Borglum did not begin until 1927" and the runner would still attach
+   * two photographs of the finished monument, because nothing in the pipeline
+   * could read it.
+   *
+   * 'no' is the safe default when the field is missing or unparseable. An
+   * unattached frame drifts a little; an attached one renders a monument seven
+   * years before the first charge was set.
+   */
+  referenceHolds?: 'yes' | 'no';
   leftSubject: string;      // distinct main subject of the left panel
   centerSubject: string;    // focal/main subject of the center panel
   rightSubject: string;     // distinct main subject of the right panel
@@ -942,6 +958,20 @@ export interface BuildPanelsOpts {
   photographAnchored?: boolean;
   /** See BuildPromptOpts.periodProcess. */
   periodProcess?: boolean;
+  /**
+   * THE STANDPOINT — one paragraph, written once per sweep, identical in every
+   * frame of it. See planStandpoint().
+   *
+   * This is what makes a sweep one camera. It used to be the seed photograph,
+   * re-attached to every frame; that carried the viewpoint and everything else
+   * in the picture with it — the same bird in the same place across 109 years.
+   * Geometry describes well, so it moves to words. Words cannot carry a bird.
+   *
+   * Only ever set on the sweep path, and only when the standpoint call
+   * succeeded — a sweep without one behaves as it did before, minus the drift
+   * protection.
+   */
+  standpoint?: string;
 }
 
 export function buildImagePromptsFromDirection(
@@ -1017,7 +1047,23 @@ export function buildCoreSamplePrompts(
   );
   // Centre first — it is the focal subject, and this is a single-frame path.
   const ordered = [base[1] ?? base[0]!, base[0]!, base[2]!].filter(Boolean);
-  if (kind === 'none') return ordered;
+
+  /**
+   * THE STANDPOINT LEADS, AND IT LEADS ON EVERY FRAME — anchored or not.
+   *
+   * The unanchored frames are the ones that need it most: they are the years
+   * where nothing built survives to be photographed, so this paragraph is the
+   * only thing holding them to the same camera as the rest of the sweep. Gating
+   * it behind an attachment would have put the continuity mechanism on exactly
+   * the frames that already had one.
+   */
+  const withStandpoint = (p: string): string =>
+    opts.standpoint?.trim()
+      ? `Every photograph in this series is made from one fixed spot, framed the same way. ` +
+        `THE STANDPOINT: ${opts.standpoint.trim()}\n\n${p}`
+      : p;
+
+  if (kind === 'none') return ordered.map(withStandpoint);
 
   if (kind === 'photograph') {
     /**
@@ -1044,7 +1090,7 @@ export function buildCoreSamplePrompts(
       `do not age it, and do not substitute a more famous view of the same district. ` +
       `Where the photograph is unclear or cut off, extend it plausibly rather than ` +
       `inventing something else. Recompose to a wide 16:9 frame from that same standpoint.`;
-    return ordered.map((p) => `${clause}\n\n${p}`);
+    return ordered.map((p) => withStandpoint(`${clause}\n\n${p}`));
   }
 
   /**
@@ -1122,8 +1168,22 @@ export function buildCoreSamplePrompts(
     `They are evidence about WHERE — where the camera stood, what occupies the ground — and ` +
     `the year they were taken is not this year. ` +
     travel +
-    `Stand the camera exactly where it stood for them — identical viewpoint, ` +
-    `identical direction, identical lens and horizon line — and keep the land itself where ` +
+    /**
+     * NO LONGER ASKS FOR AN IDENTICAL FRAME.
+     *
+     * This used to read "identical viewpoint, identical direction, identical
+     * lens and horizon line". With one dominant reference attached and no
+     * strength parameter on any model in the catalog (probed 2026-08-02: the
+     * only knobs are aspect_ratio, n, resolution, seed, output_format, quality,
+     * background), that is a request to copy the frame — and the model obliged,
+     * bird included. The near-copy was half the endpoint's default behaviour and
+     * half us asking for it.
+     *
+     * The standpoint paragraph carries the geometry now, in every frame,
+     * anchored or not. So this can say where the observer is without demanding
+     * a pixel match.
+     */
+    `Stand where that photographer stood and look the same way, and keep the land itself where ` +
     `it is: the ground, the slope, the line of the hills, the run of the coast or river. ` +
     `ANYTHING ALREADY STANDING HERE IN THIS YEAR IS STILL STANDING, in the same place and ` +
     `at the same scale, shown as it looked then. ` +
@@ -1193,7 +1253,7 @@ export function buildCoreSamplePrompts(
    * It is worse here than it was there, because this clause is fighting an
    * attached image rather than agreeing with one.
    */
-  return ordered.map((p) => `${anchor}\n\n${p}`);
+  return ordered.map((p) => withStandpoint(`${anchor}\n\n${p}`));
 }
 
 export function buildCinematicPromptFromDirection(

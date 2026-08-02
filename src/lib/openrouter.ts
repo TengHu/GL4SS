@@ -557,7 +557,18 @@ function buildSceneDirectionPrompt(
     dayPhase
       ? `  "atmosphere": "one phrase: weather and what is hanging in it — haze, dust, humidity, smoke, sea spray, still cold. Do NOT name a time of day: it is fixed below, and anything you write here must be true at that hour.",`
       : `  "atmosphere": "one phrase: time of day, weather, and what is hanging in it — haze, dust, humidity, smoke, sea spray, still cold",`,
-    `  "cameraNotes": "where the photographer is standing and what the light is doing: camera height, distance from the subject, angle, and the direction and hardness of the light. One short phrase, plain photographic description. Do NOT name a lens, focal length, aperture, film stock or camera body — the camera is already chosen — and do not describe camera movement, lighting equipment or colour grading. This is ONE still photograph. (cinematicCameraMove, where requested below, is exempt and should name a move.)",`,
+    /**
+     * ON A SWEEP THE STANDPOINT OWNS THE CAMERA, so this field asks only about
+     * the light.
+     *
+     * Every frame's planner was inventing its own camera height, distance and
+     * angle independently — a second source of drift, quieter than the one
+     * everybody was watching, and directly contradicting a standpoint paragraph
+     * that says the spot is fixed. The light genuinely does belong to the year.
+     */
+    referenceKind === 'sweep'
+      ? `  "cameraNotes": "ONLY what the light is doing in this year: its direction, its hardness, and the weather carrying it. One short phrase. Say NOTHING about where the photographer stands, the camera height, the distance or the angle — the standpoint is fixed for this whole series and is not yours to choose. Do NOT name a lens, focal length, aperture, film stock or camera body.",`
+      : `  "cameraNotes": "where the photographer is standing and what the light is doing: camera height, distance from the subject, angle, and the direction and hardness of the light. One short phrase, plain photographic description. Do NOT name a lens, focal length, aperture, film stock or camera body — the camera is already chosen — and do not describe camera movement, lighting equipment or colour grading. This is ONE still photograph. (cinematicCameraMove, where requested below, is exempt and should name a move.)",`,
     `  "biome": "ONE OR TWO SENTENCES of physical ground truth for this frame: the terrain and ground surface, the vegetation actually growing here, the state of water, ice and sky, and the animals genuinely present at lat ${coordinates.lat.toFixed(2)}, lng ${coordinates.lng.toFixed(2)} in ${formattedYear} — name each one EXACTLY ('emperor penguin', not 'penguins'; 'woolly mammoth', not 'megafauna'), at most four, and NAME NONE where none live: naming no animal is the correct and expected answer for the interior of an ice sheet, a hyper-arid core, ground above the permanent snowline, and open ocean far from land. Where people live here, include the built ground underfoot and the animals that live alongside them. Describe ONLY what IS present: this text is pasted into an image model that cannot process negation and renders any noun it is shown, so write 'unbroken wind-carved snow' rather than 'no vegetation', and do not mention the coast, the trees or the animals that are somewhere ELSE.",`,
     // Branches on the habitation level the model just chose, not on the year. The
     // old year-branch was the SECOND, unnoticed forcing function for the same
@@ -577,7 +588,8 @@ function buildSceneDirectionPrompt(
       // 2019-seeded sweep planned 1920 at Mount Rushmore with the carving intact,
       // seven years before the first charge was set. Naming the date the work
       // started is what makes the answer checkable rather than impressionistic.
-      ? `  "standing": "REQUIRED HERE. Work through the attached photograph object by object. FIRST, absence: name anything visible in it that did not exist yet at this spot in ${formattedYear} — give the year that thing was built, begun or installed, and say what occupied that ground in ${formattedYear} instead. If it was under construction in ${formattedYear}, say exactly what stage it had reached that year. Name anything that was already gone by ${formattedYear} too. SECOND, survival: what is still standing here in ${formattedYear} and how it looked then — if the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance, because it must not vanish. Name the things, do not generalise. THIRD, if the photograph shows vehicles, or people carrying or holding or using anything, name what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
+      ? `  "referenceHolds": "REQUIRED HERE. Exactly one word, yes or no. Does the dominant BUILT subject of the attached photograph — the main structure, monument, building or roadway it is a picture of — already exist at this spot in ${formattedYear}? Answer yes only if a photographer standing here in ${formattedYear} would see that thing, complete or under construction. If it was built later, or was already demolished by ${formattedYear}, or the photograph has no built subject at all and is a picture of open land, answer no.",
+  "standing": "REQUIRED HERE. Work through the attached photograph object by object. FIRST, absence: name anything visible in it that did not exist yet at this spot in ${formattedYear} — give the year that thing was built, begun or installed, and say what occupied that ground in ${formattedYear} instead. If it was under construction in ${formattedYear}, say exactly what stage it had reached that year. Name anything that was already gone by ${formattedYear} too. SECOND, survival: what is still standing here in ${formattedYear} and how it looked then — if the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance, because it must not vanish. Name the things, do not generalise. THIRD, if the photograph shows vehicles, or people carrying or holding or using anything, name what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
       : '',
     `  "leftSubject": "specific concrete subject in the LEFT panel (one short phrase, distinct from center and right)",`,
     `  "centerSubject": "specific concrete focal subject in the CENTER panel",`,
@@ -688,6 +700,7 @@ const SCENE_FIELDS: (keyof SceneDirection)[] = [
   'periodMarkers',
   'biome',
   'standing',
+  'referenceHolds',
   'leftSubject',
   'centerSubject',
   'rightSubject',
@@ -696,6 +709,20 @@ const SCENE_FIELDS: (keyof SceneDirection)[] = [
   'cinematicCameraMove',
   'cinematicSoundCue',
 ];
+
+/**
+ * The verdict, read strictly and defaulting to 'no'.
+ *
+ * Only a clear yes is a yes. Anything else — absent, empty, hedged, a sentence
+ * where an enum was asked for — means the runner attaches nothing, and the
+ * asymmetry is on purpose: an unattached frame drifts a little, an attached one
+ * renders the finished monument seven years before the first charge was set.
+ * The cheap failure is the default.
+ */
+function parseReferenceHolds(raw: string): 'yes' | 'no' | undefined {
+  if (!raw) return undefined;
+  return /^\s*yes\b/i.test(raw) ? 'yes' : 'no';
+}
 
 function parseSceneDirection(raw: string): SceneDirection | null {
   if (!raw) return null;
@@ -733,6 +760,22 @@ function parseSceneDirection(raw: string): SceneDirection | null {
       // joins its array by hand and never passes through fillTemplate, so it has
       // none of the `\.{2,}` cleanup that rescues the panel path, and every biome
       // sentence would otherwise land as "... on the horizon.. The air is".
+      /**
+       * `standing` WAS BEING DROPPED ON THE FLOOR.
+       *
+       * It is declared on SceneDirection, listed in SCENE_FIELDS, requested in
+       * the planner prompt at length, and read by buildCoreSamplePrompts — and
+       * it was never extracted here, so `direction.standing` was undefined on
+       * every frame the app has ever rendered. Two commits of work on the
+       * planner's per-object historical verdict, and not one word of it reached
+       * an image prompt.
+       *
+       * This is the failure mode the fallback warning above exists for, except
+       * quieter: no parse error, no fallback, no console line. The object was
+       * valid. It was just missing the field that carried the answer.
+       */
+      standing: get('standing') || undefined,
+      referenceHolds: parseReferenceHolds(get('referenceHolds')),
       biome: get('biome').replace(/\.\s*$/, ''),
       leftSubject: get('leftSubject'),
       centerSubject: get('centerSubject'),
@@ -749,6 +792,92 @@ function parseSceneDirection(raw: string): SceneDirection | null {
     return direction;
   } catch {
     return null;
+  }
+}
+
+/**
+ * THE STANDPOINT — dispatch orders for a whole sweep, written once.
+ *
+ * The product is a time machine sending observers to one fixed position in many
+ * different years to report what they see. Observers do not hand each other
+ * photographs; what they share is where to stand. That is a specification, and
+ * a specification is words.
+ *
+ * This replaces the seed-as-permanent-second-reference. That mechanism was
+ * solving a real problem — viewpoint drift down a long chain of copies — with
+ * an instrument that carried the whole picture along with the viewpoint, so a
+ * sweep across 109 years returned the same bird in the same patch of sky four
+ * times. A paragraph cannot do that, and it does not decay through
+ * copy-of-a-copy either: it is injected identically into every frame.
+ *
+ * WHAT MAKES IT WORK IS THE EXCLUSION RULE, not the description. The span is
+ * named in the prompt and everything year-specific is refused entry — trees
+ * grow, weather turns, buildings go up and come down. What survives the filter
+ * is bedrock, terrain and the shape of the horizon, which is exactly the set of
+ * things that are true for every observer in the series. Without that rule this
+ * degrades into the seed photograph transcribed into prose, which would be the
+ * same bug with extra steps.
+ *
+ * Returns '' rather than throwing. A sweep with no standpoint is the behaviour
+ * that shipped before this existed, and losing one optional text call is not a
+ * reason to fail a run the visitor is about to be billed for.
+ */
+export async function planStandpoint(
+  apiKey: string,
+  location: string,
+  coordinates: Coordinates,
+  /** The seed frame. Read once, here, and never attached to a drawing request. */
+  seedImage: string,
+  seedYear: number,
+  span: { earliest: number; latest: number },
+  model: string = DEFAULT_TEXT_MODEL,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
+  const earliest = formatYear(span.earliest);
+  const latest = formatYear(span.latest);
+  const prompt = [
+    `You are writing standing orders for a series of photographers. Each will stand at exactly one spot on Earth — ${JSON.stringify(location)}, latitude ${coordinates.lat.toFixed(5)}, longitude ${coordinates.lng.toFixed(5)} — and each will be there in a different year, somewhere between ${earliest} and ${latest}. None of them will ever see a photograph. Your paragraph is the only thing they share, and their pictures must line up.`,
+    ``,
+    `A photograph taken from that spot in ${formatYear(seedYear)} is attached. Read the geometry out of it.`,
+    ``,
+    `Describe, in plain prose: the height of the camera above the ground and what the photographer is standing on; which way they are facing; how wide the view is; where the horizon falls in the frame; what occupies the left edge, the centre and the right edge; and the profile of the permanent landform — ridge lines, summit shapes, cliff faces, the run of a valley, coast or watercourse — in enough detail that someone could draw it without ever seeing the picture.`,
+    ``,
+    `THE RULE THAT MATTERS: include ONLY what is true in EVERY year from ${earliest} to ${latest}. Trees grow, fall and are cleared. Weather, snow, season and time of day change. Buildings, roads, monuments and machines are built and demolished — if the attached photograph's main subject was made after ${earliest}, it does not belong in your paragraph either, however dominant it looks. What survives that filter is bedrock, terrain and the shape of the horizon. Write that, and nothing else.`,
+    ``,
+    `One paragraph of plain prose. No headings, no lists, no preamble, and no mention of the attached photograph or of any year.`,
+  ].join('\n');
+
+  try {
+    const data = await postChat(
+      apiKey,
+      {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: seedImage } },
+            ],
+          },
+        ],
+        max_tokens: 900,
+      },
+      { signal: options.signal, timeoutMs: TEXT_TIMEOUT_MS },
+    );
+    const text = extractTextFromMessage(data.choices?.[0]?.message).trim();
+    if (!text) {
+      console.warn('[looking-glass] standpoint came back empty — the sweep will run without one.');
+    }
+    return text;
+  } catch (err) {
+    if (options.signal?.aborted) return '';
+    console.warn(
+      `[looking-glass] standpoint call failed — the sweep runs without it, and frames ` +
+        `rendered without a reference will not hold the viewpoint as tightly. ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return '';
   }
 }
 
