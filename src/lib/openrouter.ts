@@ -805,6 +805,76 @@ function parseSceneDirection(raw: string): SceneDirection | null {
  * that shipped before this existed, and losing one optional text call is not a
  * reason to fail a run the visitor is about to be billed for.
  */
+/**
+ * What a sweep shares: the camera as numbers, and the view as prose.
+ *
+ * The numbers exist so the skeleton can be DRAWN — see cameraSkeleton.ts. Prose
+ * fixed the lens and not the tripod: across one Colosseum sweep the focal length
+ * held while the camera climbed 1.6 m and levelled out by 6 degrees. A figure
+ * can be rendered as a line; an adjective cannot.
+ */
+export interface Standpoint {
+  /** Emitted into every frame's prompt. Empty when the call failed. */
+  text: string;
+  /** Drives the diagram. Absent when the model returned nothing usable. */
+  camera?: StandpointCamera;
+}
+
+export interface StandpointCamera {
+  /** Lens height above the plane the photographer stands on, in metres. */
+  eyeHeightM: number;
+  /** Compass bearing. Carried for the prose; the drawing does not use it. */
+  bearingDeg: number;
+  /** Degrees BELOW level. Negative tilts up. */
+  tiltDeg: number;
+  /** Horizontal field of view in degrees. */
+  hfovDeg: number;
+  /** Distance to the nearest thing in shot, in metres. */
+  nearestM: number;
+  /** What that nearest thing is. Prose only. */
+  nearestThing: string;
+}
+
+const COMPASS: [number, string][] = [
+  [0, 'north'], [45, 'north-east'], [90, 'east'], [135, 'south-east'],
+  [180, 'south'], [225, 'south-west'], [270, 'west'], [315, 'north-west'],
+];
+
+function bearingWords(deg: number): string {
+  const d = ((deg % 360) + 360) % 360;
+  let best = COMPASS[0]!;
+  for (const c of COMPASS) {
+    const diff = Math.min(Math.abs(d - c[0]), 360 - Math.abs(d - c[0]));
+    const bd = Math.min(Math.abs(d - best[0]), 360 - Math.abs(d - best[0]));
+    if (diff < bd) best = c;
+  }
+  return `${best[1]} (${Math.round(d)} degrees)`;
+}
+
+/**
+ * THE STANDPOINT — dispatch orders for a whole sweep, written once.
+ *
+ * The product is a time machine sending observers to one fixed position in many
+ * different years to report what they see. Observers do not hand each other
+ * photographs; what they share is where to stand. That is a specification, and a
+ * specification is words and numbers.
+ *
+ * WHAT MAKES IT WORK IS THE EXCLUSION RULE, not the description. The span is
+ * named and everything year-specific is refused entry — trees grow, weather
+ * turns, buildings go up and come down. What survives is bedrock, terrain, the
+ * shape of the horizon, and whatever was standing before the earliest year and
+ * is still there after the latest. Without that rule this degrades into the seed
+ * photograph transcribed into prose, which would be the old bug with extra steps.
+ *
+ * THE CAMERA SENTENCE IS BUILT HERE, FROM THE NUMBERS, rather than asked for as
+ * prose. The diagram and the words are then two renderings of one set of
+ * figures and cannot contradict each other — which they could, and eventually
+ * would, if the model wrote the sentence and the numbers separately.
+ *
+ * Returns an empty text rather than throwing. A sweep with no standpoint is the
+ * behaviour that shipped before this existed, and losing one optional text call
+ * is not a reason to fail a run the visitor is about to be billed for.
+ */
 export async function planStandpoint(
   apiKey: string,
   location: string,
@@ -815,21 +885,30 @@ export async function planStandpoint(
   span: { earliest: number; latest: number },
   model: string = DEFAULT_TEXT_MODEL,
   options: { signal?: AbortSignal } = {},
-): Promise<string> {
+): Promise<Standpoint> {
   const earliest = formatYear(span.earliest);
   const latest = formatYear(span.latest);
   const prompt = [
-    `You are writing standing orders for a series of photographers. Each will stand at exactly one spot on Earth — ${JSON.stringify(location)}, latitude ${coordinates.lat.toFixed(5)}, longitude ${coordinates.lng.toFixed(5)} — and each will be there in a different year, somewhere between ${earliest} and ${latest}. None of them will ever see a photograph. Your paragraph is the only thing they share, and their pictures must line up.`,
+    `You are writing standing orders for a series of photographers. Each will stand at exactly one spot on Earth — ${JSON.stringify(location)}, latitude ${coordinates.lat.toFixed(5)}, longitude ${coordinates.lng.toFixed(5)} — and each will be there in a different year, somewhere between ${earliest} and ${latest}. None of them will ever see a photograph. What you write is the only thing they share, and their pictures must line up.`,
     ``,
     `A photograph taken from that spot in ${formatYear(seedYear)} is attached. Read the geometry out of it.`,
     ``,
-    `FIRST, THE CAMERA, IN NUMBERS. Adjectives do not reproduce a viewpoint; numbers do. Give every one of these, as a figure: the height of the lens above the ground in metres, and what the photographer is standing on; the compass direction they face; the tilt, in degrees above or below level, or level; the horizontal field of view in degrees, or the equivalent focal length on a 35mm full-frame camera; and the distance in metres to the nearest thing in the picture, naming what it is. Estimate honestly from the photograph — a stated number that is slightly wrong still holds the series together, and an adjective does not.`,
+    `Reply with ONE JSON object and nothing else:`,
+    `{`,
+    `  "eyeHeightM": number — height of the lens above whatever the photographer is standing on, in metres. A standing adult is about 1.6.`,
+    `  "standingOn": "what is under their feet, a few words",`,
+    `  "bearingDeg": number — compass bearing they face, 0 is north, 90 is east,`,
+    `  "tiltDeg": number — degrees BELOW level. Positive looks down, negative looks up, 0 is level. Judge it from the horizon: if people standing on the photographer's own ground have their eyes near the middle of the frame the tilt is near 0, and the higher their eye level sits in the frame the further the camera is tilted DOWN.`,
+    `  "hfovDeg": number — horizontal field of view in degrees. 74 is a 24mm lens, 65 is 28mm, 54 is 35mm, 40 is 50mm.`,
+    `  "nearestM": number — distance in metres to the nearest thing in the picture,`,
+    `  "nearestThing": "what that nearest thing is, a few words",`,
+    `  "frameMap": "one paragraph pinning permanent things to positions in the picture, so every observer composes identically: what sits exactly at the centre; what falls at the left edge, the right edge and the bottom edge; and how far up the frame any major horizontal line runs, such as a wall top, a rim, a ridge or a far bank. Name the thing and give the position together, like 'the north entrance arch sits dead centre, its springline three-fifths up the frame'.",`,
+    `  "permanentFabric": "one paragraph describing everything permanent well enough to be drawn by someone who never sees this photograph. Landform: ridge lines, summit shapes, cliff faces, the run of a valley, coast or watercourse. And any built thing that stands through the whole period — its shape, size, materials, condition, how much of it is standing and how it is broken. A structure that was already old in ${earliest} and is still there in ${latest} is as permanent as the hill behind it, and it is the main thing that makes this view recognisable. Do not leave it out."`,
+    `}`,
     ``,
-    `SECOND, THE FRAME MAP. Pin the permanent things to positions in the picture, so that every observer composes identically: what sits exactly at the centre of the frame; what falls at the left edge, the right edge and the bottom edge; how far up the frame the horizon runs, as a fraction of the frame's height; and the same for any major horizontal line such as a wall top, a rim, a ridge or a far bank. Name the thing and give the position together, like "the north entrance arch sits dead centre, its springline three-fifths up the frame".`,
+    `THE RULE THAT GOVERNS BOTH PARAGRAPHS: include ONLY what is true in EVERY year from ${earliest} to ${latest}, and leave out everything belonging to one year rather than to all of them. LEAVE OUT every person and every animal, what they wear and what they carry. LEAVE OUT vehicles, bicycles, signs, lamps, railings, walkways, barriers and anything else installed, parked or set down. LEAVE OUT the weather, the season, the time of day, the direction of the light and the state of the sky. LEAVE OUT trees and undergrowth, which grow, fall and are cleared. And leave out anything BUILT AFTER ${earliest} or DEMOLISHED BEFORE ${latest}, however dominant it looks in the photograph.`,
     ``,
-    `THIRD, THE PERMANENT FABRIC, described well enough to be drawn by someone who never sees this photograph. Landform: ridge lines, summit shapes, cliff faces, the run of a valley, coast or watercourse. And any built thing that stands through the whole period — its shape, size, materials, condition, how much of it is standing and how it is broken. A structure that was already old in ${earliest} and is still there in ${latest} is as permanent as the hill behind it, and it is the main thing that makes this view recognisable. Do not leave it out.`,
-    ``,
-    `Write it as three short paragraphs of plain prose in that order, with no headings, no bullet points, no preamble, and no mention of the attached photograph or of any year. Numbers as digits.`,
+    `Every observer will draw their own year's people, weather and light from scratch. What you write is the ground they all stand on, and nothing in it should date the picture.`,
   ].join('\n');
 
   try {
@@ -846,24 +925,92 @@ export async function planStandpoint(
             ],
           },
         ],
-        max_tokens: 900,
+        response_format: { type: 'json_object' },
+        max_tokens: 1400,
       },
       { signal: options.signal, timeoutMs: TEXT_TIMEOUT_MS },
     );
-    const text = extractTextFromMessage(data.choices?.[0]?.message).trim();
-    if (!text) {
-      console.warn('[looking-glass] standpoint came back empty — the sweep will run without one.');
-    }
-    return text;
+    const raw = extractTextFromMessage(data.choices?.[0]?.message).trim();
+    return parseStandpoint(raw);
   } catch (err) {
-    if (options.signal?.aborted) return '';
+    if (options.signal?.aborted) return { text: '' };
     console.warn(
-      `[looking-glass] standpoint call failed — the sweep runs without it, and frames ` +
-        `rendered without a reference will not hold the viewpoint as tightly. ` +
+      `[looking-glass] standpoint call failed — the sweep runs without one, so the ` +
+        `frames will not hold a common viewpoint. ` +
         `${err instanceof Error ? err.message : String(err)}`,
     );
-    return '';
+    return { text: '' };
   }
+}
+
+/**
+ * PARTIAL SUCCESS IS THE COMMON CASE and both halves degrade separately.
+ *
+ * Prose without numbers still holds the frame map and the fabric; numbers
+ * without prose still draw the diagram. Requiring both would throw away most of
+ * a good answer over one missing field.
+ */
+function parseStandpoint(raw: string): Standpoint {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(cleaned) as Record<string, unknown>;
+  } catch {
+    console.warn(
+      `[looking-glass] standpoint did not parse as JSON — the sweep runs without a ` +
+        `common viewpoint. head: ${cleaned.slice(0, 200)}`,
+    );
+    return { text: '' };
+  }
+  const num = (k: string): number | undefined => {
+    const v = obj[k];
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    // Models answer "1.6 m" and "74 degrees" despite being asked for a number.
+    if (typeof v === 'string') {
+      const m = /-?\d+(?:\.\d+)?/.exec(v);
+      if (m) return Number(m[0]);
+    }
+    return undefined;
+  };
+  const str = (k: string): string => (typeof obj[k] === 'string' ? (obj[k] as string).trim() : '');
+
+  const camera: Partial<StandpointCamera> = {
+    eyeHeightM: num('eyeHeightM'),
+    bearingDeg: num('bearingDeg'),
+    tiltDeg: num('tiltDeg'),
+    hfovDeg: num('hfovDeg'),
+    nearestM: num('nearestM'),
+    nearestThing: str('nearestThing') || 'the nearest thing in shot',
+  };
+  const complete =
+    typeof camera.eyeHeightM === 'number' &&
+    typeof camera.tiltDeg === 'number' &&
+    typeof camera.hfovDeg === 'number' &&
+    typeof camera.nearestM === 'number';
+
+  const parts: string[] = [];
+  if (complete) {
+    const c = camera as StandpointCamera;
+    const tilt =
+      Math.abs(c.tiltDeg) < 0.5
+        ? 'held level'
+        : c.tiltDeg > 0
+          ? `tilted ${Math.abs(c.tiltDeg).toFixed(1)} degrees below level`
+          : `tilted ${Math.abs(c.tiltDeg).toFixed(1)} degrees above level`;
+    parts.push(
+      `The lens is ${c.eyeHeightM.toFixed(2)} m above ${str('standingOn') || 'the ground the photographer stands on'}, ` +
+        `facing ${bearingWords(c.bearingDeg ?? 0)}, ${tilt}, with a horizontal field of view of ` +
+        `${Math.round(c.hfovDeg)} degrees. The nearest thing in shot is ${c.nearestThing}, ${c.nearestM} m away. ` +
+        `Every photograph in this series is made from that exact position with that exact lens.`,
+    );
+  }
+  if (str('frameMap')) parts.push(str('frameMap'));
+  if (str('permanentFabric')) parts.push(str('permanentFabric'));
+
+  if (!parts.length) {
+    console.warn('[looking-glass] standpoint parsed but was empty — the sweep runs without one.');
+  }
+  return { text: parts.join('\n\n'), camera: complete ? (camera as StandpointCamera) : undefined };
 }
 
 export async function generateSceneDirection(

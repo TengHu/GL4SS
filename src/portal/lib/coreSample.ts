@@ -44,6 +44,7 @@ import type { ModelSelection, VideoModelCapability } from '../../lib/openrouter'
 import { audioForSequence, renderClip, renderStill } from './render';
 import { explainFailure } from '../../lib/failure';
 import { buildCoreSamplePrompts } from '../../lib/promptcraft';
+import { drawCameraSkeleton } from './cameraSkeleton';
 import type { SceneDirection } from '../../lib/promptcraft';
 import { MAX_YEAR, MIN_YEAR, formatYear } from '../../lib/format';
 import { findPhase } from './daylight';
@@ -834,9 +835,10 @@ export class CoreSampleRunner {
        * because every frame would then agree on the wrong view.
        */
       let standpoint = '';
+      let skeleton: string | null = null;
       if (anchorUrl && !abort.signal.aborted) {
         const years = this.state.frames.map((f) => f.year);
-        standpoint = await planStandpoint(
+        const sp = await planStandpoint(
           config.apiKey,
           request.location,
           request.coordinates,
@@ -845,6 +847,18 @@ export class CoreSampleRunner {
           { earliest: Math.min(...years), latest: Math.max(...years) },
           config.models.text,
           { signal: abort.signal },
+        );
+        standpoint = sp.text;
+        /**
+         * Drawn once, from the numbers the same call returned, so the diagram
+         * and the prose are two renderings of one set of figures. Free — canvas,
+         * no request — and null rather than wrong when the numbers are out of
+         * range, which drops the sweep back to prose alone.
+         */
+        skeleton = drawCameraSkeleton(sp.camera);
+        console.info(
+          `[looking-glass] standpoint: ${sp.camera ? JSON.stringify(sp.camera) : 'no camera numbers'}` +
+            ` · diagram ${skeleton ? 'drawn' : 'not drawn'}`,
         );
       }
       if (abort.signal.aborted) return;
@@ -894,13 +908,13 @@ export class CoreSampleRunner {
         this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
 
         /**
-         * NOTHING IS ATTACHED. A sweep frame is drawn, not edited.
+         * NO PHOTOGRAPH IS ATTACHED. A sweep frame is drawn, not edited.
          *
-         * The seed's contribution arrives as words — `standpoint` for the
+         * The seed's contribution arrives as information — `standpoint` for the
          * vantage and the permanent fabric, `direction.standing` for what stood
-         * here in this year — both written by models that READ the photograph
-         * rather than repaint it. See ReferenceKind in promptcraft for what the
-         * attachment was doing instead.
+         * here in this year, and the diagram for the camera — all of it written
+         * or computed by steps that READ the photograph rather than repaint it.
+         * See ReferenceKind in promptcraft for what the attachment used to do.
          */
         const prompts = buildCoreSamplePrompts(
           {
@@ -914,14 +928,45 @@ export class CoreSampleRunner {
             template: config.template,
             aspect: '16:9',
             standpoint,
+            cameraDiagram: Boolean(skeleton),
           },
           direction,
           'none',
         );
+        /**
+         * The diagram can be refused as an input image like any other, and the
+         * clause above TALKS ABOUT IT. Retrying with those words after the
+         * attachment has been dropped would leave the model reading instructions
+         * about a drawing it was never given — the lesson the stills path
+         * learned once already.
+         */
+        const promptsNoDiagram = skeleton
+          ? buildCoreSamplePrompts(
+              {
+                location: request.location,
+                coordinates: request.coordinates,
+                year: frame.year,
+                mode: 'wide-field',
+                styleSuffix: config.styleOverride,
+                periodProcess: config.periodProcess,
+                phase,
+                template: config.template,
+                aspect: '16:9',
+                standpoint,
+              },
+              direction,
+              'none',
+            )
+          : prompts;
         try {
           const { url } = await renderStill(
             config.apiKey,
-            { model, prompts },
+            {
+              model,
+              prompts,
+              references: skeleton ? [skeleton] : undefined,
+              unanchoredPrompts: promptsNoDiagram,
+            },
             { signal: abort.signal },
           );
           if (abort.signal.aborted) break;

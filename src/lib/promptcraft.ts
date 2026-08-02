@@ -1044,6 +1044,14 @@ export interface BuildPanelsOpts {
   standpoint?: string;
   /** Derived from `standpoint` in buildCoreSamplePrompts — see BuildPromptOpts. */
   fixedFraming?: boolean;
+  /**
+   * A perspective diagram is attached to this request — see cameraSkeleton.ts.
+   *
+   * The prompt has to say what it is, because it is the one attachment in this
+   * app that is NOT a picture of the place. Left unexplained, a model handed a
+   * grid and a horizon has every reason to draw a grid and a horizon.
+   */
+  cameraDiagram?: boolean;
 }
 
 export function buildImagePromptsFromDirection(
@@ -1162,8 +1170,35 @@ export function buildCoreSamplePrompts(
    * is where a per-frame fact belonged all along, and it cannot be lost again by
    * removing something else.
    */
+  /**
+   * THE DIAGRAM CLAUSE, FIRST OF ALL — ahead even of the standpoint prose it
+   * agrees with, because it is the only line in the prompt that reclassifies an
+   * attachment. Every other reference this app sends is a photograph of the
+   * place; this one is a drawing of the camera, and a model that mistakes it for
+   * content will draw the grid.
+   *
+   * The horizon is identified structurally, not by colour: "the horizontal line
+   * the converging lines all meet at" is unique in that drawing at any tilt, and
+   * naming a colour would invite the colour into the render.
+   *
+   * The second sentence is the one that does the work. Where the horizon falls
+   * IS the camera's height and tilt, and putting standing people's eyes on it is
+   * the same statement in a form the model can check while it composes — it was
+   * how the drift was diagnosed in the first place.
+   */
+  const diagram = opts.cameraDiagram
+    ? `A PERSPECTIVE DIAGRAM IS ATTACHED. It is not scene content and nothing in it ` +
+      `appears in the picture — no lines, no grid, no marks. It is the camera. Its one ` +
+      `horizontal line, the one every converging line meets at, is eye level: put the ` +
+      `horizon exactly there, and place everyone standing on the ground so that their ` +
+      `eyes fall on that line however near or far they are. The converging lines are the ` +
+      `ground running away from that camera — match how fast they close. Then draw the ` +
+      `scene described below on that geometry, as an ordinary photograph.`
+    : '';
+
   const lead = (p: string): string => {
     const parts: string[] = [];
+    if (diagram) parts.push(diagram);
     if (opts.standpoint?.trim()) {
       parts.push(
         `Every photograph in this series is made from one fixed spot, framed the same way. ` +
