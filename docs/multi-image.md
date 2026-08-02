@@ -218,6 +218,42 @@ Turn grow and blur **down** and frames hug the seed: smoother, but modern things
 start surviving. Turn them **up** and each year is more its own picture, at the
 cost of drift.
 
+#### Grow and blur are not the same mechanism
+
+They are easy to read as one dial applied to two kinds of box. They are not:
+**one changes geometry, the other changes pixels, and each touches only one
+verdict.**
+
+| | applies to | what it does | resizes the box? |
+|---|---|---|---|
+| **box grow** | `absent` only | enlarges the rectangle **before** filling it grey | **yes** |
+| **blur radius** | `altered` only | how blurry the pixels **inside** the rectangle get | **no** — used at the size the model returned |
+
+```js
+// absent — grown
+const r = toRect(a, grow);      // grow = min(W,H)/160
+ctx.clip(); ctx.fillStyle = '#8c8c8c'; ctx.fillRect(...)
+
+// altered — NOT grown
+const r = toRect(a, 0);         // <- zero
+ctx.clip(); ctx.filter = `blur(${...}px)`; ctx.drawImage(...)
+```
+
+**Only `absent` grows, because under-erasing is the expensive mistake.** Leave a
+sliver of a fence at the edge of the box and inpainting bridges it back across
+the hole — that is exactly how the railings returned in the 1900 Colosseum probe.
+Surplus erased wall is simply reinvented, which the model does well, so erase
+boxes are deliberately generous.
+
+Blurring has no such failure mode. A sliver of sharp pixels at the edge of a
+blurred region is not a seed for anything, it is just sharp — so there is nothing
+to buy by growing it.
+
+The two knobs answer different questions:
+
+- **grow** — *how much extra do we throw away?*
+- **blur** — *how much freedom do we give to what we keep?*
+
 ### How abrupt the transitions feel
 
 The real driver is **how much of the frame gets erased** — two frames sharing 90%
