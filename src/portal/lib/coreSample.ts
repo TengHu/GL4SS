@@ -448,6 +448,33 @@ export function bestFilmResolution(
 }
 
 /**
+ * THE CAMERA, IN NUMBERS — for the clip that lost its closing pin.
+ *
+ * The same six figures the perspective grid is drawn from, said as figures. The
+ * grid itself cannot come here: it is painted only INTO a cut-out's erased
+ * regions, and a clip's frames have none — every pixel of them already states
+ * the camera. Drawn onto a `first_frame` it would simply be reproduced, because
+ * that frame is the first frame of the output rather than something to refill.
+ *
+ * Prose alone is the approach cameraSkeleton.ts records as having measurably
+ * FAILED for stills: across one Colosseum sweep it fixed the lens (74° against
+ * 72°) and let the camera climb 1.6 m and level out by 6.2°. "No pan, no zoom,
+ * no dolly" is that same prose. The numbers cost nothing — they are in hand
+ * before any clip is submitted — and they are the two quantities that drifted.
+ */
+function describeCamera(cam: StandpointCamera): string {
+  const tilt =
+    Math.abs(cam.tiltDeg) < 1
+      ? 'level'
+      : `tilted ${Math.abs(cam.tiltDeg).toFixed(0)}° ${cam.tiltDeg > 0 ? 'down' : 'up'}`;
+  return (
+    `Hold this camera for the whole shot: ${cam.hfovDeg.toFixed(0)}° horizontal field of ` +
+    `view, lens ${cam.eyeHeightM.toFixed(1)} m above the ground, ${tilt}, nearest ` +
+    `subject about ${cam.nearestM.toFixed(0)} m away. The horizon must not rise or fall. `
+  );
+}
+
+/**
  * What a transition clip is asked to be.
  *
  * Deliberately about the CAMERA HOLDING STILL while the world moves through it.
@@ -456,17 +483,27 @@ export function bestFilmResolution(
  * shot in which time passes. The years are named because the model is being
  * asked to cover a specific interval, and "centuries" and "eleven years" want
  * visibly different rates of change.
+ *
+ * `camera` is spent ONLY on the unpinned wording, and that is the whole point of
+ * having it. A clip pinned at both ends cannot drift at its ends — it starts on
+ * a real frame and lands on a real frame, and the geometry is stated by those
+ * pixels far better than four numbers could. Drop the closing pin and that
+ * guarantee is gone: the clip is free to wander to somewhere the next clip does
+ * not begin. The numbers go exactly where the structure stopped holding.
  */
 function buildTransitionPrompt(
   location: string,
   from: number,
   to: number,
   pinned: boolean,
+  camera?: StandpointCamera,
 ): string {
   return (
     `One continuous shot at ${location}, from a camera standing in one place. ` +
     `The viewpoint is fixed: no pan, no zoom, no dolly — only the small settling a ` +
-    `camera makes on a tripod. Within the shot, time carries the place from ` +
+    `camera makes on a tripod. ` +
+    (!pinned && camera && cameraIsUsable(camera) ? describeCamera(camera) : '') +
+    `Within the shot, time carries the place from ` +
     `${formatYear(from)} to ${formatYear(to)}: the light moves, weather passes, ` +
     `growth and water shift, and what stands here is built, weathers or goes. ` +
     (pinned
@@ -485,6 +522,15 @@ export class CoreSampleRunner {
   private state: CoreSampleState = IDLE;
   private listeners = new Set<() => void>();
   private abort: AbortController | null = null;
+  /**
+   * The standpoint's camera numbers, kept from the sweep for the film pass.
+   *
+   * Off the state rather than on it: nothing renders it, and CoreSampleState is
+   * the snapshot every subscriber re-reads. It is written once per sweep, read
+   * only by a clip that lost its closing pin, and cleared in start() so a second
+   * sweep cannot film against the first sweep's viewpoint.
+   */
+  private camera: StandpointCamera | undefined;
 
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
@@ -598,7 +644,15 @@ export class CoreSampleRunner {
           config.apiKey,
           {
             prompt: buildTransitionPrompt(this.state.location, a.year, b.year, true),
-            unpinnedPrompt: buildTransitionPrompt(this.state.location, a.year, b.year, false),
+            // The fallback carries the camera numbers; the pinned wording does
+            // not need them. See buildTransitionPrompt.
+            unpinnedPrompt: buildTransitionPrompt(
+              this.state.location,
+              a.year,
+              b.year,
+              false,
+              this.camera,
+            ),
             model: opts.model,
             seconds: opts.seconds,
             resolution: opts.resolution,
@@ -663,6 +717,8 @@ export class CoreSampleRunner {
       clips: [],
       filmStatus: 'none',
     };
+    // A new sweep must not film against the previous sweep's viewpoint.
+    this.camera = undefined;
     for (const fn of this.listeners) fn();
 
     const model = imageModelForMode('wide-field', config.models);
@@ -900,6 +956,8 @@ export class CoreSampleRunner {
          * reference — one attachment, one convention to explain.
          */
         camera = sp.camera;
+        // Kept for the film pass, which runs long after this method returns.
+        this.camera = sp.camera;
         console.info(
           `[looking-glass] standpoint: ${sp.camera ? JSON.stringify(sp.camera) : 'no camera numbers'}`,
         );
