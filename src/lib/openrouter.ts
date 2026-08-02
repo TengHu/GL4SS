@@ -588,8 +588,7 @@ function buildSceneDirectionPrompt(
       // 2019-seeded sweep planned 1920 at Mount Rushmore with the carving intact,
       // seven years before the first charge was set. Naming the date the work
       // started is what makes the answer checkable rather than impressionistic.
-      ? `  "referenceHolds": "REQUIRED HERE. Exactly one word, yes or no. Does the dominant BUILT subject of the attached photograph — the main structure, monument, building or roadway it is a picture of — already exist at this spot in ${formattedYear}? Answer yes only if a photographer standing here in ${formattedYear} would see that thing, complete or under construction. If it was built later, or was already demolished by ${formattedYear}, or the photograph has no built subject at all and is a picture of open land, answer no.",
-  "standing": "REQUIRED HERE. Work through the attached photograph object by object. FIRST, absence: name anything visible in it that did not exist yet at this spot in ${formattedYear} — give the year that thing was built, begun or installed, and say what occupied that ground in ${formattedYear} instead. If it was under construction in ${formattedYear}, say exactly what stage it had reached that year. Name anything that was already gone by ${formattedYear} too. SECOND, survival: what is still standing here in ${formattedYear} and how it looked then — if the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance, because it must not vanish. Name the things, do not generalise. THIRD, if the photograph shows vehicles, or people carrying or holding or using anything, name what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
+      ? `  "standing": "REQUIRED HERE. Work through the attached photograph object by object. FIRST, absence: name anything visible in it that did not exist yet at this spot in ${formattedYear} — give the year that thing was built, begun or installed, and say what occupied that ground in ${formattedYear} instead. If it was under construction in ${formattedYear}, say exactly what stage it had reached that year. Name anything that was already gone by ${formattedYear} too. SECOND, survival: what is still standing here in ${formattedYear} and how it looked then — if the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance, because it must not vanish. Name the things, do not generalise. THIRD, if the photograph shows vehicles, or people carrying or holding or using anything, name what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
       : '',
     `  "leftSubject": "specific concrete subject in the LEFT panel (one short phrase, distinct from center and right)",`,
     `  "centerSubject": "specific concrete focal subject in the CENTER panel",`,
@@ -700,7 +699,6 @@ const SCENE_FIELDS: (keyof SceneDirection)[] = [
   'periodMarkers',
   'biome',
   'standing',
-  'referenceHolds',
   'leftSubject',
   'centerSubject',
   'rightSubject',
@@ -709,20 +707,6 @@ const SCENE_FIELDS: (keyof SceneDirection)[] = [
   'cinematicCameraMove',
   'cinematicSoundCue',
 ];
-
-/**
- * The verdict, read strictly and defaulting to 'no'.
- *
- * Only a clear yes is a yes. Anything else — absent, empty, hedged, a sentence
- * where an enum was asked for — means the runner attaches nothing, and the
- * asymmetry is on purpose: an unattached frame drifts a little, an attached one
- * renders the finished monument seven years before the first charge was set.
- * The cheap failure is the default.
- */
-function parseReferenceHolds(raw: string): 'yes' | 'no' | undefined {
-  if (!raw) return undefined;
-  return /^\s*yes\b/i.test(raw) ? 'yes' : 'no';
-}
 
 function parseSceneDirection(raw: string): SceneDirection | null {
   if (!raw) return null;
@@ -775,7 +759,6 @@ function parseSceneDirection(raw: string): SceneDirection | null {
        * valid. It was just missing the field that carried the answer.
        */
       standing: get('standing') || undefined,
-      referenceHolds: parseReferenceHolds(get('referenceHolds')),
       biome: get('biome').replace(/\.\s*$/, ''),
       leftSubject: get('leftSubject'),
       centerSubject: get('centerSubject'),
@@ -840,9 +823,13 @@ export async function planStandpoint(
     ``,
     `A photograph taken from that spot in ${formatYear(seedYear)} is attached. Read the geometry out of it.`,
     ``,
-    `Describe, in plain prose: the height of the camera above the ground and what the photographer is standing on; which way they are facing; how wide the view is; where the horizon falls in the frame; what occupies the left edge, the centre and the right edge; and the profile of the permanent landform — ridge lines, summit shapes, cliff faces, the run of a valley, coast or watercourse — in enough detail that someone could draw it without ever seeing the picture.`,
+    `Describe, in plain prose: the height of the camera above the ground and what the photographer is standing on; which way they are facing; how wide the view is; where the horizon falls in the frame; and what occupies the left edge, the centre and the right edge.`,
     ``,
-    `THE RULE THAT MATTERS: include ONLY what is true in EVERY year from ${earliest} to ${latest}. Trees grow, fall and are cleared. Weather, snow, season and time of day change. Buildings, roads, monuments and machines are built and demolished — if the attached photograph's main subject was made after ${earliest}, it does not belong in your paragraph either, however dominant it looks. What survives that filter is bedrock, terrain and the shape of the horizon. Write that, and nothing else.`,
+    `Then describe EVERYTHING PERMANENT IN THE VIEW in enough detail that someone could draw it without ever seeing the picture. Landform: ridge lines, summit shapes, cliff faces, the run of a valley, coast or watercourse. And any built thing that stands through the whole period — its shape, size, materials, condition, how much of it is standing and how it is broken, and where it sits in the frame. A structure that was already old in ${earliest} and is still there in ${latest} is as permanent as the hill behind it, and it is the main thing that makes this view recognisable. Do not leave it out.`,
+    ``,
+    `THE RULE THAT MATTERS: include ONLY what is true in EVERY year from ${earliest} to ${latest}, and leave out everything that belongs to one year rather than to all of them. LEAVE OUT every person and every animal, what they wear and what they carry. LEAVE OUT vehicles, bicycles, signs, lamps, railings, walkways, barriers and anything else installed, parked or set down. LEAVE OUT the weather, the season, the time of day, the direction of the light and the state of the sky. LEAVE OUT trees and undergrowth, which grow, fall and are cleared. And leave out anything BUILT AFTER ${earliest} or DEMOLISHED BEFORE ${latest}, however dominant it looks in the photograph — if the main subject was made after ${earliest}, it is not permanent for this series and does not belong here.`,
+    ``,
+    `Every observer in this series will draw their own year's people, weather and light from scratch. Your paragraph is the ground they all stand on, and nothing in it should date the picture.`,
     ``,
     `One paragraph of plain prose. No headings, no lists, no preamble, and no mention of the attached photograph or of any year.`,
   ].join('\n');

@@ -716,56 +716,6 @@ export class CoreSampleRunner {
      * Nearest first, because order is a priority signal — the frame beside
      * this one matters more to it than the origin does.
      */
-    /**
-     * NEAREST IN TIME, AND ONLY IF THE PLANNER SAYS IT HOLDS.
-     *
-     * Two rules replace the two-anchor scheme this used to implement.
-     *
-     * THE SEED IS NO LONGER A PERMANENT SECOND REFERENCE. It was added to stop
-     * the viewpoint drifting as the chain lengthened — frame twelve being a copy
-     * of a copy — which is a real problem, but attaching a photograph carries
-     * everything in it, not just the viewpoint. Seeded in 2019 and swept back to
-     * 1910, it carried a finished monument and the same bird in the same patch
-     * of sky into every frame. The standpoint paragraph does that job now: same
-     * text in every frame, no decay, no pixels.
-     *
-     * AND THE ATTACHMENT IS GATED. A reference is only useful for carrying the
-     * IDENTITY of something that exists in both years — this ridge, that
-     * building. Where nothing built survives into the target year there is no
-     * identity to carry, and the photograph is pure contamination: an image
-     * model handed a picture of a monument and told to un-build it will keep the
-     * monument, because there is no strength parameter to turn it down with
-     * (probed 2026-08-02: not one model in the catalog has one).
-     *
-     * Each anchor still carries its own year — the prompt has to date what it is
-     * given.
-     */
-    const referencesFor = (
-      i: number,
-      holds: 'yes' | 'no' | undefined,
-    ): Array<{ url: string; year: number }> => {
-      if (i === anchor) return [];
-      // Absent verdict means no. See parseReferenceHolds: the cheap failure is
-      // a frame that drifts, not a frame that is a century out of date.
-      if (holds !== 'yes') return [];
-      const towardSeed = i > anchor ? i - 1 : i + 1;
-      const neighbour = this.state.frames[towardSeed];
-      if (neighbour?.status === 'ready' && neighbour.url) {
-        return [{ url: neighbour.url, year: neighbour.year }];
-      }
-      /**
-       * The neighbour failed or was skipped. Reach one further along the same
-       * line rather than falling back to the seed — a gap in the chain is not a
-       * reason to re-import the year the sweep is trying to get away from.
-       */
-      const beyond = i > anchor ? i - 2 : i + 2;
-      const further = this.state.frames[beyond];
-      if (further?.status === 'ready' && further.url) {
-        return [{ url: further.url, year: further.year }];
-      }
-      return [];
-    };
-
     /** The years either side of this frame WITHIN THE SWEEP. */
     const sweepNeighbours = (i: number) => ({
       earlier: this.state.frames[i - 1]?.year ?? this.state.frames[i]!.year,
@@ -773,26 +723,19 @@ export class CoreSampleRunner {
     });
 
     /**
-     * What the planner is shown: the seed if it exists, else the neighbour.
+     * THE SEED IS READ, NEVER REDRAWN — and this is the only place it is used.
      *
-     * Returns the year with it. The caller used to send the picture from here
-     * and the year from `frames[anchor]` independently, which agreed only while
-     * the seed was the one being sent — on the fallback the planner was shown
-     * the neighbour's photograph and told it was taken in the seed's year, and
-     * then asked to reason about what had changed between them.
-     */
-    /**
-     * DELIBERATELY UNGATED, unlike the drawing request. This is not an oversight.
+     * The photograph goes to the planner, which is a vision model: image in,
+     * TEXT out. That is the right tool for "what is in this picture and where
+     * was the camera", and its output is words, so nothing pictorial can travel
+     * with it. The drawing request gets no attachment at all.
      *
-     * The planner is the dispatcher and it should hold every report that has
-     * come back, always — it is a vision model reading a picture to write text,
-     * which is how it knows there is a monument here at all, what the rock looks
-     * like and where the camera stood. It is also the step that decides
-     * `referenceHolds`, and it plainly cannot answer "does the thing in the
-     * photograph exist in this year" without the photograph.
+     * Whoever reads this next and thinks the drawing request is missing an
+     * obvious optimisation: it was there, for four days, and it repainted the
+     * same crowd's clothes across ninety years. See ReferenceKind in promptcraft.
      *
-     * Only the draughtsman is gated. The seed briefs everyone; it is handed to
-     * nobody's camera.
+     * Falls back to a neighbour when the seed never rendered — some photograph
+     * of this spot is better than none for working out what stands here.
      */
     const referenceForPlanner = (i: number): { url: string; year: number } | undefined => {
       if (i === anchor) return undefined;
@@ -951,19 +894,14 @@ export class CoreSampleRunner {
         this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
 
         /**
-         * DECIDED HERE, NOT ABOVE, because it now depends on the planner.
+         * NOTHING IS ATTACHED. A sweep frame is drawn, not edited.
          *
-         * `referenceHolds` is the planner's answer to whether the photograph is
-         * even about this year, so the attachment cannot be chosen until the
-         * direction has come back. It used to be picked before the planning call
-         * was awaited, which is why the gate could not have existed earlier
-         * however the prompt was worded.
+         * The seed's contribution arrives as words — `standpoint` for the
+         * vantage and the permanent fabric, `direction.standing` for what stood
+         * here in this year — both written by models that READ the photograph
+         * rather than repaint it. See ReferenceKind in promptcraft for what the
+         * attachment was doing instead.
          */
-        const anchors = referencesFor(i, direction.referenceHolds);
-        const references = anchors.map((a) => a.url);
-        const referenceYears = anchors.map((a) => a.year);
-        const reference = references[0];
-
         const prompts = buildCoreSamplePrompts(
           {
             location: request.location,
@@ -978,49 +916,22 @@ export class CoreSampleRunner {
             standpoint,
           },
           direction,
-          reference ? 'chained' : 'none',
-          referenceYears,
+          'none',
         );
-        // Without a reference the anchor sentence is absent from `prompts`, so
-        // the unchained retry below has to be built from its own candidate list
-        // rather than reusing this one — otherwise a refused input image would
-        // leave the prompt talking about an attachment that is no longer there.
-        const unchainedPrompts = reference
-          ? buildCoreSamplePrompts(
-              {
-                location: request.location,
-                coordinates: request.coordinates,
-                year: frame.year,
-                mode: 'wide-field',
-                styleSuffix: config.styleOverride,
-                periodProcess: config.periodProcess,
-                phase,
-                template: config.template,
-                aspect: '16:9',
-                standpoint,
-              },
-              direction,
-              'none',
-            )
-          : prompts;
-
         try {
-          // A provider that will not take an input image must not cost the user
-          // the rest of the sweep: renderStill drops the anchor for this frame
-          // alone and reports that it did, and the next frame tries to chain
-          // again from here.
-          const { url, anchored } = await renderStill(
+          const { url } = await renderStill(
             config.apiKey,
-            { model, prompts, references, unanchoredPrompts: unchainedPrompts },
+            { model, prompts },
             { signal: abort.signal },
           );
           if (abort.signal.aborted) break;
-          this.patchFrame(i, { status: 'ready', url, chained: anchored });
+          // `chained` is false for every sweep frame now, and honestly so: no
+          // frame is drawn from another frame's pixels.
+          this.patchFrame(i, { status: 'ready', url, chained: false });
         } catch (err) {
           if (abort.signal.aborted) break;
-          // `reference` is deliberately left pointing at the last GOOD frame, so
-          // the chain re-anchors across the gap instead of restarting from
-          // nothing on the far side of it.
+          // A failed frame costs only itself. Nothing downstream was drawn from
+          // it, so there is no chain to re-anchor across the gap.
           this.patchFrame(i, { status: 'error', error: explainFailure(err).title });
         }
       }
