@@ -1033,12 +1033,25 @@ export function Portal() {
      * a photograph and pulling the lever is an explicit ask for a new picture,
      * which is exactly what retry is.
      */
+    /**
+     * THE LEVER ALWAYS MAKES A NEW PICTURE.
+     *
+     * It used to hand back whatever was already owned, which made it a no-op at
+     * any station previously generated: same year, same place, press, and the
+     * old frame reappeared instantly with nothing spent and nothing new. But the
+     * lever is the ONE paid action in this app — scrubbing is free, and settling
+     * on a station you own already restores it for nothing without touching this
+     * handler. Pressing it can only mean "make me one".
+     *
+     * force rather than retry, even for the photograph, because retry deletes
+     * the stored frame before generating and a failure would then have destroyed
+     * something already paid for. force overwrites on success and leaves the old
+     * frame untouched on failure.
+     */
     const reference = seedPhoto?.url;
-    if (reference) {
-      engine.retry(here, { reference });
-      setSeedPhoto(null);
-    } else if (scene?.status === 'error') engine.retry(here);
-    else engine.request(here, 'demand');
+    if (scene?.status === 'error') engine.retry(here, reference ? { reference } : {});
+    else engine.request(here, 'demand', { reference, force: true });
+    if (reference) setSeedPhoto(null);
     // The journey is spent; the next move starts a new one from here.
     setNav((cur) => ({ ...cur, origin: null }));
   }, [engine, apiKey, year, coordinates, location, styleKey, phaseId, scene?.status, placeCoversLever, seedPhoto]);

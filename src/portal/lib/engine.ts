@@ -308,12 +308,43 @@ export class SceneEngine {
   request(
     coords: SceneCoords,
     priority: 'demand' | 'prefetch' = 'demand',
-    options: { reference?: string } = {},
+    options: {
+      reference?: string;
+      /**
+       * MAKE A NEW ONE, even at a station already owned.
+       *
+       * Pulling the lever is the app's one paid action — browsing is free and
+       * settling on a station you own restores it for nothing, both without this
+       * flag. So a lever pull is an explicit ask for a picture, and answering it
+       * with the picture already on disk made the control a no-op at exactly the
+       * stations where the visitor most wanted another roll of the dice.
+       *
+       * DELIBERATELY NOT retry(). That drops the persisted record BEFORE
+       * generating, so a regeneration that then fails destroys a frame the
+       * visitor had already paid for. This keeps the stored frame until a new
+       * one lands and overwrites it — an upsert, which is what was asked for and
+       * also the only version that is safe to fail.
+       */
+      force?: boolean;
+    } = {},
   ): Scene {
     const key = sceneKey(coords);
     const existing = this.scenes.get(key);
 
-    if (existing) {
+    if (options.force) {
+      // Abort anything in flight for this key and clear it out of memory, so the
+      // scene rebuilds from scratch and the UI shows work rather than the old
+      // picture. The archive is left alone on purpose — see `force` above.
+      const running = this.active.get(key);
+      if (running) {
+        running.abort.abort();
+        this.active.delete(key);
+      }
+      this.scenes.delete(key);
+      this.queue = this.queue.filter((j) => j.key !== key);
+    }
+
+    if (existing && !options.force) {
       existing.touchedAt = Date.now();
       // A prefetch already in flight gets promoted if the user arrives on it.
       if (priority === 'demand') {
@@ -341,7 +372,7 @@ export class SceneEngine {
     // We already own this frame — read it back instead of paying for it again.
     // This is what makes a revisit both free AND identical: the same spacetime
     // returns the same photograph rather than a fresh roll of the dice.
-    if (this.persisted.keys.has(key)) {
+    if (this.persisted.keys.has(key) && !options.force) {
       scene.status = 'restoring';
       this.scenes.set(key, scene);
       this.evictMemory();
@@ -904,6 +935,19 @@ export class SceneEngine {
       return;
     }
 
+    /**
+     * REPLACE the previous size, do not add to it.
+     *
+     * putFrame is a genuine upsert — `put` on both the meta store and the blob
+     * store — so writing a key that already exists replaces its bytes on disk
+     * while this counter only ever grew. It never showed because the one path
+     * that rewrote a key was retry(), which deletes and decrements first. A
+     * forced regeneration does not delete, so without this the budget drifts up
+     * by a whole frame every time the lever is pulled at a station already
+     * owned, and eviction starts firing against a total that is not real.
+     */
+    const previous = this.persisted.keys.get(key);
+    if (previous !== undefined) this.persisted.totalBytes -= previous;
     this.persisted.keys.set(key, bytes);
     this.persisted.totalBytes += bytes;
     this.emit();
