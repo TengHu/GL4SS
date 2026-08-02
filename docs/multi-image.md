@@ -83,17 +83,60 @@ Measured against the live API:
 
 ~6 seconds, ~$0.003 each.
 
-**4. The cut-out** — no call, `compositeCutout()`.
+**4. The cut-out** — **no API call**, `compositeCutout()`, entirely in the browser.
 
-| verdict | treatment |
-|---|---|
-| `absent` | erased to flat grey, box grown |
-| `altered` | blurred — structure survives, detail is freed |
-| not listed | untouched |
+Three states end up in the picture, and every pixel is in exactly one of them:
 
-Then the **perspective grid** is painted into the erased regions only, from the
+| what you see | verdict | means |
+|---|---|---|
+| **flat grey** | `absent` | was not there *at all* in the target year — invent something new. Box grown before filling |
+| **blurred** | `altered` | *was* there but looked different — the shape survives, the detail is freed |
+| **untouched** | not listed | the same in the target year — copy it exactly |
+
+Worked example, the DC seed asked for 1900 — nine `absent`, thirteen `altered`:
+
+- **grey:** the Federal Triangle, the National Archives, the Smithsonian museums
+  on Constitution Ave, the Department of Commerce, the Reflecting Pool. None of
+  them existed, so there is nothing to preserve and the model builds the 1900
+  city from nothing.
+- **blurred:** the Mall lawn and its paths, the roads, the Ellipse, the Tidal
+  Basin, the plaza at the Monument's base. The ground was there — but as a
+  Victorian garden with winding drives, not a modern greensward.
+- **untouched:** the Monument itself, finished 1884 and correct as it stands.
+
+Grey says *"something else goes here."* Blur says *"this thing, differently."*
+Greying the Mall too would tell the model nothing about there being open ground
+rather than more buildings; the blur keeps the massing and frees the period.
+
+Then the **perspective grid** is painted into the grey regions only, from the
 standpoint numbers. Where pixels survive they state the camera themselves; where
 they are gone, the grid is the only thing left saying where the ground lies.
+
+### Who does what
+
+The division of labour is worth being exact about, because the cut-out looks like
+something a model produced and it is not.
+
+| step | who | what comes out |
+|---|---|---|
+| **decide** | `gemini-2.5-flash`, vision in / text out | a JSON list — box, label, and the word `absent` or `altered`. Nothing else |
+| **paint** | our canvas code, no network | the grey, the blur, the grid |
+| **generate** | the image model | the finished frame |
+
+Gemini's entire contribution is numbers and two words:
+
+```json
+{"b":[164,477,401,843], "l":"Federal Triangle buildings", "c":"absent"}
+{"b":[390,484,532,923], "l":"National Mall landscaping",  "c":"altered"}
+```
+
+It never sees the cut-out and never produces an image — it only ever looked at
+the seed photograph.
+
+**Which two words exist is our choice, not the model's.** The prompt asks for
+`absent` or `altered`; the model only assigns them. That is why there are exactly
+two treatments and no gradient between them — we never asked for a third, and a
+box has no interior to grade anyway. See *Known weaknesses*.
 
 **5. The planner** — one text call, the existing `generateSceneDirection()`. Sees
 the seed. Returns habitation, biome, period markers, atmosphere, the light,
@@ -112,6 +155,7 @@ seed photograph
 ```
 
 **Per station: 2 text calls + 1 image call.** Per sweep: one extra text call.
+The cut-out is free — canvas, no network, no cache.
 
 ---
 
