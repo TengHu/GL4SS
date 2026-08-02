@@ -1636,7 +1636,34 @@ export function Portal() {
             dial to a year you have not made yet and the offer returns, because
             that is a seed waiting to be made. */}
         {apiKey && (!scene || scene.status === 'error') && (
-          <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />
+          <>
+            <SeedPhoto photo={seedPhoto} onChange={setSeedPhoto} />
+            {/* THE THIRD WAY IN, beside the file picker and paste.
+                It lived under the map for a while, which was wrong twice over:
+                in home mode the map IS the whole screen and its panel floats
+                its own chrome, so the row landed underneath this very box — and
+                more basically, "where does a reference photograph come from" is
+                one question with three answers, and they belong in one place.
+                It still follows the map: the pin is a prop, so clicking
+                anywhere re-asks what imagery is there.
+
+                A capture brings its own year, so the dial moves to what the
+                picture actually shows — which keeps the reference contract
+                (this photograph is this place at this time) true without
+                anyone having to think about it. */}
+            <StreetViewSeed
+              apiKey={googleKey}
+              coordinates={coordinates}
+              onCaptured={(photo, capturedYear) => {
+                setSeedPhoto(photo);
+                if (capturedYear !== null) {
+                  setIndex(nearestStationIndex(capturedYear));
+                  setExactYear(STATIONS.includes(capturedYear) ? null : capturedYear);
+                }
+                setMapExpanded(false);
+              }}
+            />
+          </>
         )}
 
         {/* TWO INDEPENDENT PATHS TO A VIDEO, one box each.
@@ -1708,31 +1735,6 @@ export function Portal() {
       {/* ---- controls ---- */}
       <div className="portal-bottom">
         <PlaceDial
-          /**
-           * The street-view control is composed in here rather than built
-           * inside PlaceDial: that file owns a map and a geocoder and should
-           * not also learn about Google keys and reference photographs. It
-           * knows WHERE, which is all this needs.
-           *
-           * A capture lands exactly where a paste does — and brings its own
-           * year, so the dial moves to what the picture actually shows. That
-           * keeps the reference contract ("this photograph is this place at
-           * this time") true without anyone having to think about it.
-           */
-          streetView={
-            <StreetViewSeed
-              apiKey={googleKey}
-              coordinates={coordinates}
-              onCaptured={(photo, capturedYear) => {
-                setSeedPhoto(photo);
-                if (capturedYear !== null) {
-                  setIndex(nearestStationIndex(capturedYear));
-                  setExactYear(STATIONS.includes(capturedYear) ? null : capturedYear);
-                }
-                setMapExpanded(false);
-              }}
-            />
-          }
           coordinates={coordinates}
           location={location}
           onPick={pickPlace}

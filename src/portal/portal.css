@@ -6110,13 +6110,19 @@ body {
    thing it needs is the point the map is showing. Quiet when there is nothing
    here — which is most of Earth, since street view follows roads. */
 
-.sv { border-top: 1px solid var(--chrome); }
+.sv {
+  align-self: flex-start;
+  max-width: min(420px, 100%);
+  border: 1px solid var(--chrome);
+  border-radius: 3px;
+  background: rgba(8, 11, 15, 0.66);
+}
 
 .sv-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 7px 10px;
 }
 
 .sv-dot {
@@ -6155,7 +6161,7 @@ body {
 }
 
 .sv-pano {
-  width: 100%;
+  width: min(420px, 70vw);
   aspect-ratio: 16 / 9;
   background: #05070a;
   border-top: 1px solid var(--chrome);
