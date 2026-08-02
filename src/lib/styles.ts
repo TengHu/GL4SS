@@ -34,40 +34,6 @@ export interface StylePreset {
 export const STYLE_PRESETS: StylePreset[] = [
   { id: 'none', label: 'None', color: '#9ca3af', suffix: null },
   {
-    /**
-     * Next to None on purpose: they are the two closest neighbours in the set,
-     * and the difference is worth seeing side by side.
-     *
-     * NONE names no camera. The era supplies the palette, the lighting and the
-     * surface texture, and the image model picks whatever photographic register
-     * it likes — which for a 1915 street can be anything from a museum print to
-     * a modern travel photograph.
-     *
-     * THIS names the camera and lets the era keep everything else it is for.
-     * Under any style the era yields colour and light (see buildPanelPrompt), so
-     * this is a real trade rather than a free addition: you give up the era's
-     * palette to pin down how the picture was taken.
-     *
-     * WRITTEN AS PROSE, NOT AS TAGS. The obvious suffix here is "photorealistic,
-     * 8K, ultra detailed", and that is exactly the SDXL idiom this file removed —
-     * Black Forest Labs' FLUX.2 guide calls quality tags "unnecessary legacy
-     * behavior from older models". So this describes a way of photographing
-     * rather than asserting a quality level.
-     *
-     * Deliberately says nothing about film stock or format. Every other
-     * photographic preset here is a specific process — Aerochrome, a dashcam, a
-     * tilt-shift lens — and can afford to be anachronistic because that IS the
-     * effect. This one has to hold from the Triassic to 3050, so it describes
-     * only what a camera does, never what it was made of.
-     */
-    id: 'photoreal',
-    label: 'Photorealistic',
-    color: '#7dd3fc',
-    suffix:
-      'Photographed on location as though the camera were really standing there, natural available light, honest unretouched colour, a shallow plane of focus falling away behind the subject, fine grain and true optical detail.',
-    photographic: true,
-  },
-  {
     id: 'cyberpunk',
     label: 'Cyberpunk',
     color: '#ff00aa',
