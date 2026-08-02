@@ -11,8 +11,12 @@ node_modules
 
 # Build output. Cloudflare Pages builds from source on every push, so the bundle
 # is never committed — a committed bundle only ever goes stale and bloats clones.
+#
+# `docs` used to be listed here too, copied in from the GitHub Pages convention
+# where a site builds into docs/. Nothing in this repo does: vite.config.ts sets
+# outDir to `dist`. All the rule ever did was silently swallow written
+# documentation, which is the opposite of what a build-output ignore is for.
 dist
-docs
 dist-ssr
 *.local
 
