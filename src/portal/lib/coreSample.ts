@@ -550,6 +550,44 @@ function measureDrift(
 }
 
 /**
+ * WHAT THE MODEL WAS ACTUALLY HANDED, per frame, on `window.__sweep`.
+ *
+ * Every diagnosis this file has been through was an argument about a prompt
+ * nobody could read and an attachment nobody could look at — the vantage
+ * collapse, the doubled Colosseum, the silhouette. Each was settled, eventually,
+ * by reasoning from a screenshot, and twice the reasoning was wrong. The two
+ * artifacts that would have answered any of them in a glance are the assembled
+ * prompt and the cut-out image, and neither was recorded anywhere.
+ *
+ * Written OUTSIDE the state and outside React: this is not a feature, nothing
+ * renders it, and it must not become a thing the sweep maintains. It is a
+ * window onto the last run, and the last run only.
+ *
+ *   open(window.__sweep[1987].cutout)    the picture the model was given
+ *   copy(window.__sweep[1987].prompt)    the words it was given with it
+ */
+export interface SweepDebugEntry {
+  from?: number;
+  anachronisms: number;
+  absent: number;
+  attached: 'cut-out' | 'whole source' | 'nothing';
+  /** Data URL. Paste into a tab to see exactly what was sent. */
+  cutout?: string;
+  /** The candidate actually tried first. */
+  prompt: string;
+  /** What a refused attachment would have fallen back to. */
+  promptFallback: string;
+  /** Filled in once the frame lands. */
+  url?: string;
+}
+
+function sweepDebug(): Record<number, SweepDebugEntry> {
+  const w = window as unknown as { __sweep?: Record<number, SweepDebugEntry> };
+  if (!w.__sweep) w.__sweep = {};
+  return w.__sweep;
+}
+
+/**
  * What a transition clip is asked to be.
  *
  * Deliberately about the CAMERA HOLDING STILL while the world moves through it.
@@ -794,6 +832,9 @@ export class CoreSampleRunner {
     };
     // A new sweep must not film against the previous sweep's viewpoint.
     this.camera = undefined;
+    // The debug window shows the LAST run. Mixing two runs in it would recreate
+    // the exact confusion it exists to end.
+    (window as unknown as { __sweep?: unknown }).__sweep = {};
     for (const fn of this.listeners) fn();
 
     const model = imageModelForMode('wide-field', config.models);
@@ -1093,6 +1134,8 @@ export class CoreSampleRunner {
         const source = cutSource(i);
         let masked: string | null = null;
         let reference: string | null = null;
+        let anachronisms = 0;
+        let absent = 0;
         if (source) {
           const items = await segmentAnachronisms(
             config.apiKey,
@@ -1139,9 +1182,11 @@ export class CoreSampleRunner {
            * is a worse outcome than a surviving anachronism.
            */
           reference = masked ?? source.url;
+          anachronisms = items.length;
+          absent = items.filter((a) => a.change === 'absent').length;
           console.info(
-            `[looking-glass] ${frame.year} from ${source.year}: ${items.length} anachronisms ` +
-              `(${items.filter((a) => a.change === 'absent').length} absent) · ` +
+            `[looking-glass] ${frame.year} from ${source.year}: ${anachronisms} anachronisms ` +
+              `(${absent} absent) · ` +
               `attached ${masked ? 'cut-out' : 'the whole source'}`,
           );
         }
@@ -1201,6 +1246,19 @@ export class CoreSampleRunner {
         const promptsNoDiagram = reference
           ? buildSweepPrompts(sweepOpts, direction)
           : prompts;
+
+        // See SweepDebugEntry. Recorded BEFORE the render, so a frame that fails
+        // or is moderated still leaves behind what it was asked to be.
+        sweepDebug()[frame.year] = {
+          from: source?.year,
+          anachronisms,
+          absent,
+          attached: masked ? 'cut-out' : reference ? 'whole source' : 'nothing',
+          cutout: reference ?? undefined,
+          prompt: prompts[0]!,
+          promptFallback: promptsNoDiagram[0]!,
+        };
+
         try {
           const { url } = await renderStill(
             config.apiKey,
@@ -1229,6 +1287,8 @@ export class CoreSampleRunner {
            * faithful frames seams.
            */
           this.patchFrame(i, { status: 'ready', url, chained: Boolean(reference) });
+          const debugEntry = sweepDebug()[frame.year];
+          if (debugEntry) debugEntry.url = url;
 
           /**
            * NOW CHECK WHETHER IT IS ACTUALLY THE SAME CAMERA.
