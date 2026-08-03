@@ -1147,7 +1147,26 @@ export function buildCoreSamplePrompts(
    * most tightly pinned. A picture with holes in it is a stronger statement
    * about the framing than any paragraph.
    */
-  const fixedFraming = Boolean(opts.standpoint?.trim()) || Boolean(opts.cameraDiagram);
+  /**
+   * A SUPPLIED PHOTOGRAPH FIXES THE FRAME TOO, and this is the third thing that
+   * does. It was the one case left out, and it was the case that needed it most.
+   *
+   * A seed has no standpoint and no diagram, so with a photograph attached all
+   * four compositional instructions still fired straight at the picture the
+   * prompt had just called the subject: "framing that sits a little loose and
+   * slightly off centre, nothing arranged", "the centre of the scene", "the near
+   * ones large and sharp", and a named 35mm lens. Every one of them is an order
+   * to recompose, sitting in the most heavily weighted part of the prompt, and
+   * the anchor clause was left arguing against four separate contradictions for
+   * the frame it was trying to reproduce.
+   *
+   * They earn their place on a seed drawn from nothing — that is the difference
+   * between a snapshot and a render, and the frame is genuinely free. Handed a
+   * photograph of a real place, the framing is not free: it is the photograph's,
+   * and the lens is whatever actually took it.
+   */
+  const fixedFraming =
+    Boolean(opts.standpoint?.trim()) || Boolean(opts.cameraDiagram) || kind === 'photograph';
 
   /**
    * A CUT-OUT AUTHORS ITS OWN COLOUR, exactly as a supplied photograph does.
@@ -1281,14 +1300,34 @@ export function buildCoreSamplePrompts(
      * the film's clips — assumes it, so recomposing is stated openly instead of
      * being contradicted by a claim of an identical lens.
      */
+    /**
+     * WHICH SOURCE WINS, said once and said here.
+     *
+     * Eight blocks of scene description follow, and the planner wrote them from
+     * a coordinate and a year. It saw the photograph, so they are usually about
+     * the right place — but "usually" is the problem: where they disagree, one
+     * of them has to lose, and nothing in the prompt used to say which. The
+     * photograph is evidence and the description is inference, so the photograph
+     * wins, and a model reading a contradiction should not have to guess that.
+     *
+     * Framing orders are not answered here but SILENCED — see fixedFraming
+     * above. A rule that has to argue with four separate instructions is a rule
+     * that will sometimes lose the argument; better that they never arrive.
+     */
     const clause =
       `The attached photograph shows this exact place at this exact time. It is the ` +
       `subject: reproduce what it shows — the same street or ground, the same buildings ` +
-      `and structures, the same vantage and direction of view, the same light and season, ` +
-      `the same period in every visible detail. Do not relocate it, do not modernise it, ` +
-      `do not age it, and do not substitute a more famous view of the same district. ` +
-      `Where the photograph is unclear or cut off, extend it plausibly rather than ` +
-      `inventing something else. Recompose to a wide 16:9 frame from that same standpoint.`;
+      `and structures, the same vantage and direction of view, the same framing and ` +
+      `distance, the same light and season, the same period in every visible detail. ` +
+      `Do not relocate it, do not modernise it, do not age it, and do not substitute a ` +
+      `more famous view of the same district. Keep the camera exactly where the ` +
+      `photograph puts it: do not step closer, do not step back, do not change the lens, ` +
+      `and do not rearrange what is in front of it. Where the photograph is unclear or ` +
+      `cut off, extend it plausibly rather than inventing something else. Recompose to a ` +
+      `wide 16:9 frame from that same standpoint, widening the view rather than cropping ` +
+      `into it. Everything below describes this place and may fill in what the ` +
+      `photograph does not show; wherever it disagrees with the photograph, the ` +
+      `photograph is correct.`;
     return ordered.map((p) => lead(`${clause}\n\n${p}`));
   }
 

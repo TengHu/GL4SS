@@ -13,15 +13,14 @@
  * reaches anything but OpenRouter, on the visitor's own key, and a reload loses
  * it.
  *
- * IT IS THE PICTURE, not a reference to one. Bring a photograph and the next
- * lever pull stores THAT — no image is drawn, and nothing is charged for one.
+ * IT IS A REFERENCE, not a replacement. The picture that comes back is still
+ * generated for the year on the dial; your photograph is the subject it is told
+ * to reproduce, and everything in the prompt that would otherwise recompose the
+ * frame is silenced so it can. See ReferenceKind in promptcraft.
  *
- * It used to be a reference: a frame was still generated for the year on the
- * dial, with the photograph fixing only where the camera stood. That is gone.
- * The app has nothing better to offer for a place you have already photographed
- * than the photograph, and drawing over it spent money to lose information.
- *
- * The planner still runs, so the station still has its prose — see engine.run().
+ * Keeping the photograph AS the frame was tried instead — free and perfectly
+ * faithful — and looked worse: a phone photograph cropped to 16:9 sits among
+ * generated frames looking like exactly what it is.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -107,23 +106,13 @@ export function SeedPhoto({ photo, onChange }: Props) {
   };
 
   if (photo) {
-    /**
-     * COVER-CROPPED to the portal's 16:9, so a portrait photograph gives up most
-     * of its height. Said before the lever is pulled, not after: the loss is
-     * silent otherwise, and what comes out is the one frame in the archive that
-     * cannot be made again.
-     */
-    const cropped = Math.abs(photo.width / photo.height - 16 / 9) >= 0.005;
-
     return (
       <div className={`seedphoto seedphoto--set${dragging ? ' seedphoto--over' : ''}`} {...dragProps}>
         <img className="seedphoto-thumb" src={photo.url} alt="" />
         <div className="seedphoto-body">
-          <span className="seedphoto-title">Your photograph IS this picture</span>
+          <span className="seedphoto-title">Your photograph anchors this picture</span>
           <span className="seedphoto-meta">
-            {error ??
-              `${photo.name} · ${photo.width}×${photo.height} · kept by the next lever pull` +
-                (cropped ? ', cropped to 16:9' : '')}
+            {error ?? `${photo.name} · ${photo.width}×${photo.height} · used by the next lever pull`}
           </span>
         </div>
         <button className="ghost-btn seedphoto-clear" onClick={() => onChange(null)}>
@@ -150,7 +139,7 @@ export function SeedPhoto({ photo, onChange }: Props) {
         {busy ? 'reading…' : 'use my own photo'}
       </button>
       <span className="seedphoto-meta">
-        {error ?? 'or paste · or drop one here · kept as the frame, nothing drawn'}
+        {error ?? 'or paste · or drop one here · the frame is drawn to match it'}
       </span>
     </div>
   );

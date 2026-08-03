@@ -1664,19 +1664,6 @@ export function Portal() {
           </div>
         )}
 
-        {/* A verbatim frame must SAY it is one. Every other picture in the
-            archive was drawn, so an undeclared photograph sitting among them
-            reads as an unusually good generation — and the next lever pull at
-            this station will overwrite it with a drawn one, because the
-            photograph is not in the sceneKey. The visitor is owed the warning
-            while the frame is still on screen. */}
-        {scene?.verbatim && status === 'ready' && (
-          <div className="caption-stage caption-stage--verbatim" aria-live="polite">
-            <span className="stage-pip" style={{ color: '#7fb2d6' }} />
-            your photograph, kept as-is — pulling the lever here replaces it
-          </div>
-        )}
-
         {/* A degraded frame is still a frame, so it gets a quiet note rather than
             the error treatment — but it does not get to pass as a good one. */}
         {scene?.degraded && status === 'ready' && (

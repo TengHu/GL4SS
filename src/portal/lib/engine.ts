@@ -52,7 +52,6 @@ import {
   FRAME_STORE_TARGET_BYTES,
 } from './frameStore';
 import type { FrameIndex } from './frameStore';
-import { toWidescreen } from './seedImage';
 import { neighbourContrast } from './stations';
 
 export type SceneStatus =
@@ -109,15 +108,6 @@ export interface Scene {
   /** True when this frame came back from disk rather than the models. */
   restored?: boolean;
   /**
-   * True when this frame IS the visitor's photograph — no image call was made.
-   *
-   * Kept distinct from `restored`, which says where the pixels were read from.
-   * This says what they are, and it has to survive a reload: an era palette or a
-   * style re-render applied to a real photograph would silently destroy the one
-   * frame in the archive that nothing can regenerate.
-   */
-  verbatim?: boolean;
-  /**
    * Set when the frame is real but was produced on a degraded path — currently
    * only a scene-direction parse failure. Distinct from `error`: there IS a
    * picture, it is just a worse one than the app is capable of, and the user
@@ -172,10 +162,6 @@ interface Job {
    * the cache key to take effect at all, and needing a control on screen to say
    * it was still on. A job carries its own copy, so the caller can forget the
    * photograph the instant it is handed over.
-   *
-   * Its presence IS the decision: a job that carries one stores it as the frame
-   * and never reaches the image call. There is no second flag to disagree with
-   * this one.
    */
   reference?: string;
 }
@@ -323,7 +309,6 @@ export class SceneEngine {
     coords: SceneCoords,
     priority: 'demand' | 'prefetch' = 'demand',
     options: {
-      /** A photograph to store as this frame, instead of drawing one. */
       reference?: string;
       /**
        * MAKE A NEW ONE, even at a station already owned.
@@ -446,7 +431,6 @@ export class SceneEngine {
       atmosphere: stored.atmosphere,
       direction: stored.direction as SceneDirection | undefined,
       modelUsed: stored.modelUsed,
-      verbatim: stored.verbatim,
       restored: true,
     });
     void touchFrame(key, viewed);
@@ -784,42 +768,6 @@ export class SceneEngine {
         degraded: direction.isFallback ? 'scene planning failed — generic imagery' : undefined,
       });
 
-      /**
-       * A PHOTOGRAPH IS THE FRAME. One text call, no image call.
-       *
-       * The attachment used to be a REFERENCE: a picture was still drawn for the
-       * year on the dial, anchored to the visitor's standpoint. It no longer is.
-       * If you brought a photograph of this place, that photograph is what the
-       * station holds — the app has nothing better to offer than the thing
-       * itself, and drawing over it was spending money to lose information.
-       *
-       * Sited HERE, after the planner and before the prompts, and that placement
-       * is the design. The planner still SEES the photograph, so the narrative,
-       * the atmosphere and the direction are all real: the station talks, the
-       * archive entry is complete, and widen() still works on it. Only the
-       * drawing is skipped.
-       *
-       * What the sweep needs from a seed is pixels. planStandpoint reads the
-       * geometry out of the photograph itself and every station plans its own
-       * year, so nothing downstream asks whether a model made this.
-       */
-      if (job.reference) {
-        const heroUrl = await toWidescreen(job.reference);
-        if (job.abort.signal.aborted) return this.discardAborted(key);
-
-        this.patch(key, { status: 'ready', heroUrl, verbatim: true });
-        void this.persist(key, {
-          heroUrl,
-          narrative: direction.narrative,
-          atmosphere: direction.atmosphere,
-          direction,
-          verbatim: true,
-          coords,
-          viewed: job.priority === 'demand',
-        });
-        return;
-      }
-
       const promptFields = {
         location: coords.location,
         coordinates: coords.coordinates,
@@ -841,26 +789,56 @@ export class SceneEngine {
        * scene's focal subject is often the violent one, while the stonemason off
        * to the side renders fine and still belongs to the same moment.
        */
-      const candidates = buildCoreSamplePrompts(promptFields, direction, 'none');
+      /**
+       * A PHOTOGRAPH IS DRAWN FROM, NOT KEPT.
+       *
+       * Keeping it was tried: the image call was skipped and the visitor's own
+       * picture stored as the frame. It costs nothing and it is perfectly
+       * faithful, and it still came out worse — a phone photograph cropped to
+       * 16:9 sits among generated frames looking like what it is, and the app is
+       * not a photo album. So the drawing is back, and the whole job of the
+       * prompt is to make it as close to the photograph as a generation gets.
+       */
+      const reference = job.reference;
+      const candidates = buildCoreSamplePrompts(
+        promptFields,
+        direction,
+        reference ? 'photograph' : 'none',
+      );
       const model = imageModelForMode('wide-field', this.config.models);
       /**
-       * ALWAYS UNANCHORED NOW, and reaching this line at all means no photograph
-       * was brought — the branch above returned if one was.
-       *
-       * That is also the whole difference between this and a swept frame. A
-       * station reached from the dial has no predecessor to hold the camera on,
-       * so it is free to frame the place however the model likes, which is what
-       * an independent photograph of a spacetime should be.
-       *
-       * The reference plumbing renderStill still offers — `references`,
-       * `unanchoredPrompts`, `onDegrade` for a moderated attachment — is used by
-       * the sweep and no longer by the lever. So is promptcraft's 'photograph'
-       * ReferenceKind, which nothing now passes.
+       * NO REFERENCE means a station reached from the dial alone, which has no
+       * predecessor to hold the camera on: it is free to frame the place however
+       * the model likes, which is what an independent photograph of a spacetime
+       * should be.
        */
       const { url: heroUrl, moderatedCount, modelUsed } = await renderStill(
         this.config.apiKey,
-        { model, prompts: candidates },
-        { signal: job.abort.signal },
+        {
+          model,
+          prompts: candidates,
+          references: reference ? [reference] : undefined,
+          // Refused references fall back to prompts that do not mention an
+          // attachment, or the model would be reading instructions about a
+          // picture that is no longer there.
+          unanchoredPrompts: reference
+            ? buildCoreSamplePrompts(promptFields, direction, 'none')
+            : undefined,
+        },
+        {
+          signal: job.abort.signal,
+          /**
+           * A refused reference must not be silent. renderStill degrades
+           * gracefully — it drops the attachment and draws the frame anyway — so
+           * without this, someone who chose a photograph and got an unanchored
+           * frame had no way to tell whether the feature had worked, failed, or
+           * was never wired up.
+           */
+          onDegrade: () =>
+            this.patch(key, {
+              degraded: 'your photograph was refused — this frame is not anchored to it',
+            }),
+        },
       );
       if (job.abort.signal.aborted) return this.discardAborted(key);
 
@@ -926,7 +904,6 @@ export class SceneEngine {
       atmosphere?: string;
       direction?: SceneDirection;
       modelUsed?: string;
-      verbatim?: boolean;
       coords: SceneCoords;
       viewed: boolean;
     },
@@ -945,7 +922,6 @@ export class SceneEngine {
       atmosphere: data.atmosphere,
       direction: data.direction,
       modelUsed: data.modelUsed,
-      verbatim: data.verbatim,
       bytes,
       viewed: data.viewed,
       createdAt: now,

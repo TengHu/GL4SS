@@ -18,20 +18,21 @@ Everything below forks on one question: **is a photograph attached?**
 
 | | A · no photograph | B · with a photograph |
 |---|---|---|
-| what the frame IS | drawn for this spacetime | **that photograph** |
 | what the model gets | a description of a spacetime | a picture of this place, and a description |
-| framing | free, deliberately loose | that photograph, cover-cropped to 16:9 |
-| era palette | applied | never consulted — it is a real photograph |
-| calls | 1 text + 1 image | **1 text, no image** |
+| what the attachment IS | — | **the subject** — reproduce it |
+| framing | free, deliberately loose | the photograph's, and every order to recompose is silenced |
+| era palette | applied | stands aside — the photograph authors its own colour |
+| calls | 1 text + 1 image | 1 text + 1 image (the photo rides along on both) |
 
 Both produce a frame stored under the same key. **A station is a station**, and
 whichever picture is there is the one you keep.
 
-**The attachment is not a reference.** It was: a frame was still generated for
-the year on the dial, with the photograph fixing only where the camera stood.
-That is gone. For a place you have already photographed, the app has nothing
-better to offer than your photograph, and drawing over it spent money to lose
-information.
+**It is a reference, and the frame is still drawn.** Keeping the photograph *as*
+the frame was tried — free, and perfectly faithful by definition. It looked
+worse: a phone photograph cropped to 16:9 sits among generated frames looking
+like exactly what it is, and the app is not a photo album. So the drawing came
+back, and everything below is about making the drawing as close to the
+photograph as a generation gets.
 
 ---
 
@@ -118,84 +119,131 @@ are silenced. Same code, opposite intent — see *The knobs* in
 
 ---
 
-## Path B — the photograph IS the frame
+## Path B — with a photograph
 
-`run()` forks **after `generateSceneDirection` and before the prompts are
-built**, and that placement is the whole design. The planner still runs and still
-sees the photograph, so the station has its narrative, its atmosphere and a real
-`direction`: it talks while it works, the archive entry is complete, and
-`widen()` works on it. Only `buildCoreSamplePrompts` and `renderStill` are
-skipped.
+Everything in Path A still happens. Three things change, and the third is the one
+that decides whether the picture actually looks like your photograph.
 
-**One text call. No image call, so no image cost.** The seed stops being the paid
-action; a sweep becomes the only thing that spends real money.
-
-### The planner still sees it
+### The planner sees it too
 
 ```js
 reference: job.reference
 ```
 
-The photograph is still worth the planner seeing, even though no picture will be
-drawn from it, because the prose has to be about the right place. A coordinate
-alone says "Brooklyn", and the planner given only that picks the most photogenic
-thing in the borough — it once chose the Brooklyn Bridge while the visitor's
-photograph showed a residential side street. A narrative about the bridge under a
-photograph of a stoop is the same failure in words that it used to be in pixels.
+Not decoration. A coordinate alone says "Brooklyn", and the planner given only
+that picks the most photogenic thing in the borough — it once chose the Brooklyn
+Bridge while the visitor's photograph showed a residential side street, and the
+image model was then asked to draw the bridge from a brownstone stoop. No
+reference can reconcile that: the two describe different LOCATIONS, not different
+framings of one.
 
 This is the **vision** shape — image in, text out — which is what
-`/chat/completions` does correctly. It is now the *only* place a photograph is
-sent anywhere.
+`/chat/completions` does correctly.
 
-### Why nothing downstream notices
+### One clause goes FIRST, and it says which source wins
 
-What a sweep needs from a seed is **pixels**. `planStandpoint` reads the geometry
-out of the seed photograph itself, and every station plans its own year. Nothing
-in `coreSample.ts` asks whether a model made the picture it is cutting — it asks
-for `stored.heroUrl`. A kept photograph is a *better* seed by the doc's own
-argument in [multi-image.md](multi-image.md): a photograph is the only thing that
-fixes a viewpoint, and this one has not been through a generation first.
+> *The attached photograph shows this exact place at this exact time. It is the
+> subject: reproduce what it shows — the same street or ground, the same
+> buildings and structures, the same vantage and direction of view, the same
+> framing and distance, the same light and season, the same period in every
+> visible detail. Do not relocate it, do not modernise it, do not age it, and do
+> not substitute a more famous view of the same district. Keep the camera exactly
+> where the photograph puts it: do not step closer, do not step back, do not
+> change the lens, and do not rearrange what is in front of it. Where the
+> photograph is unclear or cut off, extend it plausibly rather than inventing
+> something else. Recompose to a wide 16:9 frame from that same standpoint,
+> widening the view rather than cropping into it. Everything below describes this
+> place and may fill in what the photograph does not show; wherever it disagrees
+> with the photograph, the photograph is correct.*
 
-### It is cover-cropped, and that is a real loss
+**First, not appended.** The most important thing goes first; the one instruction
+governing what the picture IS must not sit behind eight blocks of scene
+description.
 
-`toWidescreen` crops centred to 16:9. The anchored path never needed this — its
-clause asked the model to *recompose*, which extends the view rather than
-discarding any of it — but there is no model here to do that, and a frame that is
-not 16:9 is cut at the wrong shape by every sweep that grows out of it.
+**It claims the year, not just the place.** The visitor's photograph is asserted
+to be of this place *at this time* — they own that claim — so the clause asks for
+fidelity rather than change. That is the entire difference from a sweep's
+cut-out clause, which describes a picture of a DIFFERENT year and asks for change
+in the erased parts. The two cannot share wording, which is why `ReferenceKind`
+has two values.
 
-**Cover, not contain.** Letterbox bars baked into the pixels get cropped straight
-back off by the portal's own `object-fit: cover`, so the same edges are lost
-either way and the frame would carry black borders into every cut-out. A portrait
-photograph gives up most of its height. The control says so before the lever is
-pulled.
+**The last sentence is a precedence rule.** Eight blocks of scene description
+follow, written by a planner working from a coordinate and a year. It saw the
+photograph, so they are usually about the right place — but "usually" is the
+problem: where they disagree, one has to lose and nothing used to say which. The
+photograph is evidence and the description is inference, so the photograph wins,
+and a model reading a contradiction should not have to guess that.
 
-### The frame must declare itself
+**The only licence taken is the frame shape**, and it is stated as *widening*
+rather than cropping — a 16:9 recompose that crops into a 4:3 photograph throws
+away the top and bottom of the thing it was told to reproduce.
 
-`verbatim` is stored on the frame and shown on the glass. Two reasons, and the
-second is the sharp one:
+### The frame is FIXED — four recompose orders are silenced
 
-- Every other picture in the archive was drawn. An undeclared photograph sitting
-  among them reads as an unusually good generation.
-- **The photograph is not in the `sceneKey`** — see *Storage* — so the next lever
-  pull at that station overwrites it with a drawn frame. Every other frame in the
-  app can be made again. This one cannot. The visitor is owed that warning while
-  it is still on screen.
+This is the change that matters most, and it was the gap. `fixedFraming` was
+derived from the standpoint or the camera diagram, and **a seed has neither**. So
+with a photograph attached, all four compositional instructions still fired
+straight at the picture the prompt had just called the subject:
 
-It survives a reload because the question it answers ("was this drawn?") cannot
-be recovered by looking at the pixels. Rows written before the flag existed read
-back `undefined`, which means what it always meant: generated. No migration, and
-none possible.
+- *"framing that sits a little loose and slightly off centre, nothing arranged"*
+- *"the centre of the scene"* — the subject owns the frame's centre
+- *"the near ones large and sharp"* — the habitation clause placing the camera
+- a named **35 mm** lens
+
+Every one is an order to recompose, sitting in the most heavily weighted part of
+the prompt, and the anchor clause was left arguing against four separate
+contradictions about the frame it was trying to reproduce.
+
+A supplied photograph is now the **third thing that fixes the frame**, alongside
+the standpoint and the diagram. They still earn their place on a Path A seed —
+that is the difference between a snapshot and a render, and there the frame
+genuinely is free. Handed a photograph of a real place it is not free: the
+framing is the photograph's, and the lens is whatever actually took it.
+
+A rule that has to argue with four instructions is a rule that will sometimes
+lose the argument. Better that they never arrive.
+
+### The era palette stands aside
+
+`photographAnchored` fires, and block `[6]` collapses from
+
+> *The air is high hazy Roman light, lit by pre-electric daylight, slight haze.
+> Colours run to sepia and faded olive. Surfaces are wool suiting, plate glass,
+> lacquered wood.*
+
+to
+
+> *The air is high hazy Roman light.*
+
+The photograph authors its own colour and texture, exactly as a style does. Both
+keep the era's **substance** — the period, the materials, what is standing — and
+yield only its palette. Telling the model which colours the century runs to, on
+top of a photograph that already shows them, is a second opinion about something
+already settled.
+
+### The API shape is different
+
+A reference goes to `/api/v1/images` in `input_references` — **the only endpoint
+that takes one**. `/chat/completions` with an `image_url` block is the vision
+shape: image in, text out. An image-output model accepts that request, reads the
+prompt, has nowhere to put the attachment, and generates from the prompt alone.
+Nothing fails, so nothing reports. That bug shipped once.
 
 ---
 
-## A photograph can no longer be refused
+## If the photograph is refused
 
-It is never sent to an image model, so there is nothing to moderate. The
-machinery that handled this — `renderStill`'s `references`, its
-`unanchoredPrompts` fallback list, the `onDegrade` handler and promptcraft's
-`'photograph'` `ReferenceKind` — is still there and is still used **by the
-sweep**, which attaches a cut-out to every station. Nothing on the lever path
-passes a reference to it any more.
+Providers moderate input images **separately from prompts**. `renderStill` drops
+the attachment and retries with `unanchoredPrompts` — a separately built
+candidate list that never mentions a photograph, because otherwise the model
+would be reading instructions about a picture it no longer has. The frame that
+comes back says so on the glass: a picture rescued on a worse path must not pass
+as the intended one.
+
+Only a **structural** refusal drops the attachment. Moderation of the prompt is
+handled inside `generateImageWithFallback`, and treating a moderated prompt as an
+input-image problem would throw away the photograph every time a frame happened
+to contain a gladiator.
 
 ---
 
@@ -211,7 +259,7 @@ That record is what a sweep later restores for free as its seed, and what makes 
 revisit both free and identical.
 
 **The photograph is deliberately not in the key.** It was, briefly, so a
-photograph frame could not collide with a plain one. But a fingerprint
+photograph-anchored frame could not collide with a plain one. But a fingerprint
 in the key makes the photograph a standing property of the app: clear it and the
 frame it produced becomes unreachable, so it can never be put down. The
 photograph belongs to the moment of making a seed and is spent by it.
@@ -220,13 +268,6 @@ The consequence is worth stating plainly: **pull the lever twice at the same
 station and the second frame overwrites the first**, photograph or no. That is
 deliberate — the lever always makes a new picture, and it upserts rather than
 deleting first, so a regeneration that fails leaves the frame you had.
-
-Path B sharpens that consequence without changing the rule. A drawn frame
-overwritten by another drawn frame loses a roll of the dice; a **photograph**
-overwritten loses something nothing can make again. The answer is the warning on
-the glass rather than a fingerprint in the key — putting it in the key was
-already tried and rejected above, and the reason it was rejected does not get
-weaker here.
 
 ---
 
@@ -237,8 +278,8 @@ weaker here.
 | `src/portal/lib/engine.ts` | the queue, the cache, `request`/`retry`, and the generation path |
 | `src/portal/Portal.tsx` | `pullLever`, the seed-photo lifecycle, `sceneKey`'s style half |
 | `src/portal/components/SeedPhoto.tsx` | file picker, paste and drop |
-| `src/portal/lib/seedImage.ts` | reading and downscaling a photograph, and `toWidescreen` |
+| `src/portal/lib/seedImage.ts` | reading and downscaling a photograph |
 | `src/portal/components/StreetViewSeed.tsx` | the Google panorama route |
-| `src/lib/openrouter.ts` | `generateSceneDirection` — the one call a photograph still reaches |
-| `src/lib/promptcraft.ts` | prompt assembly; its photograph clause is now sweep-only |
+| `src/lib/openrouter.ts` | `generateSceneDirection`, `generateImageWithReference` |
+| `src/lib/promptcraft.ts` | prompt assembly, the photograph clause, and `fixedFraming` |
 | `src/portal/lib/render.ts` | `renderStill` and its moderation ladder |

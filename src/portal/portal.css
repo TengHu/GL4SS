@@ -1121,12 +1121,6 @@ body {
   color: #e0b24a;
 }
 
-/* Blue, not the degraded amber: a kept photograph is not a worse frame, it is a
-   different KIND of frame. Amber would read as "something went wrong". */
-.caption-stage--verbatim {
-  color: #7fb2d6;
-}
-
 /*
  * FIVE ENGINE STATES, FIVE SHAPES.
  *
@@ -1195,10 +1189,6 @@ body {
    are amber whichever era the dial is standing on. */
 .caption-stage--degraded .stage-pip {
   box-shadow: inset 0 0 0 1px #e0b24a, 0 0 0 1px var(--rule-shade);
-}
-
-.caption-stage--verbatim .stage-pip {
-  box-shadow: inset 0 0 0 1px #7fb2d6, 0 0 0 1px var(--rule-shade);
 }
 
 .stage-detail {
