@@ -1619,9 +1619,8 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
        * PHRASED AS WHAT IS THERE. "Do not draw two" names the thing it forbids,
        * and this file's rule is that naming an absent object summons it.
        */
-      `Everything already visible appears exactly once, at the size and place it already ` +
-      `occupies; the erased ground carries what stood on it, which is ordinary fabric — ` +
-      `streets, walls, planting, open ground. ` +
+      `The erased ground carries what stood on it, which is ordinary fabric — streets, ` +
+      `walls, planting, open ground. ` +
       `Where the description below and this picture disagree about whether something is ` +
       `present, THE PICTURE IS CORRECT.`
     : opts.wholeSourceYear !== undefined
@@ -1629,8 +1628,7 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
         `${formatYear(opts.wholeSourceYear)}. Nothing built or standing in it changed between ` +
         `then and ${formattedYear}, so all of it is correct: reproduce it exactly — the same ` +
         `ground and structures, the same viewpoint and direction of view, the same framing, ` +
-        `the same lens, the same distance. Everything in it appears exactly once, at the ` +
-        `size and place it already occupies. What is different is only what a camera ` +
+        `the same lens, the same distance. What is different is only what a camera ` +
         `standing here in ${formattedYear} would have recorded: the people and what they ` +
         `wear and drive, the season and the light, and the state and wear of surfaces.`
       : '';
@@ -1641,9 +1639,19 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
    * it authorises the model to compose. This asks what a camera that never moved
    * recorded, which authorises nothing except the passage of time.
    */
+  /**
+   * THE PLACE IS NOT NAMED WHEN A PICTURE OF IT IS ATTACHED.
+   *
+   * `location` here is "Colosseum" — the location string IS the landmark, so any
+   * mention of it is a mention of the thing already in the frame. Deleting
+   * {subject} and then writing "what did it record at ${location}" put the same
+   * noun back in a higher position than the block it replaced, and the model
+   * answered with a second Colosseum. The attachment says where this is; saying
+   * it again in words is the exact second opinion this builder exists to remove.
+   */
   const task = attached
     ? `You are not composing a photograph. The camera has not moved and the view is the ` +
-      `one attached: what did it record at ${opts.location} in ${formattedYear}?`
+      `one attached: what did it record in ${formattedYear}?`
     : `One photograph taken at ${opts.location} in ${formattedYear}, from a camera that ` +
       `does not move between the years of this series.`;
 
