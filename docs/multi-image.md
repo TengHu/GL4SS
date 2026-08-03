@@ -15,10 +15,19 @@ it anyway — always lower, and by more than the machinery here can correct. Rea
 
 ## The idea in one line
 
-**Cut the picture beside this one down to what survives into the target year,
-and let the drawing model refill the holes.**
+**Hand over the picture beside this one, and a list of edits to it.**
 
 Everything else follows from that.
+
+It used to be *"cut the picture down to what survives and let the model refill
+the holes"*, and the holes are what went wrong: erasing takes the buildings, the
+roads and the ground that were stating the camera, and a model composing into a
+large grey region composes the whole frame. So the same information now travels
+as text — one line per thing, naming what is in the photograph and what stands in
+its place this year — and the photograph itself goes over untouched.
+
+The cut is still there behind `window.__cut`. See *Two ways to say the same
+thing*.
 
 ---
 
@@ -95,24 +104,24 @@ marching to one end and filling in behind.
   +--> gemini-3-flash ........ "what in this 1943 picture
   |                             isn't there in 1900?"
   |                             -> [{box, label, absent|altered}]
-  |                             filtered: altered >5% dropped,
-  |                             absent capped at 35% of frame
+  |                             THE LABELS ARE USED, NOT THE BOXES
   |
-  +--> canvas ................ absent  -> grey (box grown ~8px)
-  |    (no network)            altered -> blurred (~14px)
-  |                            rest    -> untouched
-  |                            + perspective grid INTO the grey
+  +--> planner ............... given those labels, writes the EDIT LIST:
+  |    (runs AFTER, not          "the asphalt road: unpaved earth"
+  |     alongside)               "the yellow crane: open ground"
+  |                             — never a description of the year
   |
-  +--> planner ............... this year's people, light, history
-  |    (runs alongside)
-  |
-  +--> image model ........... ONE attachment: the cut-out, or the
-  |                            whole source when nothing was erased
+  +--> image model ........... ONE attachment: the raw neighbour, uncut
   |                            -> FRAME 1900
   |
   +--> standpoint again ...... read the camera back OUT of the frame
        (diagnostic)           that came back, and compare
 ```
+
+With `window.__cut = true` a canvas step returns between the planner and the
+image model — absent regions greyed and grown, altered ones blurred, the
+perspective grid painted into the grey — and both pictures are attached, the
+cut-out as the authority on what is present and the raw one for the camera.
 
 **3 text calls + 1 image call.** The canvas step is free; the third text call is
 the drift measurement and it changes no pixels.
@@ -284,44 +293,71 @@ the seed photograph.
 two treatments and no gradient between them — we never asked for a third, and a
 box has no interior to grade anyway. See *Known weaknesses*.
 
-**6. The planner** — one text call, the existing `generateSceneDirection()`. Sees
-the seed. Returns habitation, biome, period markers, atmosphere, the light,
-subjects, and `standing` — what stood here in this year.
+**6. The planner** — one text call, `generateSceneDirection()`, and it now runs
+AFTER the segmenter rather than ahead of the cursor.
 
-**7. Generate** — one image call, with exactly one attachment.
+It is handed the labels from step 4 and asked for `standing` in a shape it was
+not asked for before: **one line per item, "the ‹thing in the photograph›: ‹what
+is in its place this year›"**, with an explicit instruction not to describe the
+period, the mood, the politics or the events, and not to write a scene.
 
-**The cut-out, or the whole source when nothing needed erasing.** `if
-(items.length)` used to guard the composite and no composite meant no attachment
-at all — so the shorter the step, the more likely the source was discarded, which
-is exactly backwards. A 2008 aerial asked for 1987 found nothing to erase in
-twenty-one unchanged years, sent nothing, and came back a ground-level postcard.
-Both places that already described this agreed: `compositeCutout` returns null
-because *"the seed is already the right picture for this year and should go
-as-is"*, and the segmentation-failure warning says *"this frame keeps the whole
-seed photograph"*. Neither was implemented. The uncut source now goes, with its
-own clause — it has no grey and no blur, and describing holes in a picture that
-has none is how the rule about naming absent things gets broken.
+> the asphalt road: unpaved earth and tram rails
+> the yellow crane: open ground
+> the tourist queue: a few figures on foot in wartime dress
+> the Arch of Constantine: standing, boarded and sandbagged
 
-**The sweep builds its own prompt**, `buildSweepPrompts`, and no longer borrows
-the lever's. `DEFAULT_IMAGE_TEMPLATE`'s eight slots exist to author a picture out
-of nothing — a subject, a viewpoint, terrain, framing, a palette — and a sweep
-had to argue every one of them down against its own attachment. `fixedFraming`
-was the list of arguments it had won; three slots were never on it, and each
-produced a failure. `{camera}` said *"eye level, a short walk back from the
-subject"* in block zero and walked the camera off a terrace to the ground.
-`{subject}` named the Colosseum while the attachment already held one, and the
-erased region gave the model somewhere to draw a second. `{biome}` describes
-terrain the attachment shows. An exception list grows and never closes, so the
-sweep starts from the other premise: **every fact is stated once, by the
-strongest source that knows it, and where the attachment settles something the
-prompt is silent rather than overridden.** No subject, no viewpoint, no framing,
-no terrain, no era palette.
+**Why the shape matters more than the content.** 1943 Rome came back as occupied
+Rome — troops, sandbags, a street-level war photograph owing nothing to the
+aerial it was handed — while 1987, one step earlier through the same pipeline,
+held almost exactly. The difference is that one target year has a photograph the
+world already knows and the other has none. And the prompt was feeding it:
+`standing` used to be a paragraph about the year, which for 1943 describes the
+occupation in detail, so the model received the reference and beside it a written
+brief for the picture it was already going to draw.
+
+Every clause now points at the picture instead of at the year, and the year has
+nothing left to summon. `periodMarkers` is dropped for the same reason when a
+picture is attached — the same shape in miniature. Both come back for a frame
+drawn from nothing, which has only words to go on.
+
+**WHAT THIS COST: the lookahead.** The planner used to run three stations ahead
+of the renderer, which took roughly four minutes of text latency out of a
+24-frame sweep. A planner that must know what is in the picture cannot start
+before something has looked at it. The call count per station is unchanged; the
+calls are simply serial now.
+
+**7. Generate** — one image call. **The raw neighbour, untouched, one
+attachment.**
+
+Nothing is erased, so every pixel that was stating the camera is still there. The
+temporal work is carried by the edit list from step 6.
+
+**The sweep builds its own prompt**, `buildSweepPrompts`, and does not borrow the
+lever's. `DEFAULT_IMAGE_TEMPLATE`'s eight slots exist to author a picture out of
+nothing — a subject, a viewpoint, terrain, framing, a palette — and a sweep had
+to argue every one of them down against its own attachment. `fixedFraming` was
+the list of arguments it had won; three slots were never on it, and each produced
+a failure. `{camera}` said *"eye level, a short walk back from the subject"* in
+block zero and walked the camera off a terrace to the ground. `{subject}` named
+the Colosseum while the attachment already held one, and the model drew a second.
+`{biome}` describes terrain the attachment shows. An exception list grows and
+never closes, so the sweep starts from the other premise: **every fact is stated
+once, by the strongest source that knows it, and where the attachment settles
+something the prompt is silent rather than overridden.**
+
+**And short.** Measured outside the app: `gemini-3.1-flash-lite-image`, the
+cheapest model of its family at temperature 1, given a clean aerial of the
+Colosseum and the nine words *"give me the photo in 1700 in exact same camera
+position"*, returned the same oblique with the Arch of Constantine still in its
+corner. Ours was four hundred words and the sentence that mattered was one of
+forty. What comes first is weighted most — and what comes ALONGSIDE competes.
+
+The prompt is now the lead, the edit list, the people, the hour, and the aspect.
 
 **The moderation ladder degrades by content, not by subject.** The lever falls
 back from a blocked gladiator to the stonemason beside him; a sweep has no
 subject, so three candidates differing only there would be one prompt three
-times. It drops `periodMarkers` first — the field that names uniforms, weapons
-and signage — then the people.
+times.
 
 **8. Measure whether the camera held** — one text call, *diagnostic only*.
 `planStandpoint` is run on the frame that came back and diffed against the seed.
@@ -343,10 +379,10 @@ seed photograph ──► standpoint ──► camera numbers ──────
 The standpoint is read once from the seed and reaches every frame unchanged. The
 pixels travel along the chain.
 
-**Per station: 3 text calls + 1 image call.** Per sweep: two extra text calls.
-The cut-out is free — canvas, no network, no cache. One text call per station and
-one per sweep are diagnostic and change no pixels; a 24-frame sweep pays 25 calls
-for them.
+**Per station: 3 text calls + 1 image call** — segment, plan, render, and a
+fourth text call that measures the camera afterwards and changes no pixels. Per
+sweep: two more, the standpoint and the ruler check. A 24-frame sweep pays 25
+calls for diagnostics it could run without.
 
 ---
 
@@ -425,9 +461,9 @@ and it is not worked around. If a railing ever refuses to leave, this is why.
 | blur radius | `timeMask.ts` | `min(W,H)/90` ≈ 14 px | more freedom to repaint an `altered` region |
 | object cap | `timeMask.ts` | 30 | more things caught per frame, more tokens |
 | whole-frame reject | `timeMask.ts` | area > 0.9 dropped | a box covering the frame is the model giving up |
+| object cap | `timeMask.ts` | 60, ordered by CERTAINTY not size | more found per frame, more tokens |
 | altered-box cap | `timeMask.ts` | `altered` over 5% dropped | more of the frame smeared |
 | total erased cap | `timeMask.ts` | `absent` capped at 35%, largest dropped first | more erased, less left to state the camera |
-| planner lookahead | `coreSample.ts` | 3 | more text calls in flight at once |
 | camera limits | `cameraSkeleton.ts` | tilt ±60°, FOV 10–140°, eye 0.3–4000 m | outside these, no grid and no drift check |
 | drift thresholds | `coreSample.ts` | horizon 20%, height 40% | fewer frames flagged as drifted |
 
@@ -499,6 +535,23 @@ The two knobs answer different questions:
 - **grow** — *how much extra do we throw away?*
 - **blur** — *how much freedom do we give to what we keep?*
 
+### Two ways to say the same thing
+
+`window.__cut = true` puts the erasure back. Both branches derive the same edit
+list from the same segmentation call, so the switch changes the ATTACHMENT and
+nothing else.
+
+| | attached | temporal correctness | composition |
+|---|---|---|---|
+| **default** | the raw neighbour | carried by the edit list, in words | nothing erased, nothing to compose into |
+| **`__cut`** | the cut-out **and** the raw neighbour | carried by the holes AND the words | the cut-out says what is present, the raw one says where the camera is |
+
+The thing to watch when comparing is **not** overall quality — it is the crowd.
+Words about buildings and roads work; words about people have failed twice, read
+both times as a note about clothes. If *"the tourist queue: a few figures on
+foot"* also fails and the same people come back in period dress, people genuinely
+have to be answered in pixels and the cut-out earns its place for them alone.
+
 ### How abrupt the transitions feel
 
 The real driver is **how much of the frame gets erased** — two frames sharing 90%
@@ -524,26 +577,21 @@ it was not before, because a cut-out contains no people to propagate.
 ```
 [looking-glass] standpoint: {"eyeHeightM":45,"tiltDeg":18,"hfovDeg":65,…}
 [looking-glass] ruler check — the SAME seed read twice: 45m vs 45m, tilt 18° vs 12° …
-[looking-glass] 1900 from 1943: 22 anachronisms (9 absent) · attached cut-out · standpoint camera only
-[looking-glass] 1900 reference ACCEPTED
-[looking-glass] 1900 on black-forest-labs/flux.2-max — camera: 22m / tilt 15° / fov 65° vs seed 45m / 18° / 65° — the camera dropped from 45m to 22m
+[looking-glass] 1943 from 1987: 14 findings (11 absent) · RAW frame + an edit list
+[looking-glass] 1943 reference ACCEPTED
+[looking-glass] 1943 on x-ai/grok-imagine-image-quality — camera: 22m / tilt 15° / fov 65° vs seed 45m / 18° / 65° — the camera dropped from 45m to 22m
 ```
 
 | what you see | what it means |
 |---|---|
-| `1900 from 1943` | which picture was cut. Near the seed this says the seed; further out it names the neighbour |
-| `attached the whole source` | nothing needed erasing, so the source went uncut. Ordinary on a short step |
-| `attached cut-out` | the composite was built and sent |
-| `standpoint camera only` | an attachment is present, so the frame map and the permanent fabric were withheld |
+| `1943 from 1987` | which picture went. Near the seed this says the seed; further out it names the neighbour |
+| `N findings · RAW frame + an edit list` | the default: nothing erased, the labels became text |
+| `attached cut-out + the uncut neighbour` | `__cut` is set; two pictures went |
 | `reference REFUSED` | the provider rejected the attachment and the frame was drawn from prose alone. **This one invalidates every other number on the frame** |
 | `camera numbers rejected: eyeHeightM=…` | one field out of range, so no grid and no drift check for the whole run |
-| `N of M erasures dropped` | the 35% cap bit; the named boxes were kept rather than erased |
 | `— held` | the camera survived. `— the camera dropped …` is the failure |
 | `ruler check` | the noise floor. Any drift smaller than this figure is not evidence of anything |
-| `0 anachronisms` | the pass failed or found nothing — the source goes out intact, so anything not of its year survives |
-| `cut-out none` | boxes came back but compositing failed (a tainted cross-origin canvas is the usual cause) |
-| no standpoint line | the call failed — holes still get erased, but no grid is painted into them |
-| a low `absent` count on a distant year | distrust it. 1900 should be erasing a lot |
+| a low count on a distant year | distrust it. 1900 should be finding a lot |
 
 ### Digging further
 
@@ -551,13 +599,17 @@ Two switches exist for diagnosis and neither is a setting:
 
 ```js
 window.__sweep[1987].prompt     // what the model was told
-window.__noCut = true           // skip erasure entirely, attach the source whole
+window.__cut = true             // put the erasure back; both pictures go
+window.__noStanding = true      // drop the edit list entirely
 fetch(window.__sweep[1987].cutout).then(r=>r.blob()).then(b=>open(URL.createObjectURL(b)))
 ```
 
+`__noStanding` is the control for the question the edit list exists to answer: if
+a year still collapses with NOTHING describing it, the words were innocent and
+the year alone does it.
+
 `open()` on the data URL directly gives a blank page — Chrome blocks top-level
-navigation to `data:`. `__noCut` renders a frame with every anachronism still
-standing; it is a measurement, not a picture anyone wants.
+navigation to `data:`. `cutout` is only present when `__cut` was set.
 
 Both exist because every diagnosis in this file's history was an argument about a
 prompt nobody could read and an attachment nobody could look at, and twice the
@@ -627,6 +679,28 @@ prints.
   rather than being corrected. The check lives inside `compositeCutout`, so the
   whole-source path skips it.
 
+- **SOME YEARS HAVE A PHOTOGRAPH THE WORLD ALREADY KNOWS, and those are the ones
+  that collapse.** 1943 Rome returned as occupied Rome — troops, sandbags, a
+  street-level war photograph — from an aerial reference its neighbour 1987 had
+  reproduced almost exactly, through the same pipeline one step earlier. 1700
+  held too. The pattern across every run: weak prior, the reference wins; strong
+  prior, the prior wins. It is not the step size and not the source; it is how
+  famous the target year's image is. The edit list is the answer aimed at it —
+  say nothing about the year and there is nothing to summon — and whether that is
+  enough is the open question.
+
+- **NOT ALL FRAMES ARE TREATED EQUALLY**, and it is worth being explicit. The
+  frame next to the seed is drawn from a real photograph; the one after it is
+  drawn from a generated frame, and so on down the chain. Step sizes differ too.
+  So the same sweep contains frames one generation from evidence and frames five
+  generations from it, and they should not be read as equally trustworthy.
+
+- **FIDELITY AND CONSISTENCY PULL AGAINST EACH OTHER.** What makes a year *that*
+  year is a description of it, and a description of it is permission to redraw the
+  scene. Everything in this file is an attempt to get both, and the edit list is
+  the current one: keep the information, change its grammar, so it edits the
+  picture instead of authoring a year.
+
 - **THE COMPOSITION IS THE IMAGE MODEL'S, NOT THE ATTACHMENT'S.** The largest
   thing this design assumes, and the one it does not control. Measured across a
   session on Grok Imagine: with the reference accepted, and in one run entirely
@@ -679,3 +753,4 @@ prints.
 | `src/lib/openrouter.ts` | `planStandpoint`, `generateSceneDirection`, the image call |
 | `src/lib/promptcraft.ts` | `buildSweepPrompts` — the sweep's own prompt, and the clauses explaining the cut-out and the uncut source |
 | `src/portal/lib/render.ts` | `renderStill` — the shared still primitive and its moderation ladder |
+| `sweep_experiment/` | the same pipeline from the terminal — imports these modules, writes every intermediate to disk |
