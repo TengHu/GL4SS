@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoreSampleState } from '../lib/coreSample';
 import { formatYear, getEraBand } from '../../lib/format';
+import { stitchClips } from '../lib/stitch';
 
 interface Props {
   state: CoreSampleState;
@@ -82,6 +83,39 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
     [state.clips],
   );
   const hasFilm = clips.length > 0;
+
+  /**
+   * SAVE THE FILM AS ONE FILE.
+   *
+   * The clips are generated one per adjacent pair and play seamlessly in here,
+   * but saved they are N files and the thing the visitor made is the sequence.
+   * See stitch.ts for why this is a canvas recording rather than a concatenation
+   * — and for why it takes as long as the film lasts.
+   */
+  const [joining, setJoining] = useState<{ clip: number; clips: number } | null>(null);
+  const saveFilm = async () => {
+    if (joining || !hasFilm) return;
+    setJoining({ clip: 0, clips: clips.length });
+    try {
+      const blob = await stitchClips(
+        clips.map((c) => c.url!),
+        { onProgress: setJoining },
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const years = state.frames.filter((f) => f.status === 'ready').map((f) => f.year);
+      a.download = `${state.location || 'sweep'} ${formatYear(years[0] ?? 0)}-${formatYear(years[years.length - 1] ?? 0)}.webm`
+        .replace(/[/\\:*?"<>|]/g, '-');
+      a.click();
+      // Revoked late: Safari drops the download if the url dies in the same tick.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      console.warn('[looking-glass] could not join the clips —', err);
+    } finally {
+      setJoining(null);
+    }
+  };
   const [clipIndex, setClipIndex] = useState(0);
 
   const [cursor, setCursor] = useState(0);
@@ -428,6 +462,19 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
               {state.status === 'cancelled' ? ' · stopped' : ''}
               {/* The film's own defects, named separately from the sweep's. */}
               {hasFilm ? ` · ${clips.length} clips` : ''}
+              {hasFilm && (
+                <button
+                  className="ghost-btn sampler-save-film"
+                  onClick={() => void saveFilm()}
+                  disabled={Boolean(joining)}
+                  /* Said before it is pressed, not after: the recording runs in
+                     real time and stalls if the tab is hidden, and neither is
+                     guessable from a button that says "save". */
+                  title={`Plays the ${clips.length} clips through once to record them into a single file. Takes as long as the film lasts — keep this tab in front.`}
+                >
+                  {joining ? `joining ${joining.clip}/${joining.clips}…` : 'save as one video'}
+                </button>
+              )}
               {(() => {
                 const cut = state.clips.filter((c) => c.status === 'ready' && c.pinned === false).length;
                 const lost = state.clips.filter((c) => c.status === 'error').length;

@@ -5821,6 +5821,21 @@ body {
    Amber because unlike a seam it is nobody's decision — it is a measurement. */
 .sampler-cell--drift { border-bottom: 2px solid #e0b24a; }
 
+/* Sits in the status line beside the clip count, so it appears where the thing
+   it saves is already being described. Quiet until there is a film to save. */
+.sampler-save-film {
+  margin-left: 8px;
+  padding: 3px 9px;
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+
+.sampler-save-film:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 @keyframes sampler-work {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 0.95; }
