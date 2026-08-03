@@ -43,9 +43,9 @@ import {
 import type { ModelSelection, VideoModelCapability } from '../../lib/openrouter';
 import { audioForSequence, renderClip, renderStill } from './render';
 import { explainFailure } from '../../lib/failure';
-import { buildCoreSamplePrompts } from '../../lib/promptcraft';
+import { buildSweepPrompts } from '../../lib/promptcraft';
 import { compositeCutout, segmentAnachronisms } from './timeMask';
-import { cameraIsUsable } from './cameraSkeleton';
+import { cameraIsUsable, horizonFraction } from './cameraSkeleton';
 import type { StandpointCamera } from '../../lib/openrouter';
 import type { SceneDirection } from '../../lib/promptcraft';
 import { MAX_YEAR, MIN_YEAR, formatYear } from '../../lib/format';
@@ -263,6 +263,18 @@ export interface SampleFrame {
    * where the camera jumps.
    */
   chained?: boolean;
+  /**
+   * The camera moved, measured rather than guessed — see measureDrift.
+   *
+   * Set when the frame that came back was taken from a materially different
+   * position than the seed. A short human-readable phrase, because the point is
+   * that the visitor can SEE which frames broke the series instead of having to
+   * spot it by eye and file a bug. Undefined means either no drift or no
+   * measurement — `driftChecked` tells them apart.
+   */
+  drift?: string;
+  /** True when the drift check actually ran on this frame. */
+  driftChecked?: boolean;
 }
 
 /**
@@ -472,6 +484,69 @@ function describeCamera(cam: StandpointCamera): string {
     `view, lens ${cam.eyeHeightM.toFixed(1)} m above the ground, ${tilt}, nearest ` +
     `subject about ${cam.nearestM.toFixed(0)} m away. The horizon must not rise or fall. `
   );
+}
+
+/**
+ * HOW FAR THE HORIZON MAY MOVE before the frame is a different viewpoint.
+ *
+ * As a fraction of frame height. The number is not arbitrary: cameraSkeleton.ts
+ * records the drift this whole mechanism exists to stop — a camera that climbed
+ * 1.6 m and levelled out by 6.2°, moving the horizon 13.4% of the frame height,
+ * which is the difference between a photographer standing in the crowd and one
+ * standing a storey above it. 8% sits below that and above the noise in an
+ * estimate read off a picture by a language model.
+ */
+const DRIFT_HORIZON = 0.08;
+
+/** Relative change in lens height that counts as a different vantage. */
+const DRIFT_HEIGHT = 0.4;
+
+/**
+ * MEASURE THE VIEWPOINT INSTEAD OF TRUSTING THE PROMPT.
+ *
+ * Every failure in this file's history was found by a human looking at a picture
+ * and saying "that is not the same camera". The quantities involved are ones the
+ * app already extracts — planStandpoint reads eye height, tilt and field of view
+ * out of an image — so the comparison is arithmetic, not judgement.
+ *
+ * WHY THE HORIZON, and not the three numbers separately. Tilt and field of view
+ * trade off against each other: a wider lens and a steeper tilt can put the
+ * horizon in the same place, and that frame is not drifted, it is the same view
+ * through different glass. horizonFraction folds both into the single number
+ * that says where the eye actually is, and it is the number cameraSkeleton was
+ * measured in. Height is checked separately because a camera can climb without
+ * the horizon moving at all — the 1900 postcard was both.
+ *
+ * REPORTS, DOES NOT RETRY. A re-render is another charge on the visitor's key
+ * and silently doubling the bill to fix a frame they might have been happy with
+ * is not this function's decision to make. It costs one text call per frame and
+ * only runs when there is a seed camera to compare against, so a sweep whose
+ * standpoint failed pays nothing for a comparison it could not make anyway.
+ */
+function measureDrift(
+  seed: StandpointCamera,
+  frame: StandpointCamera,
+): string | undefined {
+  const ASPECT = 16 / 9;
+  const dHorizon =
+    horizonFraction(frame.hfovDeg, frame.tiltDeg, ASPECT) -
+    horizonFraction(seed.hfovDeg, seed.tiltDeg, ASPECT);
+  const dHeight = (frame.eyeHeightM - seed.eyeHeightM) / Math.max(seed.eyeHeightM, 0.3);
+
+  const notes: string[] = [];
+  if (Math.abs(dHorizon) > DRIFT_HORIZON) {
+    notes.push(
+      `the horizon moved ${Math.round(Math.abs(dHorizon) * 100)}% of the frame ` +
+        `${dHorizon > 0 ? 'down' : 'up'}`,
+    );
+  }
+  if (Math.abs(dHeight) > DRIFT_HEIGHT) {
+    notes.push(
+      `the camera ${dHeight > 0 ? 'rose' : 'dropped'} from ${seed.eyeHeightM.toFixed(0)}m ` +
+        `to ${frame.eyeHeightM.toFixed(0)}m`,
+    );
+  }
+  return notes.length ? notes.join(', ') : undefined;
 }
 
 /**
@@ -1080,55 +1155,51 @@ export class CoreSampleRunner {
          * or computed by steps that READ the photograph rather than repaint it.
          * See ReferenceKind in promptcraft for what the attachment used to do.
          */
-        const prompts = buildCoreSamplePrompts(
+        /**
+         * THE SWEEP HAS ITS OWN PROMPT NOW — see buildSweepPrompts.
+         *
+         * It used to assemble DEFAULT_IMAGE_TEMPLATE, which is built to invent a
+         * photograph out of nothing, and then suppress the parts of it that
+         * fought the attachment. Three of those parts were never suppressed and
+         * each produced a reported failure: the viewpoint clause walked the
+         * camera down to eye level, the subject block drew a second Colosseum
+         * into the erased region, and the biome block describes terrain the
+         * attachment shows. Suppression is an exception list, and it grows.
+         *
+         * Nothing on the lever's path changed. buildCoreSamplePrompts is still
+         * what pullLever calls, and it is untouched.
+         */
+        const sweepOpts = {
+          location: request.location,
+          year: frame.year,
+          styleSuffix: config.styleOverride,
+          periodProcess: config.periodProcess,
+          phase,
+          standpoint,
+        };
+        const prompts = buildSweepPrompts(
           {
-            location: request.location,
-            coordinates: request.coordinates,
-            year: frame.year,
-            mode: 'wide-field',
-            styleSuffix: config.styleOverride,
-            periodProcess: config.periodProcess,
-            phase,
-            template: config.template,
-            aspect: '16:9',
-            standpoint,
+            ...sweepOpts,
             // Both keyed on `masked`, NOT on the attachment. An uncut source has
             // no grey regions and no grid, and its clause is `wholeSourceYear`'s
-            // — describing holes in a picture that has none is how this file's
+            // — describing holes in a picture that has none is how promptcraft's
             // own rule about naming absent things gets broken.
-            cameraDiagram: Boolean(masked),
+            cutout: Boolean(masked),
             // Whether a grid was PAINTED, not whether one was wanted — the clause
             // must not describe lines the compositor decided not to draw.
             cameraGrid: Boolean(masked) && cameraIsUsable(camera),
             wholeSourceYear: !masked && source ? source.year : undefined,
           },
           direction,
-          'none',
         );
         /**
-         * The diagram can be refused as an input image like any other, and the
-         * clause above TALKS ABOUT IT. Retrying with those words after the
-         * attachment has been dropped would leave the model reading instructions
-         * about a drawing it was never given — the lesson the stills path
-         * learned once already.
+         * The attachment can be refused as an input image like any other, and
+         * the clause above TALKS ABOUT IT. Retrying with those words after it has
+         * been dropped would leave the model reading instructions about a
+         * picture it was never given — the lesson the stills path learned once.
          */
         const promptsNoDiagram = reference
-          ? buildCoreSamplePrompts(
-              {
-                location: request.location,
-                coordinates: request.coordinates,
-                year: frame.year,
-                mode: 'wide-field',
-                styleSuffix: config.styleOverride,
-                periodProcess: config.periodProcess,
-                phase,
-                template: config.template,
-                aspect: '16:9',
-                standpoint,
-              },
-              direction,
-              'none',
-            )
+          ? buildSweepPrompts(sweepOpts, direction)
           : prompts;
         try {
           const { url } = await renderStill(
@@ -1158,6 +1229,38 @@ export class CoreSampleRunner {
            * faithful frames seams.
            */
           this.patchFrame(i, { status: 'ready', url, chained: Boolean(reference) });
+
+          /**
+           * NOW CHECK WHETHER IT IS ACTUALLY THE SAME CAMERA.
+           *
+           * After the patch, deliberately: the picture is paid for and on screen
+           * either way, and a measurement is not a reason to make the visitor
+           * wait for it. Only when the seed gave usable numbers — with nothing to
+           * compare against there is no question to ask, and a sweep whose
+           * standpoint failed should not pay for a call that cannot answer.
+           */
+          if (cameraIsUsable(camera)) {
+            void planStandpoint(
+              config.apiKey,
+              request.location,
+              request.coordinates,
+              url,
+              frame.year,
+              { earliest: frame.year, latest: frame.year },
+              config.models.text,
+              { signal: abort.signal },
+            )
+              .then((sp) => {
+                if (abort.signal.aborted || !cameraIsUsable(sp.camera)) return;
+                const drift = measureDrift(camera, sp.camera);
+                this.patchFrame(i, { driftChecked: true, drift });
+                if (drift) {
+                  console.warn(`[looking-glass] ${frame.year} drifted — ${drift}`);
+                }
+              })
+              // A measurement that fails costs the measurement, never the frame.
+              .catch(() => {});
+          }
         } catch (err) {
           if (abort.signal.aborted) break;
           // A failed frame costs only itself. Nothing downstream was drawn from

@@ -5816,6 +5816,11 @@ body {
    about the sweep the viewer should be able to see rather than only read. */
 .sampler-cell--break { border-left: 2px solid #62e6c9; }
 
+/* Drift is a different defect from a seam and gets a different edge: a break is
+   the provider refusing the attachment, this is the camera having moved anyway.
+   Amber because unlike a seam it is nobody's decision — it is a measurement. */
+.sampler-cell--drift { border-bottom: 2px solid #e0b24a; }
+
 @keyframes sampler-work {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 0.95; }

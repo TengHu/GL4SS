@@ -185,6 +185,14 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
   const frame = ready[shownIndex];
   const errored = state.frames.filter((f) => f.status === 'error').length;
   const unchained = ready.filter((f) => f.chained === false && !f.restored).length;
+  /**
+   * MEASURED, not guessed — see measureDrift in coreSample.
+   *
+   * `unanchored` says the provider refused the attachment. This says the frame came
+   * back from a different camera position than the seed, which is the defect a
+   * viewer would otherwise have to spot by eye and could not name.
+   */
+  const drifted = ready.filter((f) => f.drift).length;
 
   return (
     <div
@@ -356,14 +364,21 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
                 className={
                   `sampler-cell sampler-cell--${f.status}` +
                   (active ? ' sampler-cell--on' : '') +
-                  (f.chained === false && !f.restored ? ' sampler-cell--break' : '')
+                  (f.chained === false && !f.restored ? ' sampler-cell--break' : '') +
+                  (f.drift ? ' sampler-cell--drift' : '')
                 }
                 /* QUOTED. Frames arrive as `data:image/png;base64,…`, and the
                    comma after the mime type makes an unquoted url() a CSS
                    syntax error — every thumbnail in the strip silently drew as
                    an empty cell. */
                 style={f.url ? { backgroundImage: `url("${f.url}")` } : undefined}
-                title={`${formatYear(f.year)}${f.error ? ` — ${f.error}` : ''}`}
+                title={
+                  `${formatYear(f.year)}` +
+                  (f.error ? ` — ${f.error}` : '') +
+                  // The measurement, in the tooltip, because "drifted" in the
+                  // status line says THAT it moved and this says by how much.
+                  (f.drift ? ` — ${f.drift}` : '')
+                }
                 onClick={() => {
                   if (readyIndex < 0) return;
                   setPlaying(false);
@@ -409,6 +424,7 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
                   exactly where the camera jumps, and the viewer deserves to know
                   the seam is the provider's doing rather than the model's. */}
               {unchained ? ` · ${unchained} unanchored` : ''}
+              {drifted ? ` · ${drifted} drifted` : ''}
               {state.status === 'cancelled' ? ' · stopped' : ''}
               {/* The film's own defects, named separately from the sweep's. */}
               {hasFilm ? ` · ${clips.length} clips` : ''}
