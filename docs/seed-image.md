@@ -137,113 +137,55 @@ A seed has no predecessor to hold the camera on. It is **free to frame the place
 however it likes**, which is what an independent photograph of a spacetime should
 be. `fixedFraming` is off, so every one of them fires.
 
-In a sweep those same four instructions fight the standpoint and the cut-out, and
-are silenced. Same code, opposite intent — see *The knobs* in
+In a sweep those same instructions fight the attachment and are silenced — and
+under a photograph the whole prompt is gone, not just those four. Same code,
+three different intents, and only this one is free to invent. See
 [multi-image.md](multi-image.md).
 
 ---
 
 ## Path B — with a photograph
 
-Everything in Path A still happens. Three things change, and the third is the one
-that decides whether the picture actually looks like your photograph.
+Almost nothing of Path A survives. The planner still runs — for the archive, not
+for the drawing — and the image call sends the photograph with three sentences.
 
-### The planner sees it too
+### The planner still runs, and still sees it
 
 ```js
 reference: job.reference
 ```
 
-Not decoration. A coordinate alone says "Brooklyn", and the planner given only
-that picks the most photogenic thing in the borough — it once chose the Brooklyn
-Bridge while the visitor's photograph showed a residential side street, and the
-image model was then asked to draw the bridge from a brownstone stoop. No
-reference can reconcile that: the two describe different LOCATIONS, not different
-framings of one.
+It no longer instructs the drawing, and it is still worth the call. A coordinate
+alone says "Brooklyn", and the planner given only that picks the most photogenic
+thing in the borough — it once chose the Brooklyn Bridge while the visitor's
+photograph showed a residential side street. The narrative under a kept
+photograph has to be about the place in the photograph.
 
-This is the **vision** shape — image in, text out — which is what
-`/chat/completions` does correctly.
+So the planner's output goes to the **archive**, not to the image call:
+`narrative` on the glass, `atmosphere`, and the whole `direction` persisted so
+`widen()` works on a restored frame. This is the **vision** shape — image in,
+text out — which is what `/chat/completions` does correctly.
 
-### One clause goes FIRST, and it says which source wins
+### What was removed, and what it cost
 
-> *The attached photograph shows this exact place at this exact time. It is the
-> subject: reproduce what it shows — the same street or ground, the same
-> buildings and structures, the same vantage and direction of view, the same
-> framing and distance, the same light and season, the same period in every
-> visible detail. Do not relocate it, do not modernise it, do not age it, and do
-> not substitute a more famous view of the same district. Keep the camera exactly
-> where the photograph puts it: do not step closer, do not step back, do not
-> change the lens, and do not rearrange what is in front of it. Where the
-> photograph is unclear or cut off, extend it plausibly rather than inventing
-> something else. Recompose to a wide 16:9 frame from that same standpoint,
-> widening the view rather than cropping into it. Everything below describes this
-> place and may fill in what the photograph does not show; wherever it disagrees
-> with the photograph, the photograph is correct.*
+The eight blocks that used to follow the anchor clause are gone, along with the
+clause. For the record, because each was there for a reason:
 
-**First, not appended.** The most important thing goes first; the one instruction
-governing what the picture IS must not sit behind eight blocks of scene
-description.
+| block | why it was there | why it went |
+|---|---|---|
+| the anchor clause | asked for the exact vantage | had nothing left to argue with |
+| `{subject}` | the focal thing | the photograph shows it |
+| `{habitation}` | who is in frame | the photograph shows them |
+| `{periodMarkers}` | datable specifics | the photograph is the date |
+| the era block | "everything belongs to 1900 EXACTLY" | ditto |
+| `{biome}` | the ground and what grows on it | the photograph shows it |
+| `{light}` | the hour and the weather | the photograph shows it |
+| the rig | body, glass, stock | the photograph has its own |
 
-**It claims the year, not just the place.** The visitor's photograph is asserted
-to be of this place *at this time* — they own that claim — so the clause asks for
-fidelity rather than change. That is the entire difference from a sweep's
-cut-out clause, which describes a picture of a DIFFERENT year and asks for change
-in the erased parts. The two cannot share wording, which is why `ReferenceKind`
-has two values.
-
-**The last sentence is a precedence rule.** Eight blocks of scene description
-follow, written by a planner working from a coordinate and a year. It saw the
-photograph, so they are usually about the right place — but "usually" is the
-problem: where they disagree, one has to lose and nothing used to say which. The
-photograph is evidence and the description is inference, so the photograph wins,
-and a model reading a contradiction should not have to guess that.
-
-**The only licence taken is the frame shape**, and it is stated as *widening*
-rather than cropping — a 16:9 recompose that crops into a 4:3 photograph throws
-away the top and bottom of the thing it was told to reproduce.
-
-### The frame is FIXED — four recompose orders are silenced
-
-This is the change that matters most, and it was the gap. `fixedFraming` was
-derived from the standpoint or the camera diagram, and **a seed has neither**. So
-with a photograph attached, all four compositional instructions still fired
-straight at the picture the prompt had just called the subject:
-
-- *"framing that sits a little loose and slightly off centre, nothing arranged"*
-- *"the centre of the scene"* — the subject owns the frame's centre
-- *"the near ones large and sharp"* — the habitation clause placing the camera
-- a named **35 mm** lens
-
-Every one is an order to recompose, sitting in the most heavily weighted part of
-the prompt, and the anchor clause was left arguing against four separate
-contradictions about the frame it was trying to reproduce.
-
-A supplied photograph is now the **third thing that fixes the frame**, alongside
-the standpoint and the diagram. They still earn their place on a Path A seed —
-that is the difference between a snapshot and a render, and there the frame
-genuinely is free. Handed a photograph of a real place it is not free: the
-framing is the photograph's, and the lens is whatever actually took it.
-
-A rule that has to argue with four instructions is a rule that will sometimes
-lose the argument. Better that they never arrive.
-
-### The era palette stands aside
-
-`photographAnchored` fires, and block `[6]` collapses from
-
-> *The air is high hazy Roman light, lit by pre-electric daylight, slight haze.
-> Colours run to sepia and faded olive. Surfaces are wool suiting, plate glass,
-> lacquered wood.*
-
-to
-
-> *The air is high hazy Roman light.*
-
-The photograph authors its own colour and texture, exactly as a style does. Both
-keep the era's **substance** — the period, the materials, what is standing — and
-yield only its palette. Telling the model which colours the century runs to, on
-top of a photograph that already shows them, is a second opinion about something
-already settled.
+**`fixedFraming` and `photographAnchored` still fire** and now silence nothing,
+because there is nothing left in the prompt for them to silence. They are left in
+place: the flags are derived, not passed, and a seed reached through some future
+path that does build a full prompt should still get them.
 
 ### The API shape is different
 
@@ -253,16 +195,21 @@ shape: image in, text out. An image-output model accepts that request, reads the
 prompt, has nowhere to put the attachment, and generates from the prompt alone.
 Nothing fails, so nothing reports. That bug shipped once.
 
----
+`aspect_ratio: '16:9'` rides on the same call, which is the one thing besides the
+three sentences that still shapes the output — and the reason a 4:3 photograph
+comes back recomposed rather than untouched.
 
 ## If the photograph is refused
 
 Providers moderate input images **separately from prompts**. `renderStill` drops
-the attachment and retries with `unanchoredPrompts` — a separately built
-candidate list that never mentions a photograph, because otherwise the model
-would be reading instructions about a picture it no longer has. The frame that
-comes back says so on the glass: a picture rescued on a worse path must not pass
-as the intended one.
+the attachment and retries with `unanchoredPrompts`, which for this path is the
+FULL Path A prompt — eight blocks, three candidates, built as though no
+photograph had ever been offered. It has to be: "denoise the image" with no image
+attached is an instruction about nothing.
+
+So a refused photograph does not degrade slightly, it falls all the way back to
+an invented frame. The glass says so — a picture rescued on a worse path must not
+pass as the intended one.
 
 Only a **structural** refusal drops the attachment. Moderation of the prompt is
 handled inside `generateImageWithFallback`, and treating a moderated prompt as an
@@ -305,5 +252,5 @@ deleting first, so a regeneration that fails leaves the frame you had.
 | `src/portal/lib/seedImage.ts` | reading and downscaling a photograph |
 | `src/portal/components/StreetViewSeed.tsx` | the Google panorama route |
 | `src/lib/openrouter.ts` | `generateSceneDirection`, `generateImageWithReference` |
-| `src/lib/promptcraft.ts` | prompt assembly, the photograph clause, and `fixedFraming` |
+| `src/lib/promptcraft.ts` | prompt assembly; the `'photograph'` branch is the three sentences |
 | `src/portal/lib/render.ts` | `renderStill` and its moderation ladder |
