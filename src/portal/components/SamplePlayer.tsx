@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoreSampleState } from '../lib/coreSample';
 import { formatYear, getEraBand } from '../../lib/format';
-import { stitchClips } from '../lib/stitch';
+import { extensionFor, stitchClips } from '../lib/stitch';
 
 interface Props {
   state: CoreSampleState;
@@ -108,7 +108,10 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
       const a = document.createElement('a');
       a.href = url;
       const years = state.frames.filter((f) => f.status === 'ready').map((f) => f.year);
-      a.download = `${state.location || 'sweep'} ${formatYear(years[0] ?? 0)}-${formatYear(years[years.length - 1] ?? 0)}.webm`
+      // The extension follows the BYTES. It was hardcoded .webm, and a single
+      // clip is handed back as the MP4 the provider sent — so the one path that
+      // never re-encodes was the one producing a mislabelled file.
+      a.download = `${state.location || 'sweep'} ${formatYear(years[0] ?? 0)}-${formatYear(years[years.length - 1] ?? 0)}.${extensionFor(blob)}`
         .replace(/[/\\:*?"<>|]/g, '-');
       a.click();
       // Revoked late: Safari drops the download if the url dies in the same tick.

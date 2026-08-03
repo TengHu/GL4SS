@@ -134,12 +134,35 @@ export async function stitchClips(
   return blob;
 }
 
-/** WebM is what MediaRecorder actually produces; the codec preference is best-effort. */
+/**
+ * MP4 IF THE BROWSER WILL, WebM IF IT WILL NOT.
+ *
+ * MediaRecorder produced WebM only for years, which is why this used to ask for
+ * nothing else — and a .webm is a file half the world's players and every phone
+ * gallery will refuse. Current Chrome and Safari will mux H.264 into MP4 from a
+ * canvas stream, so that is asked for first and the WebM path is left as the
+ * fallback rather than the assumption.
+ */
 function pickMime(): string {
-  for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
+  for (const m of [
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4;codecs=avc1',
+    'video/mp4',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ]) {
     if (MediaRecorder.isTypeSupported(m)) return m;
   }
   return '';
+}
+
+/** The extension the bytes actually deserve — see the .webm that held MP4. */
+export function extensionFor(blob: Blob): string {
+  if (blob.type.includes('mp4')) return 'mp4';
+  if (blob.type.includes('webm')) return 'webm';
+  if (blob.type.includes('quicktime')) return 'mov';
+  return 'mp4';
 }
 
 function loadVideo(src: string): Promise<HTMLVideoElement> {
