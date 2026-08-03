@@ -1016,7 +1016,8 @@ export class CoreSampleRunner {
          * being cut is different. See cutSource for why it is the neighbour.
          */
         const source = cutSource(i);
-        let cutout: string | null = null;
+        let masked: string | null = null;
+        let reference: string | null = null;
         if (source) {
           const items = await segmentAnachronisms(
             config.apiKey,
@@ -1030,7 +1031,7 @@ export class CoreSampleRunner {
           if (abort.signal.aborted) break;
           if (items.length) {
             try {
-              cutout = await compositeCutout(source.url, items, camera);
+              masked = await compositeCutout(source.url, items, camera);
             } catch (err) {
               // A tainted canvas or an unreadable source costs this frame its
               // cut-out, not the sweep: it falls through to the unmasked path.
@@ -1040,10 +1041,33 @@ export class CoreSampleRunner {
               );
             }
           }
+          /**
+           * NOTHING TO ERASE MEANS SEND IT WHOLE, NOT SEND NOTHING.
+           *
+           * This is the bug that produced a ground-level postcard when a 2008
+           * aerial was asked for 1987. `if (items.length)` guarded the composite,
+           * and no composite meant no attachment — so the shorter the step, the
+           * more likely the source was discarded. Exactly backwards: a step over
+           * which nothing changed is the step whose source is MOST reusable, and
+           * a 900-year jump kept its reference while a 21-year one threw it away.
+           *
+           * Both of the places that already described this behaviour agreed with
+           * the fix and neither was implemented: compositeCutout is documented to
+           * return null because "the seed is already the right picture for this
+           * year and should go as-is", and the segmentation failure warns that
+           * "this frame keeps the whole seed photograph". It did not keep it.
+           *
+           * Covers the failure route too. segmentAnachronisms returns [] both
+           * when it genuinely finds nothing and when the call fails, and the
+           * answer is the same either way: the attached view is better evidence
+           * of where the camera stands than any paragraph, and losing the vantage
+           * is a worse outcome than a surviving anachronism.
+           */
+          reference = masked ?? source.url;
           console.info(
             `[looking-glass] ${frame.year} from ${source.year}: ${items.length} anachronisms ` +
               `(${items.filter((a) => a.change === 'absent').length} absent) · ` +
-              `cut-out ${cutout ? 'built' : 'none'}`,
+              `attached ${masked ? 'cut-out' : 'the whole source'}`,
           );
         }
 
@@ -1068,10 +1092,15 @@ export class CoreSampleRunner {
             template: config.template,
             aspect: '16:9',
             standpoint,
-            cameraDiagram: Boolean(cutout),
+            // Both keyed on `masked`, NOT on the attachment. An uncut source has
+            // no grey regions and no grid, and its clause is `wholeSourceYear`'s
+            // — describing holes in a picture that has none is how this file's
+            // own rule about naming absent things gets broken.
+            cameraDiagram: Boolean(masked),
             // Whether a grid was PAINTED, not whether one was wanted — the clause
             // must not describe lines the compositor decided not to draw.
-            cameraGrid: Boolean(cutout) && cameraIsUsable(camera),
+            cameraGrid: Boolean(masked) && cameraIsUsable(camera),
+            wholeSourceYear: !masked && source ? source.year : undefined,
           },
           direction,
           'none',
@@ -1083,7 +1112,7 @@ export class CoreSampleRunner {
          * about a drawing it was never given — the lesson the stills path
          * learned once already.
          */
-        const promptsNoDiagram = cutout
+        const promptsNoDiagram = reference
           ? buildCoreSamplePrompts(
               {
                 location: request.location,
@@ -1107,7 +1136,7 @@ export class CoreSampleRunner {
             {
               model,
               prompts,
-              references: cutout ? [cutout] : undefined,
+              references: reference ? [reference] : undefined,
               unanchoredPrompts: promptsNoDiagram,
             },
             { signal: abort.signal },
@@ -1120,10 +1149,15 @@ export class CoreSampleRunner {
            * Hardcoded false since the sweep stopped editing photographs, which
            * flagged every frame in the strip as unanchored — a warning that
            * fired on the healthy path and so meant nothing. A frame with no
-           * cut-out genuinely is unanchored: it was drawn from prose alone, and
-           * that is the seam the marker exists to show.
+           * attachment genuinely is unanchored: it was drawn from prose alone,
+           * and that is the seam the marker exists to show.
+           *
+           * `reference`, not `masked`. An uncut source is MORE continuous with
+           * the frame beside it than a cut one, not less — nothing was removed.
+           * Keyed on the cut-out, the marker would have called the app's most
+           * faithful frames seams.
            */
-          this.patchFrame(i, { status: 'ready', url, chained: Boolean(cutout) });
+          this.patchFrame(i, { status: 'ready', url, chained: Boolean(reference) });
         } catch (err) {
           if (abort.signal.aborted) break;
           // A failed frame costs only itself. Nothing downstream was drawn from

@@ -1054,6 +1054,23 @@ export interface BuildPanelsOpts {
   cameraDiagram?: boolean;
   /** A perspective grid was actually painted into the erased regions. */
   cameraGrid?: boolean;
+  /**
+   * THE WHOLE SOURCE PHOTOGRAPH IS ATTACHED, UNCUT — the year it was taken.
+   *
+   * Set when the anachronism pass found nothing to erase, which is the ordinary
+   * answer for a short step: between 2008 and 1987 nothing visible at the
+   * Colosseum changed. `compositeCutout` has always documented that case as "the
+   * seed is already the right picture for this year and should go as-is", and
+   * the attachment now actually goes.
+   *
+   * It needs its own clause and cannot borrow `cameraDiagram`'s. That one
+   * explains grey regions and blur; there are none here, and this file's own
+   * rule is that naming an absent thing summons it — describe holes in a picture
+   * with no holes and the model has every reason to paint some.
+   *
+   * Mutually exclusive with `cameraDiagram`: one attachment, one convention.
+   */
+  wholeSourceYear?: number;
 }
 
 export function buildImagePromptsFromDirection(
@@ -1166,7 +1183,12 @@ export function buildCoreSamplePrompts(
    * and the lens is whatever actually took it.
    */
   const fixedFraming =
-    Boolean(opts.standpoint?.trim()) || Boolean(opts.cameraDiagram) || kind === 'photograph';
+    Boolean(opts.standpoint?.trim()) ||
+    Boolean(opts.cameraDiagram) ||
+    // An uncut photograph of this exact view fixes the frame at least as hard as
+    // one with holes in it — there is nothing in it that is not the answer.
+    opts.wholeSourceYear !== undefined ||
+    kind === 'photograph';
 
   /**
    * A CUT-OUT AUTHORS ITS OWN COLOUR, exactly as a supplied photograph does.
@@ -1180,7 +1202,8 @@ export function buildCoreSamplePrompts(
    * reconstructed regions still get their colour from the planner's per-year
    * atmosphere, which is the year-specific half and the half worth keeping.
    */
-  const anchored = kind === 'photograph' || Boolean(opts.cameraDiagram);
+  const anchored =
+    kind === 'photograph' || Boolean(opts.cameraDiagram) || opts.wholeSourceYear !== undefined;
   const base = buildImagePromptsFromDirection(
     { ...opts, photographAnchored: anchored || undefined, fixedFraming },
     direction,
@@ -1231,6 +1254,31 @@ export function buildCoreSamplePrompts(
    * deleted negatives module exists to record — and an edit prompt is no
    * exception to it.
    */
+  /**
+   * NOTHING WAS ERASED, SO ALL OF IT IS THE ANSWER.
+   *
+   * The short-step case, and it used to send no attachment at all — so the one
+   * frame with the least to invent was the one drawn from prose alone, and the
+   * vantage went with it. Given a 2008 aerial of the Colosseum and asked for
+   * 1987, the model returned a ground-level postcard.
+   *
+   * Says what DID change rather than only what did not. "Reproduce this" on its
+   * own is an instruction to copy a photograph of the wrong year, and the frame
+   * has to be of this one: the people, the light and the wear are the whole
+   * difference, and they are what the planner's blocks below describe.
+   */
+  const whole =
+    opts.wholeSourceYear !== undefined
+      ? `THE ATTACHED IMAGE IS A PHOTOGRAPH OF THIS EXACT VIEW, taken in ` +
+        `${formatYear(opts.wholeSourceYear)}. Nothing built or standing in it changed between ` +
+        `then and ${formatYear(opts.year)}, so all of it is correct: reproduce it exactly — the ` +
+        `same ground and structures, the same viewpoint and direction of view, the same ` +
+        `framing, the same lens, the same distance. It is not a photograph of ${formatYear(opts.year)} ` +
+        `yet, and what is different is only what a camera standing here in ${formatYear(opts.year)} ` +
+        `would have recorded: the people and what they wear and drive, the season and the ` +
+        `light, and the state and wear of surfaces. Change those and nothing else.\n\n`
+      : '';
+
   const diagram = opts.cameraDiagram
     ? `THE ATTACHED IMAGE IS A PHOTOGRAPH WITH PARTS REMOVED. Read it as follows. ` +
       `The flat grey regions are MISSING: work out what belongs there in this year and ` +
@@ -1267,7 +1315,10 @@ export function buildCoreSamplePrompts(
 
   const lead = (p: string): string => {
     const parts: string[] = [];
+    // Same slot, and only ever one of them: both answer "what IS this
+    // attachment", and that has to be the first thing the prompt says.
     if (diagram) parts.push(diagram);
+    else if (whole) parts.push(whole.trim());
     if (opts.standpoint?.trim()) {
       // No preamble: parseStandpoint already closes the camera sentence with
       // "every photograph in this series is made from that exact position with
