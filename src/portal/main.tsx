@@ -23,5 +23,6 @@ createRoot(host).render(
  * them is worth debugging. Injected by vite.config.ts from git at server start;
  * `[vite] hot updated:` in the console covers the edits since.
  */
-console.info(`%c[looking-glass] build ${__BUILD__}`, 'color:#7fb2d6');
-(window as unknown as { __build?: string }).__build = __BUILD__;
+const build = import.meta.env.VITE_BUILD ?? 'unknown';
+console.info(`%c[looking-glass] build ${build}`, 'color:#7fb2d6');
+(window as unknown as { __build?: string }).__build = build;

@@ -26,9 +26,17 @@ function stamp(): string {
   }
 }
 
+/**
+ * Through VITE_ rather than `define`, and that is not a style choice: `define`
+ * left the token unreplaced in the dev transform, so the page would have thrown
+ * a ReferenceError on load and taken the whole app with it. A VITE_ variable
+ * reaches import.meta.env by the documented route and behaves the same in the
+ * dev server and the build.
+ */
+process.env.VITE_BUILD = stamp()
+
 // https://vite.dev/config/
 export default defineConfig({
-  define: { __BUILD__: JSON.stringify(stamp()) },
   plugins: [react()],
   // Base path for GitHub Pages
   base: './',
