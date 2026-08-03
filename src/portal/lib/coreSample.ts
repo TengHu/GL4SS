@@ -1239,12 +1239,23 @@ export class CoreSampleRunner {
          * generalised to nothing." The open-vocabulary pass reasons about dates
          * and names whatever it finds, and that is what it goes back to.
          */
-        const noCut = (window as unknown as { __noCut?: boolean }).__noCut === true;
-        if (source && noCut) {
+        /**
+         * RAW. The neighbouring frame goes over untouched, and no anachronism
+         * pass runs at all.
+         *
+         * The erasure is what a sweep frame is built on and it is switched off
+         * here on purpose, to see what the picture alone can carry. It costs the
+         * crowd — the people come through into the next century re-costumed,
+         * which is the failure the cut-out was invented for — and it saves a text
+         * call per frame and every hole the model would otherwise compose into.
+         *
+         * `window.__cut = true` puts the cut-out back.
+         */
+        const useCut = (window as unknown as { __cut?: boolean }).__cut === true;
+        if (source && !useCut) {
           reference = source.url;
-          console.warn(
-            `[looking-glass] __noCut — ${frame.year} gets the whole ${source.year} frame ` +
-              `untouched, crowd and all.`,
+          console.info(
+            `[looking-glass] ${frame.year} from ${source.year}: RAW — the whole frame, uncut`,
           );
         } else if (source) {
           const items = await segmentAnachronisms(

@@ -56,6 +56,20 @@ const models = {
   wideField: flag('model', DEFAULT_MODEL_SELECTION.wideField),
 };
 
+/**
+ * The repo's own .env, which is git-ignored and already holds this key for the
+ * dev server. Read rather than required, so an exported variable still wins.
+ */
+if (!process.env.OPENROUTER_API_KEY) {
+  try {
+    const env = readFileSync(new URL('../.env', import.meta.url), 'utf8');
+    const hit = /^OPENROUTER_API_KEY\s*=\s*(.+)$/m.exec(env);
+    if (hit) process.env.OPENROUTER_API_KEY = hit[1]!.trim().replace(/^["']|["']$/g, '');
+  } catch {
+    // no .env — the check below explains what to do
+  }
+}
+
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set');
 if (!seedFile) throw new Error('usage: npm run sweep -- <image> --from 2010 --to 1700');

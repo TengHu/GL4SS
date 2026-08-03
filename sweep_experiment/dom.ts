@@ -17,6 +17,13 @@ const g = globalThis as G;
 
 g.window ??= g;
 
+/**
+ * commonHeaders() sends HTTP-Referer from window.location.origin, guarded only
+ * by `typeof window !== 'undefined'` — which the line above makes true. So the
+ * origin has to exist, and it is the same string the guard falls back to.
+ */
+g.location ??= { origin: 'https://lookingglass.local', href: 'https://lookingglass.local/' };
+
 g.document ??= {
   createElement(tag: string) {
     if (tag !== 'canvas') throw new Error(`the shim only makes canvases, not <${tag}>`);
