@@ -1598,189 +1598,104 @@ export interface SweepPromptOpts {
  * saving.
  */
 export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirection): string[] {
-  const formattedYear = formatYear(opts.year);
-  const atm = getEraAtmosphere(opts.year);
-  const styled = Boolean(opts.styleSuffix);
+  const year = formatYear(opts.year);
   const attached = Boolean(opts.cutout) || opts.wholeSourceYear !== undefined;
 
   /**
-   * WHAT THE ATTACHMENT IS — first, because it is the only line that says what
-   * KIND of thing the model is holding. A picture with holes in it read as an
-   * ordinary photograph is reproduced holes and all.
-   */
-  const reading = opts.cutout
-    ? `THE ATTACHED IMAGE IS A PHOTOGRAPH WITH PARTS REMOVED. Read it as follows. ` +
-      `The flat grey regions are MISSING: work out what stood on that ground in this year ` +
-      `and render it. ` +
-      (opts.cameraGrid
-        ? `The thin ruled lines inside the grey are a perspective diagram of the ground ` +
-          `plane and the horizon — they say where the ground lies and how it recedes, they ` +
-          `are a drawing instrument, and the finished picture contains no lines, no grid ` +
-          `and no marks of any kind. `
-        : '') +
-      `Anything blurred is still there in this year but looked different: rebuild it in ` +
-      `the state it was in. EVERYTHING THAT IS NEITHER GREY NOR BLURRED IS CORRECT — ` +
-      `reproduce it exactly, the same stones, the same viewpoint, the same framing, the ` +
-      `same lens. ` +
-      /**
-       * THE UNIQUENESS RULE, and it is why the grey sentence above says "what
-       * stood on that ground" rather than "what belongs there".
-       *
-       * Handed a large erased region and a prompt that named the Colosseum, the
-       * model drew a second one into the void at an impossible scale — it had
-       * been told to fill the grey and told what the picture was of, and it
-       * satisfied both. The subject block is gone now, but the void remains, and
-       * a landmark already in frame is exactly the thing a model reaches for
-       * when asked what belongs somewhere.
-       *
-       * PHRASED AS WHAT IS THERE. "Do not draw two" names the thing it forbids,
-       * and this file's rule is that naming an absent object summons it.
-       */
-      `The erased ground carries what stood on it, which is ordinary fabric — streets, ` +
-      `walls, planting, open ground. ` +
-      `Where the description below and this picture disagree about whether something is ` +
-      `present, THE PICTURE IS CORRECT.`
-    : opts.wholeSourceYear !== undefined
-      ? `THE ATTACHED IMAGE IS A PHOTOGRAPH OF THIS EXACT VIEW, taken in ` +
-        `${formatYear(opts.wholeSourceYear)}. Nothing built or standing in it changed between ` +
-        `then and ${formattedYear}, so all of it is correct: reproduce it exactly — the same ` +
-        `ground and structures, the same viewpoint and direction of view, the same framing, ` +
-        `the same lens, the same distance. What is different is only what a camera ` +
-        `standing here in ${formattedYear} would have recorded: the people and what they ` +
-        `wear and drive, the season and the light, and the state and wear of surfaces.`
-      : '';
-
-  /**
-   * THE TASK, in one sentence, and it is the inversion this whole builder is
-   * for. Not "photograph this place in this year" — that is the lever's job and
-   * it authorises the model to compose. This asks what a camera that never moved
-   * recorded, which authorises nothing except the passage of time.
-   */
-  /**
-   * THE PLACE IS NOT NAMED WHEN A PICTURE OF IT IS ATTACHED.
+   * THE INSTRUCTION, FIRST AND SHORT — and short is the point.
    *
-   * `location` here is "Colosseum" — the location string IS the landmark, so any
-   * mention of it is a mention of the thing already in the frame. Deleting
-   * {subject} and then writing "what did it record at ${location}" put the same
-   * noun back in a higher position than the block it replaced, and the model
-   * answered with a second Colosseum. The attachment says where this is; saying
-   * it again in words is the exact second opinion this builder exists to remove.
+   * This block used to be one of a dozen, in a prompt of roughly four hundred
+   * words: a standpoint paragraph, a horizon fraction, habitation, period
+   * markers, a film stock, a light sentence, an era wash. The sentence that
+   * actually matters — the camera has not moved — was about one fortieth of it.
+   *
+   * Measured against that: `gemini-3.1-flash-lite-image`, the cheapest model of
+   * its family, at temperature 1, given a clean aerial of the Colosseum and the
+   * nine words "give me the photo in 1700 in exact same camera position",
+   * returned the same vantage almost exactly — same oblique, same position in
+   * frame, the Arch of Constantine still in its corner. One instruction at
+   * roughly a ninth of the prompt beat forty instructions where it was a
+   * fortieth.
+   *
+   * So the ordering rule this file already believes — that what comes first is
+   * weighted most — has a corollary it did not draw: what comes ALONGSIDE
+   * competes. Every additional block is another claim on the same attention, and
+   * a scene description is a large claim. The blocks that survive here are the
+   * ones stating something the attached picture cannot.
    */
-  /**
-   * Said as a fraction of the frame rather than as a height in metres, and
-   * placed with the camera rather than with the scene — it is a property of
-   * where the photographer stands, not of what is in front of them.
-   */
-  const horizon = ((): string => {
-    const h = opts.horizonFromTop;
-    if (h === undefined || !Number.isFinite(h)) return '';
-    /**
-     * OFF-FRAME IS THE COMMON CASE HERE, not an edge case, and the first version
-     * of this clause emitted "-15% of the way down the frame" as though it were
-     * a position. At 65 degrees of field of view the horizon leaves the top of a
-     * 16:9 frame at about 20 degrees of downward tilt, and every seed measured
-     * in this app has been between 15 and 25.
-     *
-     * It is also the strongest thing the clause can say. A horizon above the top
-     * edge means the whole picture is ground seen from above — there is no sky
-     * in it at all — and that is a harder constraint to satisfy accidentally
-     * than any percentage.
-     */
-    if (h < 0.02) {
-      return (
-        `The horizon is ABOVE the top edge of the frame: the camera looks down steeply ` +
-        `enough that no sky and no distant skyline appear anywhere in the picture. Every ` +
-        `part of the frame, top to bottom, is ground and what stands on it, seen from ` +
-        `above and foreshortened — nothing is seen edge-on from within the scene.`
-      );
-    }
-    if (h > 0.98) {
-      return (
-        `The horizon is BELOW the bottom edge of the frame: the camera looks up, and no ` +
-        `ground plane appears in the picture at all.`
-      );
-    }
-    return (
-      `The horizon runs ${Math.round(h * 100)}% of the way down the frame from the top edge. ` +
-      `Everything below that line is ground seen from above, foreshortened, and the camera ` +
-      `is above it looking down — not standing within the scene at its own level.`
-    );
-  })();
-
-  const task = attached
-    ? `You are not composing a photograph. The camera has not moved and the view is the ` +
-      `one attached: what did it record in ${formattedYear}?`
-    : `One photograph taken at ${opts.location} in ${formattedYear}, from a camera that ` +
-      `does not move between the years of this series.`;
+  const lead = opts.cutout
+    ? `The attached photograph has parts removed. The flat grey regions are missing — render what stood on that ground in ${year}. Blurred regions are still there but looked different — rebuild them as they were. Everything neither grey nor blurred is correct: reproduce it exactly, the same viewpoint, the same framing, the same lens. Where the description below and the picture disagree about whether something is present, THE PICTURE IS CORRECT.`
+    : opts.wholeSourceYear !== undefined
+      ? `The attached photograph shows this exact view in ${formatYear(opts.wholeSourceYear)}. Render the same view in ${year}: the exact same camera position, the same direction of view, the same framing, the same lens, the same distance. Nothing is moved and nothing is recomposed. Only what time changed is different — the people and what they wear, carry and drive, the season and the light, the wear on surfaces, and what had not yet been built or had already gone.`
+      : `One photograph of ${opts.location} in ${year}, from a camera that does not move between the years of this series.`;
 
   /**
-   * WITH NOTHING ATTACHED AND NO STANDPOINT, the prompt would describe no place
-   * at all — so the subject comes back, and only here. This is the degenerate
-   * frame: no neighbour landed and the standpoint call failed. It is the one
-   * case where the model genuinely has nothing to be faithful to, and a generic
-   * picture of the right place beats a generic picture of nowhere.
+   * THE STANDPOINT AND THE HORIZON GO WHEN A PICTURE IS ATTACHED.
+   *
+   * Both describe the camera, and so does the attachment — in pixels, which is
+   * the stronger source by this file's own ordering. Sending all three was three
+   * claims about one fact, and the two written ones are the ones every measured
+   * run ignored. They remain for the frame with nothing attached, which is the
+   * only case where prose is the only thing there is.
    */
-  const lastResort =
-    !attached && !opts.standpoint?.trim() && direction.centerSubject
-      ? `${direction.centerSubject}, at ${opts.location} in ${formattedYear}.`
+  const standpoint = !attached && opts.standpoint?.trim()
+    ? `THE STANDPOINT: ${opts.standpoint.trim()}`
+    : '';
+  const horizon =
+    !attached && opts.horizonFromTop !== undefined && Number.isFinite(opts.horizonFromTop)
+      ? opts.horizonFromTop < 0.02
+        ? `The horizon is above the top edge of the frame: no sky appears anywhere, and the whole picture is ground seen from above.`
+        : opts.horizonFromTop > 0.98
+          ? `The horizon is below the bottom edge of the frame.`
+          : `The horizon runs ${Math.round(opts.horizonFromTop * 100)}% of the way down the frame from the top edge.`
       : '';
 
   /**
-   * THE REGISTER — what kind of photograph this is, minus everything that
-   * decides where it is taken from. The rig keeps body, glass family, aperture
-   * and stock, which is what promptTemplate's research says to name; the focal
-   * length goes, because the attachment and the standpoint both already fix the
-   * field of view and a third number is one too many.
+   * WHAT THE PICTURE CANNOT SAY, and nothing else.
+   *
+   * `standing` is the one block worth its length: it is written by the only step
+   * that both saw the photograph and knows the date, and it answers the question
+   * the attachment cannot — which of these things existed in this year.
    */
-  const wild = direction.habitation === 'uninhabited' || direction.habitation === 'traces-only';
-  const rigBase = (wild ? WIDE_RIG_WILD : WIDE_RIG_PEOPLED).replace(/\b\d+mm /, '');
-  const process = opts.periodProcess ? periodProcessFor(opts.year) : null;
-  const rig = process ?? rigForYear(opts.year, rigBase);
-  const photographic = !styled || styleIsPhotographic(opts.styleSuffix, opts.stylePhotographic);
-  const capture = rig
-    ? `Photographed with ${rig}. It carries the evidence of film: grain sitting in the ` +
-      `shadows, and the brightest highlights rolling off softly rather than clipping flat.`
+  const standing = direction.standing?.trim()
+    ? `What is different in ${year}: ${direction.standing.trim()}`
     : '';
+  const people = getHabitationClause(direction.habitation, { fixedFraming: true });
+  const period = direction.periodMarkers ? `${direction.periodMarkers}.` : '';
 
   /**
-   * THE ERA YIELDS ITS PALETTE, exactly as it does to a supplied photograph and
-   * to a style — an attachment states its own colour in pixels, and a sentence
-   * about what the century runs to is a second opinion about something already
-   * settled. The era keeps its SUBSTANCE, which reaches this prompt through
-   * periodMarkers and through what the planner says is standing.
+   * THE REGISTER, reduced to what the year decides.
+   *
+   * The rig, the film-stock sentence and the era's light are gone with an
+   * attachment present: the picture states its own grain, its own colour and its
+   * own light far better than a named Leica does, and naming one was a claim
+   * competing with the pixels. The chosen hour stays, because the visitor set it
+   * and nothing in the attachment knows it. The Period Process style stays,
+   * because it is a deliberate choice about how the year is rendered.
    */
-  const authored = styled || attached;
-  const light = [
-    opts.phase ? `${opts.phase}` : '',
-    direction.atmosphere ? `The air is ${direction.atmosphere}` : '',
-    authored ? '' : atm.palette,
-    authored ? '' : atm.lighting,
-  ]
-    .filter(Boolean)
-    .join('. ');
-
+  const process = opts.periodProcess ? periodProcessFor(opts.year) : null;
+  const capture = process ? `Photographed by ${process}.` : '';
+  const light = opts.phase ? `${opts.phase}.` : '';
   const style = opts.styleSuffix ? `${opts.styleSuffix}` : '';
-  const aspect = `A single wide 16:9 ${photographic ? 'photograph' : 'image'}, filling the frame edge to edge.`;
+  const photographic = !style || styleIsPhotographic(opts.styleSuffix, opts.stylePhotographic);
+  const aspect = `A single wide 16:9 ${photographic ? 'photograph' : 'image'}.`;
 
-  const standpoint = opts.standpoint?.trim() ? `THE STANDPOINT: ${opts.standpoint.trim()}` : '';
-  const standing = direction.standing?.trim()
-    ? `WHAT IS DIFFERENT IN THIS YEAR: ${direction.standing.trim()}`
-    : '';
-  const period = direction.periodMarkers ? `${direction.periodMarkers}.` : '';
-  const people = getHabitationClause(direction.habitation, { fixedFraming: true });
-
+  /**
+   * The ladder still degrades by content and still drops periodMarkers before
+   * the people — but there is far less to drop, which is itself the point: a
+   * prompt with three removable blocks has three ways to be moderated, not
+   * forty.
+   */
   const assemble = (withPeriod: boolean, withPeople: boolean): string =>
     [
-      reading,
-      task,
+      lead,
       horizon,
       standpoint,
       standing,
       withPeople ? people : '',
       withPeriod ? period : '',
-      lastResort,
       capture,
-      light ? `${light}.` : '',
+      light,
       style,
       aspect,
     ]

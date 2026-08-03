@@ -1217,31 +1217,31 @@ export class CoreSampleRunner {
         let reference: string | null = null;
         let anachronisms = 0;
         let absent = 0;
-        /**
-         * SKIP THE ERASURE ENTIRELY — `window.__noCut = true` in the console.
-         *
-         * The one configuration never yet tried, and the only one that separates
-         * the two possible worlds. Every run so far has had the anachronism pass
-         * find something, so the model has never been handed an intact
-         * photograph of this exact view and asked for another year of it.
-         *
-         *   camera HOLDS  -> the erasure is what loses the vantage, and every
-         *                    remaining fix belongs in segmentation, not in words.
-         *   camera DRIFTS -> an untouched photograph does not hold this model's
-         *                    camera either, and no amount of masking work will.
-         *                    That is a different problem and a different answer.
-         *
-         * Deliberately not a setting. It produces a frame with every anachronism
-         * still standing — 2010's traffic in 1987 — which is a diagnostic, not a
-         * picture anyone wants.
-         */
-        const noCut = (window as unknown as { __noCut?: boolean }).__noCut === true;
-        if (source && noCut) {
+        const useCut = (window as unknown as { __cut?: boolean }).__cut === true;
+        if (source && !useCut) {
+          /**
+           * THE CLEAN SOURCE IS THE DEFAULT NOW, and the erasure is opt-in.
+           *
+           * The cut-out exists because chaining UNCUT frames propagated a crowd:
+           * a 1987 crowd reached 1900 with their clothes repainted. That was a
+           * prompt that never said to replace them. The lead clause says it now
+           * — "only what time changed is different, the people and what they
+           * wear, carry and drive" — and the whole-source runs came back with
+           * period-correct crowds: checker cabs and Village Voice in 1987 New
+           * York, none of the 2010 pedestrians surviving.
+           *
+           * Against that, defacing costs three things. It spends a text call per
+           * frame. It hands a preserve-this mechanism a partially-erase-this
+           * payload, which is not the operation the reference conditioning was
+           * built for. And the grey rectangles are themselves structure to that
+           * conditioning — the prompt has to talk the model out of reproducing
+           * them, and this file has watched it fail to.
+           *
+           * `window.__cut = true` restores the old path for comparison. The
+           * segmentation call is skipped entirely otherwise, so the default is
+           * also a text call per frame cheaper.
+           */
           reference = source.url;
-          console.warn(
-            `[looking-glass] __noCut — ${frame.year} gets the whole ${source.year} frame ` +
-              `untouched, anachronisms and all. Measuring whether the camera holds.`,
-          );
         } else if (source) {
           const items = await segmentAnachronisms(
             config.apiKey,
@@ -1292,9 +1292,7 @@ export class CoreSampleRunner {
           absent = items.filter((a) => a.change === 'absent').length;
           console.info(
             `[looking-glass] ${frame.year} from ${source.year}: ${anachronisms} anachronisms ` +
-              `(${absent} absent) · ` +
-              `attached ${masked ? 'cut-out' : 'the whole source'} · ` +
-              `standpoint ${reference ? 'camera only' : 'full'}`,
+              `(${absent} absent) · attached ${masked ? 'cut-out' : 'the whole source'}`,
           );
         }
 
