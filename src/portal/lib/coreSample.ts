@@ -1217,31 +1217,35 @@ export class CoreSampleRunner {
         let reference: string | null = null;
         let anachronisms = 0;
         let absent = 0;
-        const useCut = (window as unknown as { __cut?: boolean }).__cut === true;
-        if (source && !useCut) {
-          /**
-           * THE CLEAN SOURCE IS THE DEFAULT NOW, and the erasure is opt-in.
-           *
-           * The cut-out exists because chaining UNCUT frames propagated a crowd:
-           * a 1987 crowd reached 1900 with their clothes repainted. That was a
-           * prompt that never said to replace them. The lead clause says it now
-           * — "only what time changed is different, the people and what they
-           * wear, carry and drive" — and the whole-source runs came back with
-           * period-correct crowds: checker cabs and Village Voice in 1987 New
-           * York, none of the 2010 pedestrians surviving.
-           *
-           * Against that, defacing costs three things. It spends a text call per
-           * frame. It hands a preserve-this mechanism a partially-erase-this
-           * payload, which is not the operation the reference conditioning was
-           * built for. And the grey rectangles are themselves structure to that
-           * conditioning — the prompt has to talk the model out of reproducing
-           * them, and this file has watched it fail to.
-           *
-           * `window.__cut = true` restores the old path for comparison. The
-           * segmentation call is skipped entirely otherwise, so the default is
-           * also a text call per frame cheaper.
-           */
+        /**
+         * THE ANACHRONISM CUT IS THE DEFAULT, and `window.__noCut = true` sends
+         * the source whole instead.
+         *
+         * Two variables moved at once and only one has been isolated. The runs
+         * that drifted used the full cut AND a four-hundred-word prompt; the run
+         * that held its vantage used a clean source AND the ninety-word one. So
+         * the improvement may have come from either, and the untried combination
+         * — full cut, short prompt — is the cell that separates them.
+         *
+         * Sending the source whole is what reintroduced the crowd: the 1700
+         * Colosseum came back with the 2010 queue standing where it had stood,
+         * re-costumed. That is the failure the cut exists for, and the reason it
+         * is the default rather than the alternative.
+         *
+         * NO CATEGORY LIST. A version of this asked specifically for people,
+         * animals and vehicles, which is the lookup table this file's own header
+         * rejects: "every earlier design tried to classify objects and then
+         * decide policy per class; each one turned into a lookup table that
+         * generalised to nothing." The open-vocabulary pass reasons about dates
+         * and names whatever it finds, and that is what it goes back to.
+         */
+        const noCut = (window as unknown as { __noCut?: boolean }).__noCut === true;
+        if (source && noCut) {
           reference = source.url;
+          console.warn(
+            `[looking-glass] __noCut — ${frame.year} gets the whole ${source.year} frame ` +
+              `untouched, crowd and all.`,
+          );
         } else if (source) {
           const items = await segmentAnachronisms(
             config.apiKey,
