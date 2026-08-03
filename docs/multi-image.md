@@ -629,8 +629,8 @@ prints.
 
 - **THE COMPOSITION IS THE IMAGE MODEL'S, NOT THE ATTACHMENT'S.** The largest
   thing this design assumes, and the one it does not control. Measured across a
-  session: with the reference accepted, and in one run entirely uncut, the camera
-  moved every time and always the same way. Told 120 m the model produced 45; told
+  session on Grok Imagine: with the reference accepted, and in one run entirely
+  uncut, the camera moved every time and always the same way. Told 120 m the model produced 45; told
   65 it produced 45; told 110 it produced 65; told 45 it produced 22. On an
   interior seed the camera swung from an off-axis walkway view to the symmetric
   centred axis. On a New York street it swapped the fence from the left of frame
@@ -638,12 +638,22 @@ prints.
   back with checker cabs, the Village Voice and the right clothes — and does not
   carry a camera.
 
-  **It is model-dependent, which is the useful half.** FLUX 2 Max and Nano Banana
-  Pro both drift; Grok Imagine holds composition noticeably better and returns
-  lower-quality pixels. So this is a model-selection problem rather than a wall,
-  and the sweep and the lever want opposite things: the lever makes one
-  standalone picture and quality wins, the sweep makes a series that has to line
-  up and obedience wins. The sweep does not yet select its own model. It should.
+  **Every figure above is Grok Imagine**, which is the model that holds
+  composition BEST of the three tried. Nano Banana Pro is visibly worse at it and
+  visibly better in pixel quality; FLUX 2 Max is untested for this. So the effect
+  is model-dependent in degree and not in kind — the best available option still
+  moves the camera by a third to two thirds, and choosing a different model is
+  not a fix. Anything that closes this gap has to constrain the generation
+  itself.
+
+  **Two constraints the app has never sent, and both are free of new claims.**
+  `seed` is in the endpoint's parameter set and is used nowhere in the codebase —
+  a value fixed across a sweep is the ordinary way to make a series share
+  composition, and it adds no content a model can misread. And a SECOND
+  reference: Gemini accepts 14, FLUX 8, Grok 3, and every call sends one. See
+  *How abrupt the transitions feel* for what the second one should and should not
+  be — the raw seed reintroduces the crowd propagation that removing it fixed,
+  because the seed is uncut.
 
 - **The drift measurement is a weak instrument.** It caught a real regression, and
   it also called a visibly different vantage "73%" and a visibly good pair a
