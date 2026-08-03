@@ -26,3 +26,15 @@ createRoot(host).render(
 const build = import.meta.env.VITE_BUILD ?? 'unknown';
 console.info(`%c[looking-glass] build ${build}`, 'color:#7fb2d6');
 (window as unknown as { __build?: string }).__build = build;
+
+/**
+ * The save button costs nothing to run and used to cost a sweep to TEST. See
+ * stitchTest — `window.__testSave(3)` in the console exercises the whole
+ * download path on clips made locally.
+ */
+if (import.meta.env.DEV) {
+  void import('./lib/stitchTest').then((m) => {
+    (window as unknown as { __testSave?: (n?: number) => Promise<void> }).__testSave = m.testSave;
+    console.info('[looking-glass] window.__testSave(n) — test the video download, free');
+  });
+}
