@@ -489,16 +489,33 @@ function describeCamera(cam: StandpointCamera): string {
 /**
  * HOW FAR THE HORIZON MAY MOVE before the frame is a different viewpoint.
  *
- * As a fraction of frame height. The number is not arbitrary: cameraSkeleton.ts
- * records the drift this whole mechanism exists to stop — a camera that climbed
- * 1.6 m and levelled out by 6.2°, moving the horizon 13.4% of the frame height,
- * which is the difference between a photographer standing in the crowd and one
- * standing a storey above it. 8% sits below that and above the noise in an
- * estimate read off a picture by a language model.
+ * As a fraction of frame height, and RAISED after the ruler was calibrated.
+ *
+ * It was 8%, chosen to sit under the 13.4% that cameraSkeleton.ts records for
+ * the drift this mechanism exists to stop, and "above the noise" — which was an
+ * assumption, not a measurement. Measured: the same unchanged seed read twice
+ * came back with tilt 18° and tilt 12°. At 65° field of view on 16:9 those put
+ * the horizon at 0.047 and 0.203 of frame height, so the noise floor is about
+ * 16% — twice the threshold that was supposed to sit above it. Every horizon
+ * drift reported before this was as likely the estimator as the camera.
+ *
+ * 20% clears the measured floor. It also puts the threshold above the real
+ * effect it was built to catch, which is the honest position: with an estimator
+ * this noisy in tilt, the horizon cannot detect that drift at all, and pretending
+ * otherwise is worse than not measuring. HEIGHT is the half that survived
+ * calibration — 0% disagreement across two reads — and it is what to trust.
  */
-const DRIFT_HORIZON = 0.08;
+const DRIFT_HORIZON = 0.2;
 
-/** Relative change in lens height that counts as a different vantage. */
+/**
+ * Relative change in lens height that counts as a different vantage.
+ *
+ * The trustworthy half. Two reads of one unchanged picture agreed exactly, so a
+ * difference here is the picture and not the ruler — and every run measured so
+ * far has moved the same way: 120 to 45, 65 to 45, 115 to 7, 110 to 65, 45 to
+ * 22. Always down, never up, with the reference accepted and in one case
+ * untouched. That is a systematic bias in the image model, not scatter.
+ */
 const DRIFT_HEIGHT = 0.4;
 
 /**
