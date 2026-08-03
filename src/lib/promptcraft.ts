@@ -1671,13 +1671,41 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
    * placed with the camera rather than with the scene — it is a property of
    * where the photographer stands, not of what is in front of them.
    */
-  const horizon =
-    opts.horizonFromTop !== undefined && opts.horizonFromTop > -0.5 && opts.horizonFromTop < 1.5
-      ? `The horizon runs ${Math.round(opts.horizonFromTop * 100)}% of the way down the frame ` +
-        `from the top edge, and the camera looks down onto the scene from above that line. ` +
-        `Everything below the horizon is ground seen from above, foreshortened, not seen ` +
-        `edge-on from within it.`
-      : '';
+  const horizon = ((): string => {
+    const h = opts.horizonFromTop;
+    if (h === undefined || !Number.isFinite(h)) return '';
+    /**
+     * OFF-FRAME IS THE COMMON CASE HERE, not an edge case, and the first version
+     * of this clause emitted "-15% of the way down the frame" as though it were
+     * a position. At 65 degrees of field of view the horizon leaves the top of a
+     * 16:9 frame at about 20 degrees of downward tilt, and every seed measured
+     * in this app has been between 15 and 25.
+     *
+     * It is also the strongest thing the clause can say. A horizon above the top
+     * edge means the whole picture is ground seen from above — there is no sky
+     * in it at all — and that is a harder constraint to satisfy accidentally
+     * than any percentage.
+     */
+    if (h < 0.02) {
+      return (
+        `The horizon is ABOVE the top edge of the frame: the camera looks down steeply ` +
+        `enough that no sky and no distant skyline appear anywhere in the picture. Every ` +
+        `part of the frame, top to bottom, is ground and what stands on it, seen from ` +
+        `above and foreshortened — nothing is seen edge-on from within the scene.`
+      );
+    }
+    if (h > 0.98) {
+      return (
+        `The horizon is BELOW the bottom edge of the frame: the camera looks up, and no ` +
+        `ground plane appears in the picture at all.`
+      );
+    }
+    return (
+      `The horizon runs ${Math.round(h * 100)}% of the way down the frame from the top edge. ` +
+      `Everything below that line is ground seen from above, foreshortened, and the camera ` +
+      `is above it looking down — not standing within the scene at its own level.`
+    );
+  })();
 
   const task = attached
     ? `You are not composing a photograph. The camera has not moved and the view is the ` +
