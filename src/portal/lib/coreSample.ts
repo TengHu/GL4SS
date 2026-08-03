@@ -1282,6 +1282,9 @@ export class CoreSampleRunner {
             { signal: abort.signal },
           );
           if (abort.signal.aborted) break;
+          // The labels feed the planner here too, so the switch compares the
+          // ATTACHMENT and nothing else: both branches get the same edit list.
+          findings = items.map((a) => `${a.label} (${a.change})`);
           if (items.length) {
             try {
               masked = await compositeCutout(source.url, items, camera);
