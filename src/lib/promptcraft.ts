@@ -1071,18 +1071,6 @@ export interface BuildPanelsOpts {
    * Mutually exclusive with `cameraDiagram`: one attachment, one convention.
    */
   wholeSourceYear?: number;
-  /**
-   * THE SOURCE WITH ITS CROWD ERASED — the year it was taken.
-   *
-   * The middle setting between the two that failed. A whole uncut photograph
-   * holds the vantage and brings its people with it, re-costumed rather than
-   * replaced. A full anachronism cut removes the people and also the buildings,
-   * roads and ground that were holding the camera. This removes the people and
-   * nothing else, so the grey means something narrower than it does under
-   * `cutout`: not "work out what stood here", but "these are open ground, and
-   * this year's people belong on them".
-   */
-  peopleErasedYear?: number;
 }
 
 export function buildImagePromptsFromDirection(
@@ -1591,18 +1579,6 @@ export interface SweepPromptOpts {
   cameraGrid?: boolean;
   /** The whole uncut source is attached — the year it was taken. */
   wholeSourceYear?: number;
-  /**
-   * THE SOURCE WITH ITS CROWD ERASED — the year it was taken.
-   *
-   * The middle setting between the two that failed. A whole uncut photograph
-   * holds the vantage and brings its people with it, re-costumed rather than
-   * replaced. A full anachronism cut removes the people and also the buildings,
-   * roads and ground that were holding the camera. This removes the people and
-   * nothing else, so the grey means something narrower than it does under
-   * `cutout`: not "work out what stood here", but "these are open ground, and
-   * this year's people belong on them".
-   */
-  peopleErasedYear?: number;
 }
 
 /**
@@ -1623,10 +1599,7 @@ export interface SweepPromptOpts {
  */
 export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirection): string[] {
   const year = formatYear(opts.year);
-  const attached =
-    Boolean(opts.cutout) ||
-    opts.wholeSourceYear !== undefined ||
-    opts.peopleErasedYear !== undefined;
+  const attached = Boolean(opts.cutout) || opts.wholeSourceYear !== undefined;
 
   /**
    * THE INSTRUCTION, FIRST AND SHORT — and short is the point.
@@ -1650,9 +1623,7 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
    * a scene description is a large claim. The blocks that survive here are the
    * ones stating something the attached picture cannot.
    */
-  const lead = opts.peopleErasedYear !== undefined
-    ? `The attached photograph shows this exact view in ${formatYear(opts.peopleErasedYear)}, with every person, animal and vehicle erased to flat grey. Render the same view in ${year}: the exact same camera position, the same direction of view, the same framing, the same lens, the same distance. Nothing is moved and nothing is recomposed. Everything that is not grey is correct — reproduce it exactly. The grey patches are open ground: populate them freshly with whoever and whatever is here in ${year}, standing where their own business puts them and in their own numbers. Also different: the season and the light, the wear on surfaces, and what had not yet been built or had already gone.`
-    : opts.cutout
+  const lead = opts.cutout
     ? `The attached photograph has parts removed. The flat grey regions are missing — render what stood on that ground in ${year}. Blurred regions are still there but looked different — rebuild them as they were. Everything neither grey nor blurred is correct: reproduce it exactly, the same viewpoint, the same framing, the same lens. Where the description below and the picture disagree about whether something is present, THE PICTURE IS CORRECT.`
     : opts.wholeSourceYear !== undefined
       ? `The attached photograph shows this exact view in ${formatYear(opts.wholeSourceYear)}. Render the same view in ${year}: the exact same camera position, the same direction of view, the same framing, the same lens, the same distance. Nothing is moved and nothing is recomposed. Only what time changed is different — the people and what they wear, carry and drive, the season and the light, the wear on surfaces, and what had not yet been built or had already gone.`
