@@ -83,7 +83,7 @@ export async function segmentAnachronisms(
   model: string,
   options: { signal?: AbortSignal; limit?: number } = {},
 ): Promise<Anachronism[]> {
-  const limit = options.limit ?? 30;
+  const limit = options.limit ?? 60;
   const prompt = [
     `This photograph of ${JSON.stringify(location)} was taken in ${seedYear}. I want to render the SAME VIEW as it was in the year ${targetYear}.`,
     ``,
@@ -93,7 +93,7 @@ export async function segmentAnachronisms(
     ``,
     `Return ONLY a compact JSON array, no prose, no markdown. Each entry exactly:`,
     `{"b":[y0,x0,y1,x1],"l":"short label","c":"absent"|"altered"}`,
-    `Coordinates normalised 0-1000. MERGE contiguous runs of the same thing into ONE entry covering the whole run. Return at most ${limit} entries, largest-area and most significant first.`,
+    `Coordinates normalised 0-1000. MERGE contiguous runs of the same thing into ONE entry covering the whole run. Return at most ${limit} entries. ORDER BY CERTAINTY, NOT BY SIZE: whatever is most certainly not there in the target year comes first, however small it is in the frame, and a thing that was standing there and merely looked different comes last. Anything alive or in motion is gone from every other year by definition and must never be dropped for being small.`,
   ].join('\n');
 
   try {
