@@ -145,8 +145,11 @@ export async function stitchClips(
  * gallery will refuse. Current Chrome and Safari will mux H.264 into MP4 from a
  * canvas stream, so that is asked for first and the WebM path is left as the
  * fallback rather than the assumption.
+ *
+ * Exported so the local test records its stand-in clips the same way, and so a
+ * caller can ask what this browser is actually capable of rather than assume.
  */
-function pickMime(): string {
+export function pickMime(): string {
   for (const m of [
     'video/mp4;codecs=avc1.42E01E',
     'video/mp4;codecs=avc1',

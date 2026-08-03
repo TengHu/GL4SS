@@ -16,7 +16,7 @@
  *
  * Dev only. Not reachable from the built bundle.
  */
-import { extensionFor, stitchClips } from './stitch';
+import { extensionFor, pickMime, stitchClips } from './stitch';
 
 /** A short clip of a numbered colour field, as a blob: URL. */
 async function fakeClip(index: number, seconds = 2): Promise<string> {
@@ -25,7 +25,14 @@ async function fakeClip(index: number, seconds = 2): Promise<string> {
   canvas.height = 360;
   const ctx = canvas.getContext('2d')!;
   const stream = canvas.captureStream(30);
-  const recorder = new MediaRecorder(stream);
+  /**
+   * THE SAME MIME THE JOINER WOULD ASK FOR, because these clips stand in for
+   * ones the PROVIDER sent and those are MP4. Recorded with MediaRecorder's
+   * default they come out WebM, the passthrough faithfully hands a WebM back,
+   * and the test reports a bug the app does not have.
+   */
+  const mime = pickMime();
+  const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
 
@@ -57,6 +64,16 @@ async function fakeClip(index: number, seconds = 2): Promise<string> {
 
 export async function testSave(count = 2): Promise<void> {
   console.info(`[stitch-test] making ${count} clip(s) locally — no API calls, nothing spent`);
+  /**
+   * What this browser will actually mux, printed rather than assumed. If no MP4
+   * line says `true`, MediaRecorder here cannot produce one and a JOINED film
+   * will be WebM however it is asked — which is a browser limit, not a bug, and
+   * worth seeing before anyone goes looking for one.
+   */
+  for (const m of ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9']) {
+    console.info(`[stitch-test] ${MediaRecorder.isTypeSupported(m) ? 'YES' : 'no '} ${m}`);
+  }
+  console.info(`[stitch-test] the joiner will ask for: ${pickMime() || '(browser default)'}`);
   const urls: string[] = [];
   for (let i = 0; i < count; i++) urls.push(await fakeClip(i));
 
