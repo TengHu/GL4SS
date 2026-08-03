@@ -54,3 +54,7 @@ credentials.json
 *.njsproj
 *.sln
 *.sw?
+
+# The probe writes its runs here — images and prompts, not source.
+sweep_experiment/probe-out/
+sweep_experiment/venv/
