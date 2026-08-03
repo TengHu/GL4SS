@@ -1331,15 +1331,38 @@ export class CoreSampleRunner {
               { signal: abort.signal },
             )
               .then((sp) => {
-                if (abort.signal.aborted || !cameraIsUsable(sp.camera)) return;
+                if (abort.signal.aborted) return;
+                if (!cameraIsUsable(sp.camera)) {
+                  console.warn(
+                    `[looking-glass] ${frame.year} not measured — the produced frame gave no ` +
+                      `usable camera numbers.`,
+                  );
+                  return;
+                }
                 const drift = measureDrift(camera, sp.camera);
                 this.patchFrame(i, { driftChecked: true, drift });
-                if (drift) {
-                  console.warn(`[looking-glass] ${frame.year} drifted — ${drift}`);
-                }
+                /**
+                 * BOTH OUTCOMES SPEAK. Logging only the failure made silence
+                 * mean two different things — "the camera held" and "the check
+                 * never ran" — and a diagnostic that cannot distinguish those is
+                 * not a diagnostic. This is the same silence that hid a rejected
+                 * camera for an entire session.
+                 */
+                console.info(
+                  `[looking-glass] ${frame.year} camera: ` +
+                    `${sp.camera.eyeHeightM.toFixed(0)}m / tilt ${sp.camera.tiltDeg.toFixed(0)}° / ` +
+                    `fov ${sp.camera.hfovDeg.toFixed(0)}° vs seed ` +
+                    `${camera.eyeHeightM.toFixed(0)}m / ${camera.tiltDeg.toFixed(0)}° / ` +
+                    `${camera.hfovDeg.toFixed(0)}° — ${drift ?? 'held'}`,
+                );
               })
               // A measurement that fails costs the measurement, never the frame.
-              .catch(() => {});
+              .catch((err) => {
+                console.warn(
+                  `[looking-glass] ${frame.year} drift check failed — ` +
+                    `${err instanceof Error ? err.message : String(err)}`,
+                );
+              });
           }
         } catch (err) {
           if (abort.signal.aborted) break;
