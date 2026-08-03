@@ -475,9 +475,17 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
                   /* Said before it is pressed, not after: the recording runs in
                      real time and stalls if the tab is hidden, and neither is
                      guessable from a button that says "save". */
-                  title={`Plays the ${clips.length} clips through once to record them into a single file. Takes as long as the film lasts — keep this tab in front.`}
+                  title={
+                    clips.length === 1
+                      ? 'Saves the clip as it is.'
+                      : `Plays the ${clips.length} clips through once to record them into a single file. Video only, and it takes as long as the film lasts — keep this tab in front.`
+                  }
                 >
-                  {joining ? `joining ${joining.clip}/${joining.clips}…` : 'save as one video'}
+                  {joining
+                    ? `joining ${joining.clip}/${joining.clips}…`
+                    : clips.length === 1
+                      ? 'save the clip'
+                      : 'save as one video'}
                 </button>
               )}
               {joinError && <span className="sampler-join-error"> · {joinError}</span>}

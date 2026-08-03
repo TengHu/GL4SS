@@ -21,10 +21,17 @@
  *   - the tab must stay visible. Backgrounded, requestAnimationFrame stops and
  *     the recording stalls — hence `onProgress`, so the UI can say so.
  *
- * Audio comes along when it exists. A sweep of two frames films to a single clip
- * and keeps its sound; anything longer is generated silent on purpose, because
- * each clip would otherwise be scored independently and cut to an unrelated
- * soundtrack at every join. See audioForSequence.
+ * VIDEO ONLY. There was an audio path and it was the bug: the clips were routed
+ * through an AudioContext into the canvas stream, the context sits suspended
+ * under autoplay policy, playback has to be muted for `play()` to be allowed at
+ * all — so no samples ever reached the destination, and MediaRecorder given a
+ * track that never delivers stalls the muxer and writes a header with nothing
+ * after it. A valid file containing no video, which is the worst shape a bug can
+ * take.
+ *
+ * Nothing is lost by removing it. A film of more than one clip is GENERATED
+ * silent on purpose — see audioForSequence — and a film of exactly one is handed
+ * back untouched below, sound and all.
  */
 
 /** Frames per second the canvas is sampled at. */
@@ -48,6 +55,18 @@ export async function stitchClips(
   options: { signal?: AbortSignal; onProgress?: (p: StitchProgress) => void } = {},
 ): Promise<Blob> {
   if (!urls.length) throw new Error('nothing to join');
+
+  /**
+   * ONE CLIP IS ALREADY THE FILM. Hand back its bytes.
+   *
+   * No canvas, no recorder, no re-encode and no real-time wait — and it keeps
+   * its sound, because a two-frame sweep films to a single clip and that one is
+   * generated WITH audio. Everything below exists to join clips together and
+   * there is nothing here to join.
+   */
+  if (urls.length === 1) {
+    return await (await fetch(urls[0]!)).blob();
+  }
   if (typeof MediaRecorder === 'undefined') {
     throw new Error('this browser cannot record video');
   }
@@ -78,32 +97,6 @@ export async function stitchClips(
    */
   let drawn = 0;
 
-  /**
-   * Audio is routed through one destination for the whole recording, so a clip
-   * that has sound and a clip that does not can sit in the same file. Created
-   * lazily: a silent film should not need an AudioContext at all, and some
-   * browsers count an unused one against autoplay policy.
-   */
-  type Audio = { ctx: AudioContext; dest: MediaStreamAudioDestinationNode };
-  // A holder rather than a `let`: the only assignment happens inside the closure
-  // below, and control-flow analysis then narrows the outer binding to null for
-  // the cleanup in `finally`.
-  const audio: { current: Audio | null } = { current: null };
-  const attachAudio = (el: HTMLVideoElement) => {
-    try {
-      if (!audio.current) {
-        const c = new AudioContext();
-        const d = c.createMediaStreamDestination();
-        d.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
-        audio.current = { ctx: c, dest: d };
-      }
-      audio.current.ctx.createMediaElementSource(el).connect(audio.current.dest);
-    } catch {
-      // No sound rather than no film. A cross-origin clip cannot be routed, and
-      // that is a silent output, not a failure.
-    }
-  };
-
   const mime = pickMime();
   const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
   const chunks: Blob[] = [];
@@ -124,27 +117,26 @@ export async function stitchClips(
       options.onProgress?.({ clip: i + 1, clips: urls.length });
       const el = i === 0 ? first : await loadVideo(urls[i]!).catch(() => null);
       if (!el) continue;
-      attachAudio(el);
       await playInto(el, ctx, width, height, () => { drawn++; }, options.signal);
       el.remove();
     }
   } finally {
     recorder.stop();
-    void audio.current?.ctx.close();
   }
 
   const blob = await done;
-  if (!drawn || blob.size < 1024) {
-    throw new Error(
-      `the recording captured ${drawn} frames — nothing was drawn, so there is no film to save`,
-    );
+  if (!drawn) {
+    throw new Error('the clips would not play, so nothing was recorded');
+  }
+  if (blob.size < 1024) {
+    throw new Error(`${drawn} frames drawn but the recorder wrote ${blob.size} bytes`);
   }
   return blob;
 }
 
 /** WebM is what MediaRecorder actually produces; the codec preference is best-effort. */
 function pickMime(): string {
-  for (const m of ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']) {
+  for (const m of ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
     if (MediaRecorder.isTypeSupported(m)) return m;
   }
   return '';
