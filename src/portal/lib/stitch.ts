@@ -59,58 +59,83 @@ export async function stitchClips(
   /**
    * ONE CLIP IS ALREADY THE FILM. Hand back its bytes.
    *
-   * The OUTPUT is the same either way — one video file, MP4 — and only the route
-   * differs, because there is nothing here to join. No canvas, no recorder, no
-   * re-encode and no real-time wait. The provider sends MP4 and MediaRecorder is
-   * asked for MP4, so the two paths agree on what comes out; the caller should
-   * not be able to tell which ran, and the button no longer says.
+   * ONE CLIP THAT IS ALREADY MP4 IS ALREADY THE FILM. Hand back its bytes: no
+   * canvas, no encoder, no re-encode, no real-time wait.
+   *
+   * Only when it is already MP4. Anything else falls through to the encoder, so
+   * the answer to "what do I get" is MP4 whatever the clip count and whatever
+   * the provider sent.
    */
   if (urls.length === 1) {
-    return await (await fetch(urls[0]!)).blob();
+    const only = await (await fetch(urls[0]!)).blob();
+    // Passthrough ONLY if it is already MP4. Anything else goes through the
+    // encoder below, so the answer to "what do I get" is one word regardless of
+    // clip count or what the provider happened to send.
+    if (only.type.includes('mp4')) return only;
   }
-  if (typeof MediaRecorder === 'undefined') {
-    throw new Error('this browser cannot record video');
-  }
-
   /**
-   * The first clip decides the canvas size and every later one is drawn to fit
-   * it. They are all asked for at the same aspect, so this is a guard rather
-   * than a resize — but a provider returning an odd size must not shear the
-   * rest of the film.
+   * ENCODED WITH WebCodecs AND MUXED TO MP4, not recorded.
+   *
+   * MediaRecorder was the wrong tool. Whether it can write MP4 at all is up to
+   * the browser, so the container came out WebM on some machines and MP4 on
+   * others for the same code — and a .webm is a file half the world's players
+   * and every phone gallery will refuse.
+   *
+   * VideoEncoder takes frames and returns H.264 chunks, mp4-muxer puts them in
+   * an MP4 box structure, and neither asks the browser's permission about the
+   * container. The output is MP4 on anything with WebCodecs, which is every
+   * browser this app already requires for the rest of what it does.
    */
+  const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
+
   const first = await loadVideo(urls[0]!);
-  const width = first.videoWidth || 1280;
-  const height = first.videoHeight || 720;
+  // Even dimensions: H.264 encodes in 16x16 macroblocks and an odd width or
+  // height is rejected outright by some encoders.
+  const width = (first.videoWidth || 1280) & ~1;
+  const height = (first.videoHeight || 720) & ~1;
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('could not open a canvas to record into');
+  if (!ctx) throw new Error('could not open a canvas to encode from');
 
-  const stream = canvas.captureStream(FPS);
-  /**
-   * Counted, because an empty recording still produces a valid file.
-   *
-   * The first version shipped a 110-byte WebM — a header and no frames — and
-   * downloaded it without complaint. A silent bad output is worse than an error:
-   * the visitor has a file, believes it worked, and finds out later.
-   */
-  let drawn = 0;
-
-  const mime = pickMime();
-  const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-  const chunks: Blob[] = [];
-  recorder.ondataavailable = (e) => {
-    if (e.data.size) chunks.push(e.data);
-  };
-
-  const done = new Promise<Blob>((resolve) => {
-    recorder.onstop = () => resolve(new Blob(chunks, { type: mime || 'video/webm' }));
+  const muxer = new Muxer({
+    target: new ArrayBufferTarget(),
+    video: { codec: 'avc', width, height },
+    fastStart: 'in-memory',
   });
 
-  // Chunked, so a long film is not held whole in one buffer until it stops.
-  recorder.start(1000);
+  const encoder = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (e) => console.warn('[looking-glass] encoder —', e),
+  });
+  encoder.configure({
+    codec: 'avc1.42001f',
+    width,
+    height,
+    bitrate: 6_000_000,
+    framerate: FPS,
+  });
+
+  let drawn = 0;
+  /**
+   * Timestamps are OURS, counted in frames, not read off the clips.
+   *
+   * Each clip restarts its own clock at zero, so passing their times through
+   * would make every clip after the first sit on top of the one before it. A
+   * running frame counter is what makes them a sequence.
+   */
+  const encode = () => {
+    const frame = new VideoFrame(canvas, {
+      timestamp: (drawn * 1e6) / FPS,
+      duration: 1e6 / FPS,
+    });
+    // Keyframe every second: a film with no keyframes cannot be seeked.
+    encoder.encode(frame, { keyFrame: drawn % FPS === 0 });
+    frame.close();
+    drawn++;
+  };
 
   try {
     for (let i = 0; i < urls.length; i++) {
@@ -118,33 +143,32 @@ export async function stitchClips(
       options.onProgress?.({ clip: i + 1, clips: urls.length });
       const el = i === 0 ? first : await loadVideo(urls[i]!).catch(() => null);
       if (!el) continue;
-      await playInto(el, ctx, width, height, () => { drawn++; }, options.signal);
+      await playInto(el, ctx, width, height, encode, options.signal);
       el.remove();
     }
   } finally {
-    // Already inactive if it never started; stop() throws on that.
-    if (recorder.state !== 'inactive') recorder.stop();
     first.remove();
   }
 
-  const blob = await done;
-  if (!drawn) {
-    throw new Error('the clips would not play, so nothing was recorded');
+  await encoder.flush();
+  encoder.close();
+  muxer.finalize();
+
+  if (!drawn) throw new Error('the clips would not play, so nothing was encoded');
+  const buffer = (muxer.target as InstanceType<typeof ArrayBufferTarget>).buffer;
+  if (!buffer || buffer.byteLength < 1024) {
+    throw new Error(`${drawn} frames encoded but the muxer wrote nothing`);
   }
-  if (blob.size < 1024) {
-    throw new Error(`${drawn} frames drawn but the recorder wrote ${blob.size} bytes`);
-  }
-  return blob;
+  return new Blob([buffer], { type: 'video/mp4' });
 }
 
 /**
- * MP4 IF THE BROWSER WILL, WebM IF IT WILL NOT.
+ * What MediaRecorder will accept, preferring MP4.
  *
- * MediaRecorder produced WebM only for years, which is why this used to ask for
- * nothing else — and a .webm is a file half the world's players and every phone
- * gallery will refuse. Current Chrome and Safari will mux H.264 into MP4 from a
- * canvas stream, so that is asked for first and the WebM path is left as the
- * fallback rather than the assumption.
+ * No longer used to JOIN anything — that goes through WebCodecs now, which does
+ * not leave the container up to the browser. It survives for the local test,
+ * whose stand-in clips have to be recorded somehow and should match what a
+ * provider sends.
  *
  * Exported so the local test records its stand-in clips the same way, and so a
  * caller can ask what this browser is actually capable of rather than assume.
