@@ -148,7 +148,32 @@ export function parseAnachronisms(raw: string): Anachronism[] {
     const area = ((box[2] - box[0]) * (box[3] - box[1])) / 1e6;
     if (area > 0.9) continue;
     if (box[2] <= box[0] || box[3] <= box[1]) continue;
-    out.push({ box, label: m[5]!, change: m[6] === 'altered' ? 'altered' : 'absent' });
+    const change = m[6] === 'altered' ? 'altered' : 'absent';
+    /**
+     * A BIG 'ALTERED' BOX DESTROYS MORE THAN IT SAYS.
+     *
+     * Blur is a good answer for a walkway, a kiosk, a re-laid surface: the thing
+     * survives, the detail is freed, and it costs no extra call. It is a
+     * catastrophic answer for the landmark. Asked for 1987 from 2010 the pass
+     * marked the Colosseum `altered` — correct in itself, the stone was dirtier
+     * before the 1990s cleaning — and the composite blurred the entire
+     * amphitheatre into a smear. The one structure that must be identical in
+     * every frame of the sweep became the one structure the model could not see,
+     * so it rebuilt it from the prose instead, in the place the prose put it,
+     * while the smear rebuilt as a second one.
+     *
+     * The change itself is not lost by dropping the box: 'altered' means "still
+     * there, looked different", and how it looked different is a sentence, which
+     * the planner has already written into `standing` — "the stone significantly
+     * darker and more stained by smog". Words carry a colour change perfectly
+     * and pixels carry a viewpoint perfectly. Trading the second for the first
+     * is the wrong way round.
+     *
+     * Absent is untouched. Erasing is what the mechanism is FOR, and an absent
+     * region is one the model is supposed to author.
+     */
+    if (change === 'altered' && area > 0.05) continue;
+    out.push({ box, label: m[5]!, change });
   }
   return out;
 }

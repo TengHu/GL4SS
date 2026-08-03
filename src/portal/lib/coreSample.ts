@@ -1052,6 +1052,11 @@ export class CoreSampleRunner {
        * because every frame would then agree on the wrong view.
        */
       let standpoint = '';
+      /**
+       * The camera sentence alone. See Standpoint.cameraText: a frame with a
+       * picture attached must not also be told where in the frame things go.
+       */
+      let standpointCamera = '';
       let camera: StandpointCamera | undefined;
       if (anchorUrl && !abort.signal.aborted) {
         const years = this.state.frames.map((f) => f.year);
@@ -1066,6 +1071,7 @@ export class CoreSampleRunner {
           { signal: abort.signal },
         );
         standpoint = sp.text;
+        standpointCamera = sp.cameraText;
         /**
          * The numbers stay; the standalone diagram goes. The grid is now painted
          * into the cut-out's erased regions instead of shipped as a second
@@ -1187,7 +1193,8 @@ export class CoreSampleRunner {
           console.info(
             `[looking-glass] ${frame.year} from ${source.year}: ${anachronisms} anachronisms ` +
               `(${absent} absent) · ` +
-              `attached ${masked ? 'cut-out' : 'the whole source'}`,
+              `attached ${masked ? 'cut-out' : 'the whole source'} · ` +
+              `standpoint ${reference ? 'camera only' : 'full'}`,
           );
         }
 
@@ -1220,7 +1227,20 @@ export class CoreSampleRunner {
           styleSuffix: config.styleOverride,
           periodProcess: config.periodProcess,
           phase,
-          standpoint,
+          /**
+           * WITH A PICTURE ATTACHED, ONLY THE CAMERA SENTENCE.
+           *
+           * The standpoint's other two paragraphs place the landmark in the
+           * frame and describe it in full — written for an observer who would
+           * never see a photograph, which every frame now does. Sending both is
+           * how the Colosseum got drawn twice: once reproduced from the
+           * attachment, once composed from the frame map.
+           *
+           * The unattached frame still gets all three. That is the case those
+           * paragraphs exist for and the only one where nothing else says where
+           * anything is.
+           */
+          standpoint: reference ? standpointCamera : standpoint,
         };
         const prompts = buildSweepPrompts(
           {

@@ -816,6 +816,21 @@ function parseSceneDirection(raw: string): SceneDirection | null {
 export interface Standpoint {
   /** Emitted into every frame's prompt. Empty when the call failed. */
   text: string;
+  /**
+   * THE CAMERA SENTENCE ALONE — no frame map, no permanent fabric.
+   *
+   * `text` is three paragraphs, and only the first is about the camera. The
+   * other two were written for a reader who "will never see a photograph",
+   * which is what this call's own prompt says and what was true before the
+   * cut-out existed. It is not true now: every sweep frame gets an attachment.
+   *
+   * Handed both, a model reproduces the attached view AND obeys a frame map
+   * that places the landmark somewhere else — it drew the Colosseum twice, once
+   * where the picture had it and once where the paragraph said it went. So a
+   * frame with a picture attached gets this, and a frame without one gets the
+   * whole of `text`, which is precisely what those paragraphs are for.
+   */
+  cameraText: string;
   /** Drives the diagram. Absent when the model returned nothing usable. */
   camera?: StandpointCamera;
 }
@@ -933,13 +948,13 @@ export async function planStandpoint(
     const raw = extractTextFromMessage(data.choices?.[0]?.message).trim();
     return parseStandpoint(raw);
   } catch (err) {
-    if (options.signal?.aborted) return { text: '' };
+    if (options.signal?.aborted) return { text: '', cameraText: '' };
     console.warn(
       `[looking-glass] standpoint call failed — the sweep runs without one, so the ` +
         `frames will not hold a common viewpoint. ` +
         `${err instanceof Error ? err.message : String(err)}`,
     );
-    return { text: '' };
+    return { text: '', cameraText: '' };
   }
 }
 
@@ -960,7 +975,7 @@ function parseStandpoint(raw: string): Standpoint {
       `[looking-glass] standpoint did not parse as JSON — the sweep runs without a ` +
         `common viewpoint. head: ${cleaned.slice(0, 200)}`,
     );
-    return { text: '' };
+    return { text: '', cameraText: '' };
   }
   const num = (k: string): number | undefined => {
     const v = obj[k];
@@ -1004,13 +1019,21 @@ function parseStandpoint(raw: string): Standpoint {
         `Every photograph in this series is made from that exact position with that exact lens.`,
     );
   }
+  // Everything up to here is the camera and nothing else. Captured before the
+  // scene paragraphs are appended, so the two can never be confused again.
+  const cameraText = parts.join('\n\n');
+
   if (str('frameMap')) parts.push(str('frameMap'));
   if (str('permanentFabric')) parts.push(str('permanentFabric'));
 
   if (!parts.length) {
     console.warn('[looking-glass] standpoint parsed but was empty — the sweep runs without one.');
   }
-  return { text: parts.join('\n\n'), camera: complete ? (camera as StandpointCamera) : undefined };
+  return {
+    text: parts.join('\n\n'),
+    cameraText,
+    camera: complete ? (camera as StandpointCamera) : undefined,
+  };
 }
 
 export async function generateSceneDirection(
