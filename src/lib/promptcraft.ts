@@ -1546,6 +1546,23 @@ export function buildFallbackDirection(
 export interface SweepPromptOpts {
   location: string;
   year: number;
+  /**
+   * WHERE THE HORIZON CROSSES THE FRAME, as a fraction of frame height from the
+   * top. Computed, not estimated — horizonFraction() from the seed's tilt and
+   * field of view.
+   *
+   * Every camera instruction so far has been in METRES, and the model has
+   * lowered the camera in every measured run. "The lens is 45 m above the
+   * ground" is a claim about the world: to obey it the model must reason from a
+   * height to a projection. Where the horizon falls is a claim about the PICTURE,
+   * and it can check that against the canvas it is drawing.
+   *
+   * It also names no object, which is what makes it safe to say. The standpoint's
+   * frame map placed the landmark — "the amphitheatre sits at the horizontal
+   * centre" — and got a second amphitheatre drawn at that position. A horizon
+   * line is a line. There is nothing in it to duplicate.
+   */
+  horizonFromTop?: number;
   /** The user's style suffix, if any. Authors colour exactly as it does elsewhere. */
   styleSuffix?: string | null;
   /** StylePreset.photographic — see styleIsPhotographic. */
@@ -1649,6 +1666,19 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
    * answered with a second Colosseum. The attachment says where this is; saying
    * it again in words is the exact second opinion this builder exists to remove.
    */
+  /**
+   * Said as a fraction of the frame rather than as a height in metres, and
+   * placed with the camera rather than with the scene — it is a property of
+   * where the photographer stands, not of what is in front of them.
+   */
+  const horizon =
+    opts.horizonFromTop !== undefined && opts.horizonFromTop > -0.5 && opts.horizonFromTop < 1.5
+      ? `The horizon runs ${Math.round(opts.horizonFromTop * 100)}% of the way down the frame ` +
+        `from the top edge, and the camera looks down onto the scene from above that line. ` +
+        `Everything below the horizon is ground seen from above, foreshortened, not seen ` +
+        `edge-on from within it.`
+      : '';
+
   const task = attached
     ? `You are not composing a photograph. The camera has not moved and the view is the ` +
       `one attached: what did it record in ${formattedYear}?`
@@ -1715,6 +1745,7 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
     [
       reading,
       task,
+      horizon,
       standpoint,
       standing,
       withPeople ? people : '',

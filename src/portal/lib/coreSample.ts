@@ -1327,6 +1327,12 @@ export class CoreSampleRunner {
           styleSuffix: config.styleOverride,
           periodProcess: config.periodProcess,
           phase,
+          // Computed from the seed's own tilt and field of view — the one camera
+          // fact the model can verify against the canvas instead of inferring
+          // from metres. See SweepPromptOpts.horizonFromTop.
+          horizonFromTop: cameraIsUsable(camera)
+            ? horizonFraction(camera.hfovDeg, camera.tiltDeg, 16 / 9)
+            : undefined,
           /**
            * WITH A PICTURE ATTACHED, ONLY THE CAMERA SENTENCE.
            *
