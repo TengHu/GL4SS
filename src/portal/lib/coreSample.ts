@@ -510,11 +510,18 @@ const DRIFT_HORIZON = 0.2;
 /**
  * Relative change in lens height that counts as a different vantage.
  *
- * The trustworthy half. Two reads of one unchanged picture agreed exactly, so a
- * difference here is the picture and not the ruler — and every run measured so
- * far has moved the same way: 120 to 45, 65 to 45, 115 to 7, 110 to 65, 45 to
- * 22. Always down, never up, with the reference accepted and in one case
- * untouched. That is a systematic bias in the image model, not scatter.
+ * THE FLOOR IS 0 TO 22%, measured, and the first of those two numbers was
+ * published here as though it were the answer. One calibration returned 45m
+ * against 45m and this comment called height "the trustworthy half"; the next
+ * returned 45m against 35m. A noise floor from a single sample is not a noise
+ * floor, and the claim should not have been made from one.
+ *
+ * 40% still clears the observed spread, and the effect clears it comfortably:
+ * every run has moved the same way — 120 to 45, 65 to 45, 115 to 7, 110 to 65,
+ * 45 to 22, 45 to 12 — always down, never up, with the reference accepted and
+ * twice untouched. A bias that consistent in sign is not scatter, whatever the
+ * per-reading error. But the magnitudes carry ±20%, and any conclusion that
+ * needs them finer than that needs a better ruler first.
  */
 const DRIFT_HEIGHT = 0.4;
 
@@ -1466,7 +1473,7 @@ export class CoreSampleRunner {
                  * camera for an entire session.
                  */
                 console.info(
-                  `[looking-glass] ${frame.year} camera: ` +
+                  `[looking-glass] ${frame.year} on ${model} — camera: ` +
                     `${sp.camera.eyeHeightM.toFixed(0)}m / tilt ${sp.camera.tiltDeg.toFixed(0)}° / ` +
                     `fov ${sp.camera.hfovDeg.toFixed(0)}° vs seed ` +
                     `${camera.eyeHeightM.toFixed(0)}m / ${camera.tiltDeg.toFixed(0)}° / ` +
