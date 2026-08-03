@@ -93,8 +93,11 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
    * — and for why it takes as long as the film lasts.
    */
   const [joining, setJoining] = useState<{ clip: number; clips: number } | null>(null);
+  /** Said on the button, not only in the console — see the 110-byte download. */
+  const [joinError, setJoinError] = useState<string | null>(null);
   const saveFilm = async () => {
     if (joining || !hasFilm) return;
+    setJoinError(null);
     setJoining({ clip: 0, clips: clips.length });
     try {
       const blob = await stitchClips(
@@ -111,7 +114,9 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
       // Revoked late: Safari drops the download if the url dies in the same tick.
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
-      console.warn('[looking-glass] could not join the clips —', err);
+      const why = err instanceof Error ? err.message : String(err);
+      console.warn('[looking-glass] could not join the clips —', why);
+      setJoinError(why);
     } finally {
       setJoining(null);
     }
@@ -475,6 +480,7 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
                   {joining ? `joining ${joining.clip}/${joining.clips}…` : 'save as one video'}
                 </button>
               )}
+              {joinError && <span className="sampler-join-error"> · {joinError}</span>}
               {(() => {
                 const cut = state.clips.filter((c) => c.status === 'ready' && c.pinned === false).length;
                 const lost = state.clips.filter((c) => c.status === 'error').length;

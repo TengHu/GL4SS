@@ -69,6 +69,14 @@ export async function stitchClips(
   if (!ctx) throw new Error('could not open a canvas to record into');
 
   const stream = canvas.captureStream(FPS);
+  /**
+   * Counted, because an empty recording still produces a valid file.
+   *
+   * The first version shipped a 110-byte WebM — a header and no frames — and
+   * downloaded it without complaint. A silent bad output is worse than an error:
+   * the visitor has a file, believes it worked, and finds out later.
+   */
+  let drawn = 0;
 
   /**
    * Audio is routed through one destination for the whole recording, so a clip
@@ -107,7 +115,8 @@ export async function stitchClips(
     recorder.onstop = () => resolve(new Blob(chunks, { type: mime || 'video/webm' }));
   });
 
-  recorder.start();
+  // Chunked, so a long film is not held whole in one buffer until it stops.
+  recorder.start(1000);
 
   try {
     for (let i = 0; i < urls.length; i++) {
@@ -116,7 +125,7 @@ export async function stitchClips(
       const el = i === 0 ? first : await loadVideo(urls[i]!).catch(() => null);
       if (!el) continue;
       attachAudio(el);
-      await playInto(el, ctx, width, height, options.signal);
+      await playInto(el, ctx, width, height, () => { drawn++; }, options.signal);
       el.remove();
     }
   } finally {
@@ -124,7 +133,13 @@ export async function stitchClips(
     void audio.current?.ctx.close();
   }
 
-  return done;
+  const blob = await done;
+  if (!drawn || blob.size < 1024) {
+    throw new Error(
+      `the recording captured ${drawn} frames — nothing was drawn, so there is no film to save`,
+    );
+  }
+  return blob;
 }
 
 /** WebM is what MediaRecorder actually produces; the codec preference is best-effort. */
@@ -144,6 +159,13 @@ function loadVideo(src: string): Promise<HTMLVideoElement> {
     el.preload = 'auto';
     el.muted = false;
     el.playsInline = true;
+    /**
+     * IN THE DOCUMENT, off to one side. A detached video element plays in some
+     * browsers and not others, and this is a button whose failure mode is a file
+     * that looks fine and contains nothing.
+     */
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0';
+    document.body.appendChild(el);
     el.onloadeddata = () => resolve(el);
     el.onerror = () => reject(new Error(`could not load ${src.slice(0, 40)}`));
     el.src = src;
@@ -163,6 +185,7 @@ function playInto(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
+  onFrame: () => void,
   signal?: AbortSignal,
 ): Promise<void> {
   return new Promise((resolve) => {
@@ -175,6 +198,7 @@ function playInto(
     const tick = () => {
       if (signal?.aborted || el.ended) return stop();
       ctx.drawImage(el, 0, 0, width, height);
+      onFrame();
       raf = requestAnimationFrame(tick);
     };
     el.onended = stop;

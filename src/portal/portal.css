@@ -5831,6 +5831,8 @@ body {
   vertical-align: middle;
 }
 
+.sampler-join-error { color: #e0b24a; }
+
 .sampler-save-film:disabled {
   opacity: 0.6;
   cursor: progress;
