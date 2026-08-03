@@ -49,7 +49,12 @@ export type { StandpointCamera };
  * fall back to prose, which is the behaviour that shipped before this file.
  */
 const LIMITS: Record<string, [number, number]> = {
-  eyeHeightM: [0.3, 120],
+  // 120 assumed anything higher was a misread photograph. An elevated seed is
+  // not a misread one: a terrace over Rome is ~150m and an aerial is several
+  // hundred, and BOTH were silently refused — no grid painted, and no drift
+  // measured, for exactly the seeds whose vantage is hardest to hold. The
+  // ceiling is still a sanity gate, just one set above real viewpoints.
+  eyeHeightM: [0.3, 4000],
   tiltDeg: [-60, 60],
   hfovDeg: [10, 140],
   nearestM: [0.15, 2000],
@@ -59,7 +64,20 @@ export function cameraIsUsable(cam: Partial<StandpointCamera> | undefined): cam 
   if (!cam) return false;
   for (const [key, [lo, hi]] of Object.entries(LIMITS)) {
     const v = (cam as Record<string, unknown>)[key];
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < lo || v > hi) return false;
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < lo || v > hi) {
+      /**
+       * OUT OF RANGE USED TO BE SILENT, and silence is what made it expensive.
+       * A single field over its limit disables the grid AND the drift check for
+       * every frame of the run, and the log printed the numbers as though they
+       * had been used — so a sweep with its camera machinery entirely switched
+       * off looked exactly like one without.
+       */
+      console.warn(
+        `[looking-glass] camera numbers rejected: ${key}=${String(v)} outside [${lo}, ${hi}] — ` +
+          `no perspective grid and no drift check on this run.`,
+      );
+      return false;
+    }
   }
   return true;
 }

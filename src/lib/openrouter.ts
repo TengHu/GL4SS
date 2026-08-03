@@ -910,7 +910,7 @@ export async function planStandpoint(
     ``,
     `Reply with ONE JSON object and nothing else:`,
     `{`,
-    `  "eyeHeightM": number — height of the lens above whatever the photographer is standing on, in metres. A standing adult is about 1.6.`,
+    `  "eyeHeightM": number — height of the lens above THE GROUND THE SCENE SITS ON, in metres: the ground the main subject stands on, not the ground under the photographer's own feet. Standing in a street among the buildings, those are the same thing and a standing adult is about 1.6. Looking down on a city from a terrace, a hill, a roof or an aircraft they are not: answer the drop to the city below, which is tens or hundreds of metres, not the 1.6 to the paving you are standing on. This number is what a perspective diagram of the ground is drawn from, so answering the height above your feet draws a street-level ground plane into an aerial view.`,
     `  "standingOn": "what is under their feet, a few words",`,
     `  "bearingDeg": number — compass bearing they face, 0 is north, 90 is east,`,
     `  "tiltDeg": number — degrees BELOW level. Positive looks down, negative looks up, 0 is level. Judge it from the horizon: if people standing on the photographer's own ground have their eyes near the middle of the frame the tilt is near 0, and the higher their eye level sits in the frame the further the camera is tilted DOWN.`,
