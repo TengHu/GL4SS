@@ -15,3 +15,13 @@ createRoot(host).render(
     </ErrorBoundary>
   </StrictMode>,
 );
+
+/**
+ * SAY WHICH BUILD THIS IS, on every load.
+ *
+ * A stale tab and a broken fix look identical from the outside, and only one of
+ * them is worth debugging. Injected by vite.config.ts from git at server start;
+ * `[vite] hot updated:` in the console covers the edits since.
+ */
+console.info(`%c[looking-glass] build ${__BUILD__}`, 'color:#7fb2d6');
+(window as unknown as { __build?: string }).__build = __BUILD__;

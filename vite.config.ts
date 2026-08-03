@@ -1,8 +1,34 @@
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+/**
+ * WHICH BUILD IS THIS TAB RUNNING?
+ *
+ * A question with no answer until now, and one worth minutes every time an edit
+ * seems not to have taken effect — a stale tab and a broken fix look identical
+ * from the outside, and only one of them is worth debugging.
+ *
+ * Read once when the dev server or the build starts, so it names the commit the
+ * bundle was assembled from. A tab that has hot-reloaded since is NEWER than
+ * this says; a tab that has not been reloaded since a server restart may be
+ * older. `[vite] hot updated:` in the console is the per-edit signal; this is
+ * the per-reload one.
+ */
+function stamp(): string {
+  try {
+    const sha = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()
+    const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim() ? '+' : ''
+    const subject = execSync('git log -1 --format=%s', { encoding: 'utf8' }).trim()
+    return `${sha}${dirty} ${subject}`
+  } catch {
+    return 'unknown'
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(stamp()) },
   plugins: [react()],
   // Base path for GitHub Pages
   base: './',
