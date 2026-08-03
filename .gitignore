@@ -58,3 +58,4 @@ credentials.json
 # The probe writes its runs here — images and prompts, not source.
 sweep_experiment/probe-out/
 sweep_experiment/venv/
+sweep_experiment/node_modules/

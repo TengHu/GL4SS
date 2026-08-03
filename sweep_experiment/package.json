@@ -1,0 +1,13 @@
+{
+  "name": "sweep-experiment",
+  "private": true,
+  "type": "module",
+  "description": "Runs the app's own sweep modules from the terminal. Its own package.json so the portal's dependencies are untouched.",
+  "scripts": {
+    "sweep": "tsx run.ts"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.60",
+    "tsx": "^4.19.2"
+  }
+}

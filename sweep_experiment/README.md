@@ -1,62 +1,88 @@
 # Sweep experiment
 
-One station of the sweep, run from the terminal instead of the UI.
+**The production sweep, run from the terminal.** Not a re-implementation — every
+step is the module the portal itself calls, imported straight out of `../src`:
 
-Every finding in this pipeline so far cost a round trip: open the portal, pull the
-lever, wait, screenshot, paste, argue about it. This runs the same three calls the
-sweep makes for one frame and writes every intermediate to disk — the boxes, the
-cut-out that was sent, the prompt that went with it, the picture that came back.
+| step | module |
+|---|---|
+| the standpoint, once per sweep | `planStandpoint` — `src/lib/openrouter.ts` |
+| the planner, per station | `generateSceneDirection` — same |
+| the anachronism pass | `segmentAnachronisms` — `src/portal/lib/timeMask.ts` |
+| the cut-out | `compositeCutout` — same |
+| the prompt | `buildSweepPrompts` — `src/lib/promptcraft.ts` |
+| the image | `renderStill` — `src/portal/lib/render.ts` |
+| the drift check | `planStandpoint` again, `horizonFraction` |
+
+A change to the pipeline shows up here without being copied across, and a result
+here is a result about the pipeline.
+
+## Run
 
 ```sh
+npm install
 export OPENROUTER_API_KEY=sk-or-...
-python3 -m venv venv && ./venv/bin/pip install pillow
 
-./venv/bin/python sweep-probe.py Colosseum-1.jpg --from 2010 --to 1700
+npm run sweep -- Colosseum-1.jpg --from 2010 --to 1700
 ```
 
-Output lands in `probe-out/<image>-<from>-to-<to>-<mode>/`:
+Everything lands in `probe-out/<image>-<from>-to-<to>/`:
 
 ```
-boxes.json    what the segmenter said, with its verdicts
-cutout.png    the defaced picture actually attached
-prompt.txt    the words that went with it
-output.png    what came back
+standpoint.json     the camera read off the seed
+1700-boxes.json     what the segmenter said, with its verdicts
+1700-cutout.png     the defaced picture actually attached
+1700-prompt.txt     the words that went with it
+1700.png            what came back
 ```
 
-## The three modes
+## Chain it
 
-| `--mode` | what is attached | tests |
-|---|---|---|
-| `both` *(default)* | cut-out **+** uncut original | the cut-out says what is present, the original says where the camera is |
-| `cut` | cut-out only | temporal correctness; the crowd cannot cross |
-| `raw` | the original, untouched | composition; nothing to push the model into inventing |
+The app never jumps straight from 2010 to 1700 — it walks the ladder, each frame
+cut from the one beside it. `--stations` does the same:
 
-`raw` holds a vantage and carries its crowd into the next century re-costumed.
-`cut` removes the crowd and takes the structure that was stating the camera with
-it. `both` exists because those are only in tension while one attachment has to
-do both jobs.
-
-## Other switches
-
-```
---place "the Colosseum, Rome"   what the segmenter and planner are told the place is
---model google/gemini-3.1-flash-lite-image
---no-planner                    drop the "what is different this year" paragraph
---out DIR                       default probe-out
+```sh
+npm run sweep -- Colosseum-1.jpg --from 2010 --to 1700 --stations 1900,1800
 ```
 
-## Notes
+That runs 2010 → 1900 → 1800 → 1700, each station cutting from the frame before
+it, which is what `coreSample` does.
 
-**A separate implementation, on purpose.** The app composites on a browser canvas;
-this uses PIL. Keeping them apart means this file can be edited freely to try
-something without touching what ships — and a result here is a result about the
-METHOD rather than about our code. The constants and wording are copied from
-`timeMask.ts` and `promptcraft.ts` and marked where they came from; when the two
-drift apart, this one is wrong.
+**This is the variable that has mattered most.** Every good result in testing was
+a short step and every bad one a long jump: 2010 to 1987 came back nearly
+identical, 1987 to 1943 came back as a different photograph. The more of the
+frame is erased, the freer the model is to compose it — so a 310-year jump in one
+call is the hardest thing you can ask for, and chaining is not a nicety.
 
-**Step size matters more than anything else here.** Every good result in testing
-was a short step and every bad one a long jump: 2010 to 1987 came back nearly
-identical, 1987 to 1943 came back as a different photograph. The more of the frame
-is erased, the freer the model is to compose it, so a 300-year jump in one call is
-the hardest thing you can ask for. Chain it — 2010, 1900, 1800, 1700 — to see what
-the app does across a real sweep.
+## Switches
+
+```
+--from 2010            year the input photograph was taken
+--to 1700              year to render
+--stations 1900,1800   intermediate stations, in order
+--no-cut               send the source whole (window.__noCut)
+--model <id>           image model; default is the app's own
+--text-model <id>      planner and segmenter
+--place "..."          what the planner and segmenter are told the place is
+--lat / --lng          coordinates; default the Colosseum
+--out DIR              default probe-out
+```
+
+## What is NOT replicated
+
+The archive — there is nothing to restore, the seed is the file you pass. The
+queue and its concurrency — one station at a time is the point. The UI. And the
+lever: the seed here is your photograph as-is, where the portal would first
+generate a frame from it, which is itself a step that moves the camera.
+
+Everything that touches a model is the shipping path.
+
+## The DOM shim
+
+`dom.ts` provides the four browser globals the app's modules reach for, and
+nothing else. The canvas is Skia — the engine Chrome draws with — so the grey,
+the blur and the perspective grid come out as they do in the browser.
+
+One trap is recorded there: Skia's `Image` decodes dimensions from its `src`
+setter but not pixels, and draws black. Only `loadImage()` returns something with
+pixels in it, so the shim holds a real image rather than being one, and
+`drawImage` is patched to unwrap it.
