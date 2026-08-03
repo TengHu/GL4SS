@@ -1071,6 +1071,21 @@ export interface BuildPanelsOpts {
    * Mutually exclusive with `cameraDiagram`: one attachment, one convention.
    */
   wholeSourceYear?: number;
+  /**
+   * A SECOND ATTACHMENT: the same view, uncut, for the camera alone.
+   *
+   * The two paths each solved half the problem and broke the other half. An
+   * uncut photograph holds the vantage and carries its crowd into the next
+   * century re-costumed. A cut-out removes the crowd and takes the structure
+   * that was stating the camera with it.
+   *
+   * They are only in tension because one attachment had to do both jobs.
+   * `input_references` is an array — Grok takes three, Gemini fourteen — and
+   * every call so far has sent one. So the cut-out says what is PRESENT and the
+   * uncut frame says where the camera IS, and neither has to do the other's
+   * work. No extra call: a second entry in an array already being sent.
+   */
+  cameraReferenceYear?: number;
 }
 
 export function buildImagePromptsFromDirection(
@@ -1579,6 +1594,21 @@ export interface SweepPromptOpts {
   cameraGrid?: boolean;
   /** The whole uncut source is attached — the year it was taken. */
   wholeSourceYear?: number;
+  /**
+   * A SECOND ATTACHMENT: the same view, uncut, for the camera alone.
+   *
+   * The two paths each solved half the problem and broke the other half. An
+   * uncut photograph holds the vantage and carries its crowd into the next
+   * century re-costumed. A cut-out removes the crowd and takes the structure
+   * that was stating the camera with it.
+   *
+   * They are only in tension because one attachment had to do both jobs.
+   * `input_references` is an array — Grok takes three, Gemini fourteen — and
+   * every call so far has sent one. So the cut-out says what is PRESENT and the
+   * uncut frame says where the camera IS, and neither has to do the other's
+   * work. No extra call: a second entry in an array already being sent.
+   */
+  cameraReferenceYear?: number;
 }
 
 /**
@@ -1623,7 +1653,9 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
    * a scene description is a large claim. The blocks that survive here are the
    * ones stating something the attached picture cannot.
    */
-  const lead = opts.cutout
+  const lead = opts.cutout && opts.cameraReferenceYear !== undefined
+    ? `TWO PHOTOGRAPHS ARE ATTACHED AND THEY SHOW THE SAME VIEW. Read them as follows.\n\nThe FIRST has parts removed. Its flat grey regions are missing — render what stood on that ground in ${year}. Its blurred regions were there but looked different — rebuild them as they were. Everything else in it is correct and is reproduced exactly. It is the authority on WHAT IS PRESENT.\n\nThe SECOND is that same view uncut, as it stood in ${formatYear(opts.cameraReferenceYear)}. It is attached for one thing only: THE CAMERA. Take the position, the direction of view, the framing, the lens and the distance from it exactly, so that the two pictures line up. What it shows belongs to ${formatYear(opts.cameraReferenceYear)} and not to ${year} — where the two disagree about whether something is there, the FIRST is correct.`
+    : opts.cutout
     ? `The attached photograph has parts removed. The flat grey regions are missing — render what stood on that ground in ${year}. Blurred regions are still there but looked different — rebuild them as they were. Everything neither grey nor blurred is correct: reproduce it exactly, the same viewpoint, the same framing, the same lens. Where the description below and the picture disagree about whether something is present, THE PICTURE IS CORRECT.`
     : opts.wholeSourceYear !== undefined
       ? `The attached photograph shows this exact view in ${formatYear(opts.wholeSourceYear)}. Render the same view in ${year}: the exact same camera position, the same direction of view, the same framing, the same lens, the same distance. Nothing is moved and nothing is recomposed. Only what time changed is different — the people and what they wear, carry and drive, the season and the light, the wear on surfaces, and what had not yet been built or had already gone.`

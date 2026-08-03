@@ -1296,7 +1296,8 @@ export class CoreSampleRunner {
           absent = items.filter((a) => a.change === 'absent').length;
           console.info(
             `[looking-glass] ${frame.year} from ${source.year}: ${anachronisms} anachronisms ` +
-              `(${absent} absent) · attached ${masked ? 'cut-out' : 'the whole source'}`,
+              `(${absent} absent) · attached ` +
+              `${masked ? 'cut-out + the uncut neighbour for the camera' : 'the whole source'}`,
           );
         }
 
@@ -1358,6 +1359,9 @@ export class CoreSampleRunner {
             // — describing holes in a picture that has none is how promptcraft's
             // own rule about naming absent things gets broken.
             cutout: Boolean(masked),
+            // The uncut neighbour rides along as a second reference, for the
+            // camera only. See SweepPromptOpts.cameraReferenceYear.
+            cameraReferenceYear: masked && source ? source.year : undefined,
             // Whether a grid was PAINTED, not whether one was wanted — the clause
             // must not describe lines the compositor decided not to draw.
             cameraGrid: Boolean(masked) && cameraIsUsable(camera),
@@ -1393,7 +1397,12 @@ export class CoreSampleRunner {
             {
               model,
               prompts,
-              references: reference ? [reference] : undefined,
+              /**
+               * TWO, WHEN THERE IS A CUT-OUT: the cut-out first because it is
+               * the authority on what is present, then the uncut neighbour for
+               * the camera. Every provider in the catalog takes at least three.
+               */
+              references: masked && source ? [masked, source.url] : reference ? [reference] : undefined,
               unanchoredPrompts: promptsNoDiagram,
             },
             {
