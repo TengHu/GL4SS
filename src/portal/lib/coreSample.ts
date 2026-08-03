@@ -1142,7 +1142,32 @@ export class CoreSampleRunner {
         let reference: string | null = null;
         let anachronisms = 0;
         let absent = 0;
-        if (source) {
+        /**
+         * SKIP THE ERASURE ENTIRELY — `window.__noCut = true` in the console.
+         *
+         * The one configuration never yet tried, and the only one that separates
+         * the two possible worlds. Every run so far has had the anachronism pass
+         * find something, so the model has never been handed an intact
+         * photograph of this exact view and asked for another year of it.
+         *
+         *   camera HOLDS  -> the erasure is what loses the vantage, and every
+         *                    remaining fix belongs in segmentation, not in words.
+         *   camera DRIFTS -> an untouched photograph does not hold this model's
+         *                    camera either, and no amount of masking work will.
+         *                    That is a different problem and a different answer.
+         *
+         * Deliberately not a setting. It produces a frame with every anachronism
+         * still standing — 2010's traffic in 1987 — which is a diagnostic, not a
+         * picture anyone wants.
+         */
+        const noCut = (window as unknown as { __noCut?: boolean }).__noCut === true;
+        if (source && noCut) {
+          reference = source.url;
+          console.warn(
+            `[looking-glass] __noCut — ${frame.year} gets the whole ${source.year} frame ` +
+              `untouched, anachronisms and all. Measuring whether the camera holds.`,
+          );
+        } else if (source) {
           const items = await segmentAnachronisms(
             config.apiKey,
             source.url,
