@@ -1351,50 +1351,37 @@ export function buildCoreSamplePrompts(
 
   if (kind === 'photograph') {
     /**
-     * FIRST, not appended.
+     * WHEN A PHOTOGRAPH IS ATTACHED, THE PROMPT IS THREE SENTENCES.
      *
-     * promptcraft's own guidance — from FLUX.2's guide — is to put the most
-     * important thing first, which is why periodMarkers was moved up. The
-     * anchor was nonetheless being appended after eight blocks of scene
-     * description, so the one instruction governing what the picture IS sat in
-     * the weakest position in the prompt.
+     * It was three hundred and sixty-eight words: an anchor clause asking for
+     * the exact vantage, then eight blocks describing a subject, a crowd,
+     * datable specifics, an era, terrain and light — a scene brief, underneath
+     * an instruction to reproduce a photograph. The clause had to end by
+     * conceding the conflict outright, "wherever it disagrees with the
+     * photograph, the photograph is correct", which is a rule arguing with the
+     * three hundred words beneath it.
      *
-     * Says nothing about preserving "the skyline behind" or about the period
-     * being free to change. Both belong to the chained case. Here the
-     * photograph is the year, and the only licence taken is the frame shape:
-     * the portal is full-bleed 16:9 and everything downstream — the panorama,
-     * the film's clips — assumes it, so recomposing is stated openly instead of
-     * being contradicted by a claim of an identical lens.
+     * It lost. A high aerial of the Colosseum came back as a rim-level view of
+     * the arena, and the sweep then grew out of that instead of out of the
+     * photograph. Every block was describing something the picture already
+     * showed, and every one of them was permission to draw it differently.
+     *
+     * So there is nothing left to argue with. Not "render this place in this
+     * year" — the photograph IS the place and the year, and the visitor said so
+     * by attaching it — but the smallest instruction that leaves the content
+     * alone.
+     *
+     * WHAT THIS GIVES UP, stated plainly: the year on the dial, the style chip
+     * and the chosen hour no longer reach a seed made from a photograph. It is
+     * the visitor's picture, cleaned up, at the frame shape the portal needs.
+     * Everything the planner produced still reaches the ARCHIVE — narrative,
+     * atmosphere, direction — so the station still talks and widen() still
+     * works. It simply no longer instructs the drawing.
+     *
+     * One candidate, not three. The ladder exists to fall back from a moderated
+     * subject to a quieter one, and there is no subject here to moderate.
      */
-    /**
-     * WHICH SOURCE WINS, said once and said here.
-     *
-     * Eight blocks of scene description follow, and the planner wrote them from
-     * a coordinate and a year. It saw the photograph, so they are usually about
-     * the right place — but "usually" is the problem: where they disagree, one
-     * of them has to lose, and nothing in the prompt used to say which. The
-     * photograph is evidence and the description is inference, so the photograph
-     * wins, and a model reading a contradiction should not have to guess that.
-     *
-     * Framing orders are not answered here but SILENCED — see fixedFraming
-     * above. A rule that has to argue with four separate instructions is a rule
-     * that will sometimes lose the argument; better that they never arrive.
-     */
-    const clause =
-      `The attached photograph shows this exact place at this exact time. It is the ` +
-      `subject: reproduce what it shows — the same street or ground, the same buildings ` +
-      `and structures, the same vantage and direction of view, the same framing and ` +
-      `distance, the same light and season, the same period in every visible detail. ` +
-      `Do not relocate it, do not modernise it, do not age it, and do not substitute a ` +
-      `more famous view of the same district. Keep the camera exactly where the ` +
-      `photograph puts it: do not step closer, do not step back, do not change the lens, ` +
-      `and do not rearrange what is in front of it. Where the photograph is unclear or ` +
-      `cut off, extend it plausibly rather than inventing something else. Recompose to a ` +
-      `wide 16:9 frame from that same standpoint, widening the view rather than cropping ` +
-      `into it. Everything below describes this place and may fill in what the ` +
-      `photograph does not show; wherever it disagrees with the photograph, the ` +
-      `photograph is correct.`;
-    return ordered.map((p) => lead(`${clause}\n\n${p}`));
+    return ['Denoise the image. Do not modify any content. Improve camera quality.'];
   }
 
   /**

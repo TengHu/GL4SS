@@ -18,21 +18,45 @@ Everything below forks on one question: **is a photograph attached?**
 
 | | A · no photograph | B · with a photograph |
 |---|---|---|
-| what the model gets | a description of a spacetime | a picture of this place, and a description |
-| what the attachment IS | — | **the subject** — reproduce it |
-| framing | free, deliberately loose | the photograph's, and every order to recompose is silenced |
-| era palette | applied | stands aside — the photograph authors its own colour |
-| calls | 1 text + 1 image | 1 text + 1 image (the photo rides along on both) |
+| what the model gets | a description of a spacetime | the picture, and eleven words |
+| what the attachment IS | — | **the picture** — leave it alone |
+| the prompt | ~370 words, eight blocks | *Denoise the image. Do not modify any content. Improve camera quality.* |
+| the year, style and hour | shape the picture | **do not reach the drawing at all** |
+| calls | 1 text + 1 image | 1 text + 1 image (the planner still runs, for the archive) |
 
 Both produce a frame stored under the same key. **A station is a station**, and
 whichever picture is there is the one you keep.
 
-**It is a reference, and the frame is still drawn.** Keeping the photograph *as*
-the frame was tried — free, and perfectly faithful by definition. It looked
-worse: a phone photograph cropped to 16:9 sits among generated frames looking
-like exactly what it is, and the app is not a photo album. So the drawing came
-back, and everything below is about making the drawing as close to the
-photograph as a generation gets.
+**The prompt is three sentences.** It was three hundred and sixty-eight words —
+an anchor clause asking for the exact vantage, then eight blocks describing a
+subject, a crowd, datable specifics, an era, terrain and light. A scene brief,
+underneath an instruction to reproduce a photograph. The clause had to end by
+conceding the conflict outright, *"wherever it disagrees with the photograph, the
+photograph is correct"*, which is a rule arguing with the three hundred words
+beneath it.
+
+It lost. A high aerial of the Colosseum came back as a rim-level view of the
+arena — and because a sweep grows out of the seed, every frame after it inherited
+that vantage instead of the visitor's. Every block was describing something the
+picture already showed, and every one of them was permission to draw it
+differently.
+
+So there is nothing left to argue with:
+
+> Denoise the image. Do not modify any content. Improve camera quality.
+
+Not *"render this place in this year"* — the photograph IS the place and the
+year, and the visitor said so by attaching it.
+
+**What this gives up.** The year on the dial, the style chip and the chosen hour
+no longer reach a seed made from a photograph. It is your picture, cleaned up, at
+the frame shape the portal needs. The planner still runs and everything it
+produces still reaches the archive — narrative, atmosphere, direction — so the
+station still talks and `widen()` still works. It simply no longer instructs the
+drawing.
+
+One candidate, not three: the moderation ladder falls back from a blocked subject
+to a quieter one, and there is no subject here to block.
 
 ---
 
