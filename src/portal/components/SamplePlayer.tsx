@@ -480,15 +480,11 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
                      guessable from a button that says "save". */
                   title={
                     clips.length === 1
-                      ? 'Saves the clip as it is.'
-                      : `Plays the ${clips.length} clips through once to record them into a single file. Video only, and it takes as long as the film lasts — keep this tab in front.`
+                      ? 'Saves the film as one video file.'
+                      : `Saves the film as one video file. Joining ${clips.length} clips means playing them through once, so it takes as long as the film lasts — keep this tab in front.`
                   }
                 >
-                  {joining
-                    ? `joining ${joining.clip}/${joining.clips}…`
-                    : clips.length === 1
-                      ? 'save the clip'
-                      : 'save as one video'}
+                  {joining ? `joining ${joining.clip}/${joining.clips}…` : 'save as one video'}
                 </button>
               )}
               {joinError && <span className="sampler-join-error"> · {joinError}</span>}

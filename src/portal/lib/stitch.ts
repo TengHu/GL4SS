@@ -59,10 +59,11 @@ export async function stitchClips(
   /**
    * ONE CLIP IS ALREADY THE FILM. Hand back its bytes.
    *
-   * No canvas, no recorder, no re-encode and no real-time wait — and it keeps
-   * its sound, because a two-frame sweep films to a single clip and that one is
-   * generated WITH audio. Everything below exists to join clips together and
-   * there is nothing here to join.
+   * The OUTPUT is the same either way — one video file, MP4 — and only the route
+   * differs, because there is nothing here to join. No canvas, no recorder, no
+   * re-encode and no real-time wait. The provider sends MP4 and MediaRecorder is
+   * asked for MP4, so the two paths agree on what comes out; the caller should
+   * not be able to tell which ran, and the button no longer says.
    */
   if (urls.length === 1) {
     return await (await fetch(urls[0]!)).blob();
