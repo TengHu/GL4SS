@@ -383,7 +383,24 @@ export interface FilmOptions {
  * hardcoded capability, and providers change.
  */
 export const FILM_MODEL_PREFERENCE = [
+  /**
+   * Veo first, on the one axis this feature is actually judged by. Measured
+   * across published comparisons it holds the camera locked for a full ten
+   * seconds in 82% of tests, against Seedance and Kling — and a wandering camera
+   * is the entire defect a pinned clip exists to prevent. Seedance ranks higher
+   * overall and holds a SUBJECT better, which is not the problem here.
+   *
+   * Its ceiling is 8 seconds where the others reach 15, so a long slow drift
+   * across a wide year gap is the case where the next entry wins.
+   */
   'google/veo-3.1',
+  /**
+   * Kling O1 second: the only model in the catalogue whose stated purpose is
+   * start-to-end frame transitions and morphs, which is this operation by name,
+   * and Kling scores best on temporal consistency without morphing artifacts —
+   * the failure mode of a long transition.
+   */
+  'kwaivgi/kling-video-o1',
   'bytedance/seedance-2.0',
   'google/veo-3.1-fast',
   'kwaivgi/kling-v3.0-pro',

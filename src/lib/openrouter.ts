@@ -80,6 +80,7 @@ export const VIDEO_MODELS: ModelOption[] = [
   { id: 'bytedance/seedance-2.0-fast', label: 'Seedance 2.0 Fast', blurb: 'Faster, same family' },
   { id: 'google/veo-3.1-fast', label: 'Veo 3.1 Fast', blurb: 'Google flagship, native audio' },
   { id: 'google/veo-3.1-lite', label: 'Veo 3.1 Lite', blurb: 'Cheaper Veo tier' },
+  { id: 'kwaivgi/kling-video-o1', label: 'Kling O1', blurb: 'Built for start-to-end frame morphs' },
   { id: 'kwaivgi/kling-v3.0-pro', label: 'Kling 3.0 Pro', blurb: 'Kuaishou flagship' },
   { id: 'minimax/hailuo-2.3', label: 'Hailuo 2.3', blurb: 'MiniMax option' },
   { id: 'alibaba/wan-2.7', label: 'Wan 2.7', blurb: 'Alibaba option' },
