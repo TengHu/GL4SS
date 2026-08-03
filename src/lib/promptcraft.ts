@@ -1689,7 +1689,21 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
    * that both saw the photograph and knows the date, and it answers the question
    * the attachment cannot — which of these things existed in this year.
    */
-  const standing = direction.standing?.trim()
+  /**
+   * `window.__noStanding = true` drops this block.
+   *
+   * The one thing the attachment cannot supply — and, for a year with a famous
+   * photograph, possibly the thing summoning it. 1943 Rome came back as occupied
+   * Rome: troops, sandbags, the Arch boarded up, a street-level composition
+   * owing nothing to the aerial it was given. The planner's paragraph for that
+   * year describes exactly that scene, so the model was handed the reference AND
+   * a written brief for the picture it already wanted to draw.
+   *
+   * Off, the sweep loses its per-year history and keeps only what is in the
+   * pixels. Whether that is a trade worth making is what the switch is for.
+   */
+  const noStanding = (globalThis as unknown as { __noStanding?: boolean }).__noStanding === true;
+  const standing = !noStanding && direction.standing?.trim()
     ? `What is different in ${year}: ${direction.standing.trim()}`
     : '';
   const people = getHabitationClause(direction.habitation, { fixedFraming: true });
