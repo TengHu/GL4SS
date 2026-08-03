@@ -44,7 +44,7 @@ import type { ModelSelection, VideoModelCapability } from '../../lib/openrouter'
 import { audioForSequence, renderClip, renderStill } from './render';
 import { explainFailure } from '../../lib/failure';
 import { buildSweepPrompts } from '../../lib/promptcraft';
-import { compositeCutout, segmentAnachronisms } from './timeMask';
+import { compositeCutout, segmentAnachronisms, segmentPeople } from './timeMask';
 import { cameraIsUsable, horizonFraction } from './cameraSkeleton';
 import type { StandpointCamera } from '../../lib/openrouter';
 import type { SceneDirection } from '../../lib/promptcraft';
@@ -1241,7 +1241,30 @@ export class CoreSampleRunner {
            * segmentation call is skipped entirely otherwise, so the default is
            * also a text call per frame cheaper.
            */
-          reference = source.url;
+          const people = await segmentPeople(config.apiKey, source.url, config.models.text, {
+            signal: abort.signal,
+          });
+          if (abort.signal.aborted) break;
+          anachronisms = people.length;
+          absent = people.length;
+          if (people.length) {
+            try {
+              // No grid: it exists to state the ground plane across a large
+              // erased region, and a person-shaped hole in an otherwise intact
+              // photograph has the ground stated all around it already.
+              masked = await compositeCutout(source.url, people, undefined);
+            } catch (err) {
+              console.warn(
+                `[looking-glass] could not erase the crowd in ${source.year} for ${frame.year} — ` +
+                  `${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
+          reference = masked ?? source.url;
+          console.info(
+            `[looking-glass] ${frame.year} from ${source.year}: ${people.length} people/vehicle ` +
+              `regions erased · attached ${masked ? 'the source with its crowd removed' : 'the whole source'}`,
+          );
         } else if (source) {
           const items = await segmentAnachronisms(
             config.apiKey,
@@ -1353,10 +1376,11 @@ export class CoreSampleRunner {
             // no grey regions and no grid, and its clause is `wholeSourceYear`'s
             // — describing holes in a picture that has none is how promptcraft's
             // own rule about naming absent things gets broken.
-            cutout: Boolean(masked),
+            cutout: Boolean(masked) && useCut,
+            peopleErasedYear: masked && !useCut && source ? source.year : undefined,
             // Whether a grid was PAINTED, not whether one was wanted — the clause
             // must not describe lines the compositor decided not to draw.
-            cameraGrid: Boolean(masked) && cameraIsUsable(camera),
+            cameraGrid: Boolean(masked) && useCut && cameraIsUsable(camera),
             wholeSourceYear: !masked && source ? source.year : undefined,
           },
           direction,

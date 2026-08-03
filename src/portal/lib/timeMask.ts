@@ -62,6 +62,86 @@ export interface Anachronism {
 const SEG_TIMEOUT_MS = 90_000;
 
 /**
+ * ERASE THE PEOPLE AND NOTHING ELSE.
+ *
+ * The narrow cut, and the one the evidence asks for. Handing over an UNDEFACED
+ * photograph holds the vantage beautifully — a 2010 aerial of the Colosseum
+ * came back as 1700 with the oblique, the position in frame and the Arch of
+ * Constantine all intact — and it reintroduced the oldest failure in this file:
+ * the crowd persisted, in the same places and the same poses, re-costumed.
+ *
+ * Prose cannot fix it. The lead clause already says the people change; the model
+ * read that as a wardrobe note, exactly as the original editing design did.
+ * People are a pixel problem and have to be answered in pixels.
+ *
+ * SO ERASE THE PEOPLE, NOT THE CITY. The full anachronism pass erases everything
+ * the year did not have, which takes the buildings, the roads and the ground
+ * with it — and those are the scale and structure references that were holding
+ * the camera. This asks a much narrower and much easier question, and leaves the
+ * geometry untouched.
+ *
+ * EASIER, AND THAT MATTERS. "What in this picture did not exist in 1700" needs
+ * construction dates for everything in frame. "Where are the people" is a
+ * question any vision model answers well, so the boxes should be better placed
+ * as well as fewer.
+ *
+ * Everything comes back `absent`. There is no `altered` here by construction: a
+ * person who "looked different" is precisely the re-costumed figure this exists
+ * to prevent.
+ */
+export async function segmentPeople(
+  apiKey: string,
+  image: string,
+  model: string,
+  options: { signal?: AbortSignal; limit?: number } = {},
+): Promise<Anachronism[]> {
+  const limit = options.limit ?? 30;
+  const prompt = [
+    `Find every person, animal and vehicle in this photograph.`,
+    ``,
+    `Include pedestrians, crowds, queues, groups, riders, drivers, cyclists; cars, buses, vans, lorries, motorcycles, scooters, bicycles, boats and aircraft; horses, cattle, dogs and birds. Include them wherever they are, however small, and include the things they set down or push — bags, prams, market stalls, parked vehicles.`,
+    `Do NOT list buildings, walls, roads, paving, steps, railings, planting, ground or sky. Those stay.`,
+    ``,
+    `Return ONLY a compact JSON array, no prose, no markdown. Each entry exactly:`,
+    `{"b":[y0,x0,y1,x1],"l":"short label","c":"absent"}`,
+    `Coordinates normalised 0-1000. MERGE a crowd or a queue into ONE entry covering the whole run rather than boxing each figure. Return at most ${limit} entries, largest-area first.`,
+  ].join('\n');
+
+  try {
+    const data = await postChat(
+      apiKey,
+      {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: image } },
+            ],
+          },
+        ],
+        max_tokens: 5000,
+      },
+      { signal: options.signal, timeoutMs: SEG_TIMEOUT_MS },
+    );
+    const raw = (data.choices?.[0]?.message?.content ?? '') as unknown;
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    // Forced absent: the parser will honour whatever the model wrote in `c`, and
+    // an `altered` person is the exact outcome this call exists to prevent.
+    return parseAnachronisms(text).map((a) => ({ ...a, change: 'absent' as const }));
+  } catch (err) {
+    if (options.signal?.aborted) return [];
+    console.warn(
+      `[looking-glass] the people pass failed — this frame keeps the source crowd, so the ` +
+        `same people may appear in another year in period dress. ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return [];
+  }
+}
+
+/**
  * Ask what is in this photograph that was not there in `year`.
  *
  * OPEN VOCABULARY, NO CATEGORIES. Nothing here knows what a person is, or a
