@@ -175,7 +175,51 @@ export function parseAnachronisms(raw: string): Anachronism[] {
     if (change === 'altered' && area > 0.05) continue;
     out.push({ box, label: m[5]!, change });
   }
-  return out;
+
+  /**
+   * A CEILING ON HOW MUCH OF THE PICTURE MAY GO.
+   *
+   * Past some point the attachment stops being a photograph with holes in it and
+   * becomes holes with a photograph, and at that point it has stopped stating
+   * the vantage — which is the only reason it is attached.
+   *
+   * HEIGHT IS WHY. Measured on a 2010 to 1987 step: field of view held exactly,
+   * tilt held within three degrees, and the camera dropped from 120m to 45m —
+   * everything 2.7x too large. The angular quantities survive because the
+   * horizon states them, and horizonFraction does not take eye height at all.
+   * Height is legible ONLY from the apparent size of things at known distance,
+   * so every erased structure is a scale reference destroyed, and eleven of them
+   * leaves nothing to measure against.
+   *
+   * LARGEST FIRST, which is the uncomfortable half. A big box is usually a
+   * genuine modern block and dropping it leaves something in 1987 that was built
+   * later. That is the same trade already made when the anachronism pass fails
+   * and the whole source goes anyway: a surviving anachronism is a local error in
+   * one part of the frame, a collapsed viewpoint is the whole picture wrong, and
+   * every frame after it in the chain wrong too.
+   *
+   * Summed rather than unioned. Overlapping boxes make this an overestimate, so
+   * the cap bites slightly early — the safe direction.
+   */
+  const areaOf = (a: Anachronism): number =>
+    ((a.box[2] - a.box[0]) * (a.box[3] - a.box[1])) / 1e6;
+  const MAX_ERASED = 0.35;
+  const absent = out.filter((a) => a.change === 'absent').sort((a, b) => areaOf(b) - areaOf(a));
+  let erased = absent.reduce((n, a) => n + areaOf(a), 0);
+  const dropped = new Set<Anachronism>();
+  for (const a of absent) {
+    if (erased <= MAX_ERASED) break;
+    dropped.add(a);
+    erased -= areaOf(a);
+  }
+  if (dropped.size) {
+    console.warn(
+      `[looking-glass] ${dropped.size} of ${absent.length} erasures dropped to keep the frame ` +
+        `under ${Math.round(MAX_ERASED * 100)}% erased — too little would have survived to ` +
+        `state the camera's height. Kept: ${[...dropped].map((a) => a.label).join(', ')}.`,
+    );
+  }
+  return out.filter((a) => !dropped.has(a));
 }
 
 /**
