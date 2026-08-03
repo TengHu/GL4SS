@@ -298,9 +298,9 @@ export function Settings({
              radiogroup with NOTHING selected and no way to see what is in use —
              so the current selection is always one of the options. */
           options={
-            VIDEO_MODELS.slice(0, 5).some((m) => m.id === models.cinematic) ?
-              VIDEO_MODELS.slice(0, 5)
-            : [...VIDEO_MODELS.slice(0, 5), ...VIDEO_MODELS.filter((m) => m.id === models.cinematic)]
+            VIDEO_MODELS.slice(0, 6).some((m) => m.id === models.cinematic) ?
+              VIDEO_MODELS.slice(0, 6)
+            : [...VIDEO_MODELS.slice(0, 6), ...VIDEO_MODELS.filter((m) => m.id === models.cinematic)]
           }
           value={models.cinematic}
           onChange={(id) => onModelsChange({ ...models, cinematic: id, animate: id })}

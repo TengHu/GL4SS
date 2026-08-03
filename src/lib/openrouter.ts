@@ -75,14 +75,28 @@ export const VIDEO_MODELS: ModelOption[] = [
   // expected to have sound. Noting only that neither OpenRouter's model page nor
   // its /models endpoint says so either way — /models lists no video models at
   // all — so this is on xAI's word rather than the provider's.
+  /**
+   * ORDERED FOR THE SWEEP, because that is the harder job and the settings panel
+   * shows only the first few.
+   *
+   * A single-station film needs an opening frame and nothing else, so any of
+   * these serves it. A sweep needs a CLOSING frame too — clip N has to finish on
+   * the image clip N+1 opens on — and only some of them accept one. The ones
+   * that do come first, best-at-holding-a-camera first, because a camera that
+   * wanders is the defect the pinning exists to prevent.
+   *
+   * The default stays Grok: it is first_frame-only, which is right for the lever
+   * and wrong for a sweep, and chooseFilmModel already substitutes and says so.
+   */
   { id: 'x-ai/grok-imagine-video', label: 'Grok Imagine Video', blurb: 'Default — xAI, fast, with audio' },
-  { id: 'bytedance/seedance-2.0', label: 'Seedance 2.0', blurb: 'Cinematic, with audio' },
-  { id: 'bytedance/seedance-2.0-fast', label: 'Seedance 2.0 Fast', blurb: 'Faster, same family' },
-  { id: 'google/veo-3.1-fast', label: 'Veo 3.1 Fast', blurb: 'Google flagship, native audio' },
-  { id: 'google/veo-3.1-lite', label: 'Veo 3.1 Lite', blurb: 'Cheaper Veo tier' },
+  { id: 'google/veo-3.1', label: 'Veo 3.1', blurb: 'Holds the camera best; pins both ends' },
   { id: 'kwaivgi/kling-video-o1', label: 'Kling O1', blurb: 'Built for start-to-end frame morphs' },
+  { id: 'bytedance/seedance-2.0', label: 'Seedance 2.0', blurb: 'Highest overall; up to 15s' },
+  { id: 'minimax/hailuo-3', label: 'Hailuo 3', blurb: 'Barely moves the camera, by design' },
   { id: 'kwaivgi/kling-v3.0-pro', label: 'Kling 3.0 Pro', blurb: 'Kuaishou flagship' },
-  { id: 'minimax/hailuo-2.3', label: 'Hailuo 2.3', blurb: 'MiniMax option' },
+  { id: 'bytedance/seedance-2.0-fast', label: 'Seedance 2.0 Fast', blurb: 'Faster, same family' },
+  { id: 'google/veo-3.1-fast', label: 'Veo 3.1 Fast', blurb: 'Cheaper Veo tier' },
+  { id: 'google/veo-3.1-lite', label: 'Veo 3.1 Lite', blurb: 'Cheapest Veo tier' },
   { id: 'alibaba/wan-2.7', label: 'Wan 2.7', blurb: 'Alibaba option' },
 ];
 

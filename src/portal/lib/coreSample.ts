@@ -404,6 +404,7 @@ export const FILM_MODEL_PREFERENCE = [
   'bytedance/seedance-2.0',
   'google/veo-3.1-fast',
   'kwaivgi/kling-v3.0-pro',
+  'minimax/hailuo-3',
   'google/veo-3.1-lite',
   'alibaba/wan-2.7',
 ];
