@@ -1074,6 +1074,55 @@ export class CoreSampleRunner {
         );
         standpoint = sp.text;
         standpointCamera = sp.cameraText;
+
+        /**
+         * CALIBRATE THE RULER BEFORE BELIEVING IT.
+         *
+         * Every drift number here is the difference between two independent
+         * language-model estimates of a camera read off two pictures. That is
+         * only a measurement if the estimator is repeatable, and across one
+         * session the same kind of elevated view of Rome came back as 150m,
+         * 1.6m, 45m, 120m, 65m, 115m and 110m. A frame reported as falling from
+         * 110m to 65m may be an image drawn from a lower camera, or it may be
+         * the ruler.
+         *
+         * So the SEED is read twice and the spread is printed. Two reads of one
+         * unchanged picture are the noise floor: any drift smaller than that is
+         * not evidence of anything. One extra text call per sweep, once, and it
+         * is the difference between a diagnostic and a number that merely looks
+         * like one.
+         *
+         * Angles are expected to hold far better than height — the horizon
+         * states tilt and field of view outright, and nothing in a picture
+         * states metres. If that is what the spread shows, the horizon half of
+         * measureDrift is worth trusting and the height half is not.
+         */
+        void planStandpoint(
+          config.apiKey,
+          request.location,
+          request.coordinates,
+          anchorUrl,
+          this.state.frames[anchor]!.year,
+          { earliest: Math.min(...years), latest: Math.max(...years) },
+          config.models.text,
+          { signal: abort.signal },
+        )
+          .then((again) => {
+            if (abort.signal.aborted || !cameraIsUsable(again.camera) || !cameraIsUsable(sp.camera))
+              return;
+            const a = sp.camera;
+            const b = again.camera;
+            console.info(
+              `[looking-glass] ruler check — the SAME seed read twice: ` +
+                `${a.eyeHeightM.toFixed(0)}m vs ${b.eyeHeightM.toFixed(0)}m, ` +
+                `tilt ${a.tiltDeg.toFixed(0)}° vs ${b.tiltDeg.toFixed(0)}°, ` +
+                `fov ${a.hfovDeg.toFixed(0)}° vs ${b.hfovDeg.toFixed(0)}°. ` +
+                `Height disagrees by ` +
+                `${Math.round((Math.abs(b.eyeHeightM - a.eyeHeightM) / Math.max(a.eyeHeightM, 0.3)) * 100)}% ` +
+                `with nothing changed — any drift below that is noise.`,
+            );
+          })
+          .catch(() => {});
         /**
          * The numbers stay; the standalone diagram goes. The grid is now painted
          * into the cut-out's erased regions instead of shipped as a second
