@@ -441,6 +441,8 @@ function buildSceneDirectionPrompt(
   referenceKind?: 'photograph' | 'sweep',
   /** The year the attached image was taken, for 'sweep'. */
   referenceYear?: number,
+  /** See generateSceneDirection options.findings. */
+  findings?: string[],
 ): string {
   const formattedYear = formatYear(year);
   const era = getEraDescription(year);
@@ -598,7 +600,9 @@ function buildSceneDirectionPrompt(
       // 2019-seeded sweep planned 1920 at Mount Rushmore with the carving intact,
       // seven years before the first charge was set. Naming the date the work
       // started is what makes the answer checkable rather than impressionistic.
-      ? `  "standing": "REQUIRED HERE. Work through the attached photograph object by object. FIRST, absence: name anything visible in it that did not exist yet at this spot in ${formattedYear} — give the year that thing was built, begun or installed, and say what occupied that ground in ${formattedYear} instead. If it was under construction in ${formattedYear}, say exactly what stage it had reached that year. Name anything that was already gone by ${formattedYear} too. SECOND, survival: what is still standing here in ${formattedYear} and how it looked then — if the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance, because it must not vanish. Name the things, do not generalise. THIRD, if the photograph shows vehicles, or people carrying or holding or using anything, name what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
+      ? findings?.length
+        ? `  "standing": "REQUIRED HERE, AND WRITTEN AS EDITS TO THE ATTACHED PHOTOGRAPH — not as a description of the year. A vision pass has already listed what in this picture does not belong in ${formattedYear}: ${JSON.stringify(findings.join('; '))}. Write ONE SHORT LINE PER ITEM, in the form 'the <thing as it appears in the photograph>: <what is in its place in ${formattedYear}>'. Name the thing as a viewer of the photograph would point at it, and say what occupies that ground or fills that role in ${formattedYear}, with a date where one is checkable. Add a line for anything else visible that does not belong, and a line for anything already standing here in ${formattedYear} that must NOT change. Do not describe the period, the mood, the politics or the events of ${formattedYear}, and do not write a scene: every line edits something already in the picture.",`
+        : `  "standing": "REQUIRED HERE. Work through the attached photograph object by object. FIRST, absence: name anything visible in it that did not exist yet at this spot in ${formattedYear} — give the year that thing was built, begun or installed, and say what occupied that ground in ${formattedYear} instead. If it was under construction in ${formattedYear}, say exactly what stage it had reached that year. Name anything that was already gone by ${formattedYear} too. SECOND, survival: what is still standing here in ${formattedYear} and how it looked then — if the photograph's main structure predates ${formattedYear}, say so explicitly and describe its ${formattedYear} appearance, because it must not vanish. Name the things, do not generalise. THIRD, if the photograph shows vehicles, or people carrying or holding or using anything, name what stands in for each of those in ${formattedYear}: what a visitor here carries and wears and takes pictures with in ${formattedYear}, and what is parked or moving on that road in ${formattedYear}.",`
       : '',
     `  "leftSubject": "specific concrete subject in the LEFT panel (one short phrase, distinct from center and right)",`,
     `  "centerSubject": "specific concrete focal subject in the CENTER panel",`,
@@ -1058,6 +1062,22 @@ export async function generateSceneDirection(
   options: {
     signal?: AbortSignal;
     neighbours?: { earlier: number; later: number };
+    /**
+     * WHAT A VISION PASS ALREADY FOUND IN THE PICTURE — labels, not boxes.
+     *
+     * Set only by the sweep. Its presence changes what `standing` is asked to
+     * BE: not a paragraph about the year, but a list of edits to the attached
+     * photograph, one line per thing already named here.
+     *
+     * The distinction is the whole point. "In 1943 Rome is occupied, troops in
+     * the streets, sandbags at the monuments" is a brief for a scene, and a
+     * model handed it will compose that scene — 1943 Rome came back as a
+     * street-level war photograph owing nothing to the aerial it was given. The
+     * same facts written as "the asphalt road: unpaved earth; the yellow crane:
+     * open ground" point at the picture instead of at the year, and the year has
+     * nothing left to summon.
+     */
+    findings?: string[];
     /** The user's chosen time of day, as a sentence about the light present. */
     phase?: string;
     /**
@@ -1101,6 +1121,7 @@ export async function generateSceneDirection(
     options.phase,
     options.reference ? (options.referenceKind ?? 'photograph') : undefined,
     options.referenceYear,
+    options.findings,
   );
   const content = options.reference
     ? [

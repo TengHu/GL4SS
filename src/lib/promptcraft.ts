@@ -1704,10 +1704,17 @@ export function buildSweepPrompts(opts: SweepPromptOpts, direction: SceneDirecti
    */
   const noStanding = (globalThis as unknown as { __noStanding?: boolean }).__noStanding === true;
   const standing = !noStanding && direction.standing?.trim()
-    ? `What is different in ${year}: ${direction.standing.trim()}`
+    ? `Changes to the attached picture:\n${direction.standing.trim()}`
     : '';
   const people = getHabitationClause(direction.habitation, { fixedFraming: true });
-  const period = direction.periodMarkers ? `${direction.periodMarkers}.` : '';
+  /**
+   * DROPPED WHEN A PICTURE IS ATTACHED. periodMarkers is the same shape as the
+   * paragraph `standing` used to be — "military uniforms, sandbag emplacements,
+   * wartime hoardings" is a brief for a scene, just a short one. The change-list
+   * covers the same ground pointing at the photograph instead. It stays for the
+   * frame with nothing attached, which has only words to go on.
+   */
+  const period = !attached && direction.periodMarkers ? `${direction.periodMarkers}.` : '';
 
   /**
    * THE REGISTER, reduced to what the year decides.

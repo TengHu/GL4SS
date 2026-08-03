@@ -362,9 +362,6 @@ export interface SampleRequest {
   anchorYear?: number;
 }
 
-/** How far the planner may run ahead of the renderer. */
-const DIRECTION_LOOKAHEAD = 3;
-
 /** Clips rendered at once. See renderFilm — they are independent, unlike stills. */
 const FILM_CONCURRENCY = 3;
 
@@ -995,13 +992,15 @@ export class CoreSampleRunner {
       return undefined;
     };
 
-    const directions = new Map<number, Promise<SceneDirection>>();
-    const planAt = (i: number): void => {
-      const frame = this.state.frames[i];
-      if (!frame || directions.has(i)) return;
-      directions.set(
-        i,
-        generateSceneDirection(
+    /**
+     * Called once per station, AFTER that station has been segmented, with the
+     * labels the vision pass found. No longer prefetched: `findings` is the
+     * whole reason the planner now writes edits instead of a scene, and it
+     * cannot be known before something has looked at the picture.
+     */
+    const planAt = (i: number, findings: string[]): Promise<SceneDirection> => {
+      const frame = this.state.frames[i]!;
+      return generateSceneDirection(
           config.apiKey,
           request.location,
           request.coordinates,
@@ -1034,8 +1033,8 @@ export class CoreSampleRunner {
             reference: referenceForPlanner(i)?.url,
             referenceKind: 'sweep' as const,
             referenceYear: referenceForPlanner(i)?.year,
+            findings,
           },
-        ),
       );
     };
 
@@ -1188,29 +1187,25 @@ export class CoreSampleRunner {
         if (frame.status === 'ready') continue; // the restored seed
 
         this.emit({ cursor: i });
-        for (const ahead of order.slice(order.indexOf(i), order.indexOf(i) + DIRECTION_LOOKAHEAD)) {
-          planAt(ahead);
-        }
-
         this.patchFrame(i, { status: 'directing' });
-        let direction: SceneDirection;
-        try {
-          direction = await directions.get(i)!;
-        } catch (err) {
-          if (abort.signal.aborted) break;
-          this.patchFrame(i, { status: 'error', error: explainFailure(err).title });
-          continue;
-        }
-        if (abort.signal.aborted) break;
-
-        this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
 
         /**
-         * THE FRAME BESIDE THIS ONE, CUT DOWN TO WHAT SURVIVES INTO THIS YEAR.
+         * THE SEGMENTER RUNS FIRST NOW, and the planner reads its answer.
          *
-         * Identical processing to what the seed used to get — same segmentation
-         * prompt, same boxes, same erase and blur, same grid. Only the picture
-         * being cut is different. See cutSource for why it is the neighbour.
+         * The order used to be the other way round, with the planner running
+         * several stations AHEAD of the cursor — the lookahead that took roughly
+         * four minutes of text latency out of a 24-frame sweep. That is gone,
+         * and knowingly: the planner's job has changed from describing a year to
+         * writing edits to a specific photograph, and it cannot do that before
+         * something has looked at the photograph.
+         *
+         * What it buys is the whole point of the change. "In 1943 Rome is
+         * occupied, troops in the streets, sandbags at the monuments" is a brief
+         * for a scene, and the model composed that scene — a street-level war
+         * photograph owing nothing to the aerial it was handed. The same facts as
+         * "the asphalt road: unpaved earth; the yellow crane: open ground" point
+         * at the picture rather than at the year, and leave the year nothing to
+         * summon.
          */
         const source = cutSource(i);
         let masked: string | null = null;
@@ -1251,11 +1246,30 @@ export class CoreSampleRunner {
          *
          * `window.__cut = true` puts the cut-out back.
          */
+        let findings: string[] = [];
         const useCut = (window as unknown as { __cut?: boolean }).__cut === true;
         if (source && !useCut) {
+          /**
+           * THE LABELS, NOT THE BOXES.
+           *
+           * The same call as ever — open vocabulary, reasoning about dates — but
+           * its answer is used as TEXT rather than as a mask. Nothing is erased,
+           * so the reference keeps every pixel that was holding the camera, and
+           * the planner gets a grounded list of what a viewer of this picture
+           * would point at.
+           */
+          const items = await segmentAnachronisms(
+            config.apiKey, source.url, source.year, frame.year, request.location, config.models.text,
+            { signal: abort.signal },
+          );
+          if (abort.signal.aborted) break;
+          findings = items.map((a) => `${a.label} (${a.change})`);
+          anachronisms = items.length;
+          absent = items.filter((a) => a.change === 'absent').length;
           reference = source.url;
           console.info(
-            `[looking-glass] ${frame.year} from ${source.year}: RAW — the whole frame, uncut`,
+            `[looking-glass] ${frame.year} from ${source.year}: ${items.length} findings ` +
+              `(${absent} absent) · RAW frame + an edit list`,
           );
         } else if (source) {
           const items = await segmentAnachronisms(
@@ -1321,6 +1335,17 @@ export class CoreSampleRunner {
          * or computed by steps that READ the photograph rather than repaint it.
          * See ReferenceKind in promptcraft for what the attachment used to do.
          */
+        let direction: SceneDirection;
+        try {
+          direction = await planAt(i, findings);
+        } catch (err) {
+          if (abort.signal.aborted) break;
+          this.patchFrame(i, { status: 'error', error: explainFailure(err).title });
+          continue;
+        }
+        if (abort.signal.aborted) break;
+        this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
+
         /**
          * THE SWEEP HAS ITS OWN PROMPT NOW — see buildSweepPrompts.
          *
