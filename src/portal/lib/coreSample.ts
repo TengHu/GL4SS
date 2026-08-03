@@ -579,6 +579,8 @@ export interface SweepDebugEntry {
   promptFallback: string;
   /** Filled in once the frame lands. */
   url?: string;
+  /** Whether the provider actually ACCEPTED the attachment, or refused it. */
+  anchored?: boolean;
 }
 
 function sweepDebug(): Record<number, SweepDebugEntry> {
@@ -1305,7 +1307,7 @@ export class CoreSampleRunner {
         };
 
         try {
-          const { url } = await renderStill(
+          const { url, anchored } = await renderStill(
             config.apiKey,
             {
               model,
@@ -1313,9 +1315,29 @@ export class CoreSampleRunner {
               references: reference ? [reference] : undefined,
               unanchoredPrompts: promptsNoDiagram,
             },
-            { signal: abort.signal },
+            {
+              signal: abort.signal,
+              /**
+               * A REFUSED ATTACHMENT WAS SILENT ON THIS PATH, and it is the one
+               * thing that invalidates every other measurement.
+               *
+               * renderStill degrades by design: refused reference, retry with
+               * unanchoredPrompts, return a frame. It reports which happened in
+               * `anchored`, and the lever passes an onDegrade handler to catch
+               * it. The sweep destructured `{ url }` and passed no handler, so a
+               * run whose every frame was drawn from prose alone was
+               * indistinguishable from one anchored to a photograph — and the
+               * cut-outs, the standpoint, the prompt rewrite and the drift
+               * numbers were all being read as though the picture had been sent.
+               */
+              onDegrade: (note) => console.warn(`[looking-glass] ${frame.year}: ${note}`),
+            },
           );
           if (abort.signal.aborted) break;
+          console.info(
+            `[looking-glass] ${frame.year} reference ` +
+              `${anchored ? 'ACCEPTED' : 'REFUSED — this frame was drawn from prose alone'}`,
+          );
           /**
            * TRUE WHEN THIS FRAME WAS ACTUALLY CUT FROM ANOTHER, which is what
            * the player's break marker is asking about.
@@ -1326,14 +1348,18 @@ export class CoreSampleRunner {
            * attachment genuinely is unanchored: it was drawn from prose alone,
            * and that is the seam the marker exists to show.
            *
-           * `reference`, not `masked`. An uncut source is MORE continuous with
-           * the frame beside it than a cut one, not less — nothing was removed.
-           * Keyed on the cut-out, the marker would have called the app's most
-           * faithful frames seams.
+           * `anchored`, not `reference`. Its own doc says this is false when "the
+           * provider refused the input image" — and it was set from whether one
+           * was OFFERED, which is a different question and always true. The strip
+           * has been reporting every frame as chained regardless of whether the
+           * attachment survived.
            */
-          this.patchFrame(i, { status: 'ready', url, chained: Boolean(reference) });
+          this.patchFrame(i, { status: 'ready', url, chained: anchored });
           const debugEntry = sweepDebug()[frame.year];
-          if (debugEntry) debugEntry.url = url;
+          if (debugEntry) {
+            debugEntry.url = url;
+            debugEntry.anchored = anchored;
+          }
 
           /**
            * NOW CHECK WHETHER IT IS ACTUALLY THE SAME CAMERA.
