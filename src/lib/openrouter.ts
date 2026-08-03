@@ -46,7 +46,17 @@ export const TEXT_MODELS: ModelOption[] = [
 
 export const WIDE_FIELD_MODELS: ModelOption[] = [
   { id: 'black-forest-labs/flux.2-max', label: 'FLUX 2 Max', blurb: 'Default — frontier photoreal' },
-  { id: 'google/gemini-3-pro-image-preview', label: 'Nano Banana Pro', blurb: 'Best long-prompt grounding' },
+  { id: 'google/gemini-3-pro-image', label: 'Nano Banana Pro', blurb: 'Frontier Gemini image, 4K' },
+  /**
+   * THE ONE MEASURED HOLDING A VANTAGE, and the cheapest of the family.
+   *
+   * Given a clean aerial of the Colosseum and nine words — "give me the photo in
+   * 1700 in exact same camera position" — it returned the same oblique, the same
+   * position in frame and the Arch of Constantine still in its corner, at
+   * temperature 1. Nothing larger has done better on that particular job.
+   */
+  { id: 'google/gemini-3.1-flash-lite-image', label: 'Nano Banana 2 Lite', blurb: 'Cheapest; held a vantage from nine words' },
+  { id: 'google/gemini-3-pro-image-preview', label: 'Nano Banana Pro (preview)', blurb: 'Best long-prompt grounding' },
   { id: 'black-forest-labs/flux.2-flex', label: 'FLUX 2 Flex', blurb: 'Faster, slightly looser' },
   { id: 'google/gemini-3.1-flash-image-preview', label: 'Gemini 3.1 Flash Image', blurb: 'Fastest Google option' },
   { id: 'x-ai/grok-imagine-image-quality', label: 'Grok Imagine HQ', blurb: 'Natural physics + lighting' },
