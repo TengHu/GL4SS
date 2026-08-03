@@ -122,7 +122,9 @@ export async function stitchClips(
       el.remove();
     }
   } finally {
-    recorder.stop();
+    // Already inactive if it never started; stop() throws on that.
+    if (recorder.state !== 'inactive') recorder.stop();
+    first.remove();
   }
 
   const blob = await done;
@@ -173,7 +175,19 @@ function loadVideo(src: string): Promise<HTMLVideoElement> {
     // and the recording produces nothing readable.
     el.crossOrigin = 'anonymous';
     el.preload = 'auto';
-    el.muted = false;
+    /**
+     * MUTED, ALWAYS. Two reasons and both are load-bearing.
+     *
+     * A muted video is always allowed to autoplay; an unmuted one is not, and
+     * the click that started this has been through several awaits by the time
+     * playback begins, so its user-activation has expired. That rejection is
+     * what produced an empty recording once already.
+     *
+     * And the elements are IN the document now, so an unmuted join would play
+     * every clip out loud through the speakers while it recorded. There is no
+     * audio in the output either way — see the header.
+     */
+    el.muted = true;
     el.playsInline = true;
     /**
      * IN THE DOCUMENT, off to one side. A detached video element plays in some
@@ -183,7 +197,10 @@ function loadVideo(src: string): Promise<HTMLVideoElement> {
     el.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0';
     document.body.appendChild(el);
     el.onloadeddata = () => resolve(el);
-    el.onerror = () => reject(new Error(`could not load ${src.slice(0, 40)}`));
+    el.onerror = () => {
+      el.remove();
+      reject(new Error(`could not load ${src.slice(0, 40)}`));
+    };
     el.src = src;
   });
 }
