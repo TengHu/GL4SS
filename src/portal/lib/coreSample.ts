@@ -657,12 +657,58 @@ function buildTransitionPrompt(
     `The viewpoint is fixed: no pan, no zoom, no dolly — only the small settling a ` +
     `camera makes on a tripod. ` +
     (!pinned && camera && cameraIsUsable(camera) ? describeCamera(camera) : '') +
-    `Within the shot, time carries the place from ` +
-    `${formatYear(from)} to ${formatYear(to)}: the light moves, weather passes, ` +
-    `growth and water shift, and what stands here is built, weathers or goes. ` +
+    /**
+     * WHAT STAYS, SAID BEFORE WHAT CHANGES.
+     *
+     * Most of this view is identical in both pictures, and nothing said so. The
+     * shot was described entirely in terms of transformation — "time carries the
+     * place from 1900 to 1943" — which is a brief for changing everything, and
+     * the model changed everything, all at once, in the middle.
+     */
+    `MOST OF THIS VIEW IS THE SAME IN BOTH PICTURES AND HOLDS STILL THROUGHOUT: the ` +
+    `ground, the walls, the standing structures and the horizon keep their exact ` +
+    `position and size from the first frame to the last. ` +
+    /**
+     * CHANGE BY SUBSTITUTION, ONE THING AT A TIME.
+     *
+     * The defect this exists for: asked to cross forty-three years in four
+     * seconds, the model covered it the way an editor would — a whip and a blur
+     * through which nothing is legible — because it cannot plausibly walk 1900
+     * out and 1943 in that fast. It reinvented the world at a stroke because the
+     * shot as described was a stroke.
+     *
+     * Naming the mechanism instead: things ARRIVE and LEAVE, each at its own
+     * moment. That is also the honest description of how a place actually
+     * changes, and it degrades gracefully — a step small enough for real
+     * substitution gets it, and a step too large at least gets several separate
+     * changes rather than one total one.
+     */
+    `WHAT CHANGES, CHANGES ONE THING AT A TIME, each in its own place and at its ` +
+    `own moment: a figure walks out of frame while another walks in somewhere ` +
+    `else, a vehicle passes and a later one arrives, a surface weathers, planting ` +
+    `grows or is cleared, something is taken down and something else stands there ` +
+    `afterwards. ` +
+    /**
+     * The positive form of "no blur, no whip, no morph". Naming those risks
+     * summoning them — this file's rule — and a frame that is a readable
+     * photograph cannot be any of them.
+     */
+    `Paused at any instant, this shot is an ordinary sharp photograph of this ` +
+    `place, and there is no moment at which the whole view becomes something ` +
+    `else at once. ` +
+    `Time carries it from ${formatYear(from)} to ${formatYear(to)}: the light ` +
+    `moves, weather passes, growth and water shift, and what stands here is ` +
+    `built, weathers or goes. ` +
     (pinned
-      ? `Begin on the first attached image and finish on the second, and take whatever ` +
-        `small reframing is needed to arrive there exactly. `
+      ? /**
+         * The sentence this replaces read "take whatever small reframing is
+         * needed to arrive there exactly" — an explicit licence to move the
+         * camera, and with endpoints whose vantages disagree, "small" becomes a
+         * whip-pan. It was the instruction producing the defect.
+         */
+        `Begin on the first attached image and finish on the second. Arrive at the ` +
+        `second picture by letting the things in it arrive, one at a time, into a ` +
+        `frame that has not moved. `
       : `Begin on the attached image and carry it forward through that interval. `) +
     `No cuts, no dissolves, no title cards.`
   );
