@@ -219,10 +219,20 @@ export async function stitchClips(
   // real error and hides it.
   if (encoder.state === 'configured') await encoder.flush();
   if (encoder.state !== 'closed') encoder.close();
-  muxer.finalize();
 
+  /**
+   * EVERY CHECK BEFORE finalize(), because finalize() is a liar.
+   *
+   * The muxer builds its header from the decoder config that arrives with the
+   * first chunk. Given none — the encoder failed, or nothing was ever drawn — it
+   * throws "Cannot read properties of null (reading 'colorSpace')" from deep
+   * inside itself, which is a message about the muxer's internals and says
+   * nothing whatever about the cause. It was running BEFORE these checks, so it
+   * reliably threw over the top of the real error and buried it.
+   */
   if (encoderError) throw encoderError;
   if (!drawn) throw new Error('the clips would not play, so nothing was encoded');
+  muxer.finalize();
   const buffer = (muxer.target as InstanceType<typeof ArrayBufferTarget>).buffer;
   if (!buffer || buffer.byteLength < 1024) {
     throw new Error(`${drawn} frames encoded but the muxer wrote nothing`);
