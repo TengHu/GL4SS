@@ -148,43 +148,36 @@ export async function stitchClips(
   let drawn = 0;
   let lastKeyframe = -Infinity;
   /**
-   * ELAPSED PLAYING TIME, not elapsed wall time.
+   * THE TIMELINE COMES FROM THE CLIPS' OWN CLOCK, not from ours.
    *
-   * A single clock started before the loop keeps running while the NEXT clip
-   * loads — a second or more of fetching and decoding during which nothing is
-   * drawn — and the timeline then contains a frozen stretch at every join,
-   * exactly where the film is supposed to be seamless.
+   * Two earlier versions read the time from somewhere else and both were wrong.
+   * A frame counter over a fixed 30fps assumed thirty frames were captured per
+   * second, when they are captured on requestAnimationFrame at the DISPLAY's
+   * rate — 120Hz here — so four seconds of clip became sixteen. Wall time fixed
+   * that and still drifts from what the browser plays: a stall, a slow decode or
+   * a throttled tab all stretch the file relative to the clip.
    *
-   * So the clock only advances while a clip is actually playing: `elapsed` holds
-   * what finished clips contributed, and `playingSince` marks the current one.
+   * `currentTime` is the position in the clip itself. Summed across clips it
+   * gives an output whose duration IS the sum of their durations — the same
+   * thing the player shows — whatever the monitor does and however the decode
+   * behaves.
+   *
+   * It also fixes the oversampling at the source. At 120Hz the same
+   * `currentTime` is read several times over, and a frame is only encoded when
+   * the clip has actually advanced, so the output carries the clip's own frames
+   * rather than duplicates of them. Duplicate timestamps would be rejected by
+   * the encoder anyway, which is the other half of why this is checked.
    */
-  let elapsed = 0;
-  let playingSince = 0;
-  /**
-   * TIMESTAMPS COME FROM THE CLOCK, not from a frame counter.
-   *
-   * They were `drawn / 30`, which assumes exactly thirty frames are captured per
-   * second. Frames are captured on requestAnimationFrame, which runs at the
-   * DISPLAY's rate — 120Hz on a ProMotion screen — so four seconds of clip
-   * produced 480 frames, stamped as sixteen seconds. Three four-second clips
-   * came out as a 48-second file in quarter-speed slow motion, and the same
-   * build on a 60Hz monitor would have produced half-speed. The output rate
-   * cannot depend on the monitor.
-   *
-   * Elapsed real time since the join began is right for both reasons: it tracks
-   * playback exactly whatever the refresh rate, and it keeps running ACROSS
-   * clips, so clip two follows clip one instead of sitting on top of it — which
-   * is what the counter was there for.
-   */
+  let offset = 0;
+  let clipTime = 0;
+
   const encode = () => {
-    const at = (elapsed + (performance.now() - playingSince)) * 1000;
+    const at = (offset + clipTime) * 1e6;
     const frame = new VideoFrame(canvas, { timestamp: at, duration: 1e6 / FPS });
-    // Keyframe every second: a film with no keyframes cannot be seeked.
-    // Dropped rather than queued without limit: frames arrive on the display
-    // clock and the encoder drains on its own, and an unbounded queue is how a
-    // long film runs the tab out of memory.
+    // Dropped rather than queued without limit: an unbounded queue is how a long
+    // film runs the tab out of memory.
     if (encoder.encodeQueueSize < 30) {
-      // One keyframe a second of REAL time, for the same reason.
+      // One keyframe per second of FILM, so it can be seeked.
       const key = at - lastKeyframe >= 1e6;
       if (key) lastKeyframe = at;
       encoder.encode(frame, { keyFrame: key });
@@ -199,11 +192,23 @@ export async function stitchClips(
       options.onProgress?.({ clip: i + 1, clips: urls.length });
       const el = i === 0 ? first : await loadVideo(urls[i]!).catch(() => null);
       if (!el) continue;
-      // Started AFTER the load, closed when the clip ends: the gap between them
-      // never reaches the timeline.
-      playingSince = performance.now();
-      await playInto(el, ctx, width, height, encode, options.signal);
-      elapsed += performance.now() - playingSince;
+      await playInto(
+        el,
+        ctx,
+        width,
+        height,
+        () => {
+          // Only when the clip has moved on. See the note above.
+          if (el.currentTime <= clipTime) return;
+          clipTime = el.currentTime;
+          encode();
+        },
+        options.signal,
+      );
+      // Its own duration, so a clip that ended early does not shorten the film
+      // and one that overran does not overlap the next.
+      offset += Number.isFinite(el.duration) ? el.duration : clipTime;
+      clipTime = 0;
       el.remove();
     }
   } finally {
