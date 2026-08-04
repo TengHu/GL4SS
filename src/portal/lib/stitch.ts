@@ -146,24 +146,36 @@ export async function stitchClips(
   encoder.configure(config);
 
   let drawn = 0;
+  let lastKeyframe = -Infinity;
+  const startedAt = performance.now();
   /**
-   * Timestamps are OURS, counted in frames, not read off the clips.
+   * TIMESTAMPS COME FROM THE CLOCK, not from a frame counter.
    *
-   * Each clip restarts its own clock at zero, so passing their times through
-   * would make every clip after the first sit on top of the one before it. A
-   * running frame counter is what makes them a sequence.
+   * They were `drawn / 30`, which assumes exactly thirty frames are captured per
+   * second. Frames are captured on requestAnimationFrame, which runs at the
+   * DISPLAY's rate — 120Hz on a ProMotion screen — so four seconds of clip
+   * produced 480 frames, stamped as sixteen seconds. Three four-second clips
+   * came out as a 48-second file in quarter-speed slow motion, and the same
+   * build on a 60Hz monitor would have produced half-speed. The output rate
+   * cannot depend on the monitor.
+   *
+   * Elapsed real time since the join began is right for both reasons: it tracks
+   * playback exactly whatever the refresh rate, and it keeps running ACROSS
+   * clips, so clip two follows clip one instead of sitting on top of it — which
+   * is what the counter was there for.
    */
   const encode = () => {
-    const frame = new VideoFrame(canvas, {
-      timestamp: (drawn * 1e6) / FPS,
-      duration: 1e6 / FPS,
-    });
+    const at = (performance.now() - startedAt) * 1000;
+    const frame = new VideoFrame(canvas, { timestamp: at, duration: 1e6 / FPS });
     // Keyframe every second: a film with no keyframes cannot be seeked.
     // Dropped rather than queued without limit: frames arrive on the display
     // clock and the encoder drains on its own, and an unbounded queue is how a
     // long film runs the tab out of memory.
     if (encoder.encodeQueueSize < 30) {
-      encoder.encode(frame, { keyFrame: drawn % FPS === 0 });
+      // One keyframe a second of REAL time, for the same reason.
+      const key = at - lastKeyframe >= 1e6;
+      if (key) lastKeyframe = at;
+      encoder.encode(frame, { keyFrame: key });
       drawn++;
     }
     frame.close();
