@@ -147,7 +147,19 @@ export async function stitchClips(
 
   let drawn = 0;
   let lastKeyframe = -Infinity;
-  const startedAt = performance.now();
+  /**
+   * ELAPSED PLAYING TIME, not elapsed wall time.
+   *
+   * A single clock started before the loop keeps running while the NEXT clip
+   * loads — a second or more of fetching and decoding during which nothing is
+   * drawn — and the timeline then contains a frozen stretch at every join,
+   * exactly where the film is supposed to be seamless.
+   *
+   * So the clock only advances while a clip is actually playing: `elapsed` holds
+   * what finished clips contributed, and `playingSince` marks the current one.
+   */
+  let elapsed = 0;
+  let playingSince = 0;
   /**
    * TIMESTAMPS COME FROM THE CLOCK, not from a frame counter.
    *
@@ -165,7 +177,7 @@ export async function stitchClips(
    * is what the counter was there for.
    */
   const encode = () => {
-    const at = (performance.now() - startedAt) * 1000;
+    const at = (elapsed + (performance.now() - playingSince)) * 1000;
     const frame = new VideoFrame(canvas, { timestamp: at, duration: 1e6 / FPS });
     // Keyframe every second: a film with no keyframes cannot be seeked.
     // Dropped rather than queued without limit: frames arrive on the display
@@ -187,7 +199,11 @@ export async function stitchClips(
       options.onProgress?.({ clip: i + 1, clips: urls.length });
       const el = i === 0 ? first : await loadVideo(urls[i]!).catch(() => null);
       if (!el) continue;
+      // Started AFTER the load, closed when the clip ends: the gap between them
+      // never reaches the timeline.
+      playingSince = performance.now();
       await playInto(el, ctx, width, height, encode, options.signal);
+      elapsed += performance.now() - playingSince;
       el.remove();
     }
   } finally {
