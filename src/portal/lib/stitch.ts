@@ -74,3 +74,106 @@ export async function saveClips(
   if (!saved) throw new Error('none of the clips could be read');
   return saved;
 }
+
+/**
+ * JOIN THE CLIPS INTO ONE MP4 — WITHOUT RE-ENCODING ANY OF IT.
+ *
+ * This is a REMUX. Each clip's encoded packets are read out of its container and
+ * written into a single new one, unchanged: the same H.264 frames, the same
+ * resolution, the same frame rate, bit for bit. Nothing is decoded, nothing is
+ * drawn, nothing is played. It runs at disk speed rather than in real time.
+ *
+ * WHY THIS AND NOT WHAT CAME BEFORE. Seven attempts re-encoded — canvas capture
+ * into MediaRecorder, then WebCodecs into a muxer — and every one of them was a
+ * different way to lose: an audio track that stalled the muxer, an autoplay
+ * rejection read as success, a frame counter that ran four times slow on a 120Hz
+ * display, a codec level too low for the clips. All of it to rebuild pictures
+ * that already existed and were already correct.
+ *
+ * The frames were never the problem. The container was. So only the container is
+ * rebuilt.
+ */
+export async function joinClips(
+  urls: string[],
+  options: { onProgress?: (p: SaveProgress) => void } = {},
+): Promise<Blob> {
+  if (!urls.length) throw new Error('nothing to join');
+  if (urls.length === 1) return await (await fetch(urls[0]!)).blob();
+
+  const {
+    ALL_FORMATS,
+    BlobSource,
+    BufferTarget,
+    EncodedPacket,
+    EncodedPacketSink,
+    EncodedVideoPacketSource,
+    Input,
+    Mp4OutputFormat,
+    Output,
+  } = await import('mediabunny');
+
+  const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
+  let source: InstanceType<typeof EncodedVideoPacketSource> | null = null;
+  /** Where the next clip starts on the joined timeline, in seconds. */
+  let offset = 0;
+  let written = 0;
+
+  for (let i = 0; i < urls.length; i++) {
+    options.onProgress?.({ clip: i + 1, clips: urls.length });
+    const blob = await (await fetch(urls[i]!)).blob();
+    const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack();
+    if (!track) continue;
+
+    const config = await track.getDecoderConfig();
+    if (!config) continue;
+
+    /**
+     * The track is declared from the FIRST clip and every later one is appended
+     * to it. They come from one model at one size, so they agree — and if one
+     * ever did not, appending it is still better than refusing the whole film.
+     */
+    if (!source) {
+      // 'avc1.42E01E' -> 'avc'. The clips are H.264 from every model in the
+      // catalogue, and a codec this does not recognise fails loudly here rather
+      // than producing a file no player will open.
+      const family = config.codec.startsWith('av01')
+        ? 'av1'
+        : config.codec.startsWith('vp09')
+          ? 'vp9'
+          : config.codec.startsWith('hev1') || config.codec.startsWith('hvc1')
+            ? 'hevc'
+            : 'avc';
+      source = new EncodedVideoPacketSource(family);
+      output.addVideoTrack(source);
+      await output.start();
+    }
+
+    let last = 0;
+    for await (const packet of new EncodedPacketSink(track).packets()) {
+      /**
+       * Rebuilt with the offset added, because each clip's timestamps start at
+       * zero. Passing them through unchanged would stack every clip on top of
+       * the first — the same mistake the encoder version made, in a place where
+       * it is arithmetic rather than a race with the display.
+       */
+      await source.add(
+        new EncodedPacket(packet.data, packet.type, offset + packet.timestamp, packet.duration),
+        // The decoder config rides along with every packet; the muxer keeps the
+        // first and ignores the rest, and passing it always means a clip whose
+        // config differs is described correctly rather than silently mislabelled.
+        { decoderConfig: config },
+      );
+      last = Math.max(last, packet.timestamp + packet.duration);
+      written++;
+    }
+    offset += last;
+  }
+
+  if (!source || !written) throw new Error('none of the clips could be read');
+
+  await output.finalize();
+  const buffer = (output.target as InstanceType<typeof BufferTarget>).buffer;
+  if (!buffer) throw new Error('the joined file came back empty');
+  return new Blob([buffer], { type: 'video/mp4' });
+}

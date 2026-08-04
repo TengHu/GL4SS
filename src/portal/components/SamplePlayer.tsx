@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoreSampleState } from '../lib/coreSample';
 import { formatYear, getEraBand } from '../../lib/format';
-import { saveClips } from '../lib/stitch';
+import { extensionFor, joinClips } from '../lib/stitch';
 
 interface Props {
   state: CoreSampleState;
@@ -132,22 +132,28 @@ export function SamplePlayer({
     setJoinError(null);
     setJoining({ clip: 0, clips: clips.length });
     try {
-      const years = state.frames.filter((f) => f.status === 'ready').map((f) => f.year);
-      const base = `${state.location || 'sweep'} ${formatYear(years[0] ?? 0)}-${formatYear(years[years.length - 1] ?? 0)}`
-        .replace(/[/\\:*?"<>|]/g, '-');
-      await saveClips(
+      const blob = await joinClips(
         clips.map((c) => c.url!),
-        base,
         { onProgress: setJoining },
       );
+      const years = state.frames.filter((f) => f.status === 'ready').map((f) => f.year);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.location || 'sweep'} ${formatYear(years[0] ?? 0)}-${formatYear(years[years.length - 1] ?? 0)}.${extensionFor(blob)}`
+        .replace(/[/\\:*?"<>|]/g, '-');
+      a.click();
+      // Revoked late: Safari drops the download if the url dies in the same tick.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
-      console.warn('[looking-glass] could not save the clips —', why);
+      console.warn('[looking-glass] could not join the clips —', why);
       setJoinError(why);
     } finally {
       setJoining(null);
     }
   };
+
 
   const [clipIndex, setClipIndex] = useState(0);
 
@@ -582,17 +588,9 @@ export function SamplePlayer({
                   /* Said before it is pressed, not after: the recording runs in
                      real time and stalls if the tab is hidden, and neither is
                      guessable from a button that says "save". */
-                  title={
-                    clips.length === 1
-                      ? 'Saves the clip exactly as it is — same encoding, same frame rate, nothing re-encoded.'
-                      : `Saves all ${clips.length} clips exactly as they are, numbered in order. Nothing is re-encoded.`
-                  }
+                  title={`Writes the ${clips.length} clips into one MP4 without re-encoding them — same frames, same frame rate, same quality.`}
                 >
-                  {joining
-                    ? `saving ${joining.clip}/${joining.clips}…`
-                    : clips.length === 1
-                      ? 'save the video'
-                      : `save ${clips.length} clips`}
+                  {joining ? `joining ${joining.clip}/${joining.clips}…` : 'save as one video'}
                 </button>
               )}
               {joinError && <span className="sampler-join-error"> · {joinError}</span>}
