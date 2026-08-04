@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoreSampleState } from '../lib/coreSample';
 import { formatYear, getEraBand } from '../../lib/format';
-import { extensionFor, stitchClips } from '../lib/stitch';
+import { saveClips } from '../lib/stitch';
 
 interface Props {
   state: CoreSampleState;
@@ -132,30 +132,23 @@ export function SamplePlayer({
     setJoinError(null);
     setJoining({ clip: 0, clips: clips.length });
     try {
-      const blob = await stitchClips(
+      const years = state.frames.filter((f) => f.status === 'ready').map((f) => f.year);
+      const base = `${state.location || 'sweep'} ${formatYear(years[0] ?? 0)}-${formatYear(years[years.length - 1] ?? 0)}`
+        .replace(/[/\\:*?"<>|]/g, '-');
+      await saveClips(
         clips.map((c) => c.url!),
+        base,
         { onProgress: setJoining },
       );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const years = state.frames.filter((f) => f.status === 'ready').map((f) => f.year);
-      // The extension follows the BYTES. It was hardcoded .webm, and a single
-      // clip is handed back as the MP4 the provider sent — so the one path that
-      // never re-encodes was the one producing a mislabelled file.
-      a.download = `${state.location || 'sweep'} ${formatYear(years[0] ?? 0)}-${formatYear(years[years.length - 1] ?? 0)}.${extensionFor(blob)}`
-        .replace(/[/\\:*?"<>|]/g, '-');
-      a.click();
-      // Revoked late: Safari drops the download if the url dies in the same tick.
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
-      console.warn('[looking-glass] could not join the clips —', why);
+      console.warn('[looking-glass] could not save the clips —', why);
       setJoinError(why);
     } finally {
       setJoining(null);
     }
   };
+
   const [clipIndex, setClipIndex] = useState(0);
 
   const [cursor, setCursor] = useState(0);
@@ -591,11 +584,15 @@ export function SamplePlayer({
                      guessable from a button that says "save". */
                   title={
                     clips.length === 1
-                      ? 'Saves the film as one video file.'
-                      : `Saves the film as one video file. Joining ${clips.length} clips means playing them through once, so it takes as long as the film lasts — keep this tab in front.`
+                      ? 'Saves the clip exactly as it is — same encoding, same frame rate, nothing re-encoded.'
+                      : `Saves all ${clips.length} clips exactly as they are, numbered in order. Nothing is re-encoded.`
                   }
                 >
-                  {joining ? `joining ${joining.clip}/${joining.clips}…` : 'save as one video'}
+                  {joining
+                    ? `saving ${joining.clip}/${joining.clips}…`
+                    : clips.length === 1
+                      ? 'save the video'
+                      : `save ${clips.length} clips`}
                 </button>
               )}
               {joinError && <span className="sampler-join-error"> · {joinError}</span>}

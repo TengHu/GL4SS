@@ -1,283 +1,29 @@
 /**
- * JOIN THE CLIPS INTO ONE FILE, in the browser, with no dependency.
+ * SAVE THE CLIPS AS THEY ARE.
  *
- * A sweep films as N separate clips because that is how they are generated —
- * one per adjacent pair of stills, each pinned at both ends so clip N finishes
- * on the image clip N+1 opens on. Played in the app they run seamlessly. Saved,
- * they are N files, and the thing the visitor actually made is the sequence.
+ * Every clip is already an MP4, sitting in memory as a blob URL, and it is the
+ * exact file the player is playing. Saving it is a fetch and an anchor: same
+ * frame rate, same resolution, same encoding, same bytes.
  *
- * NO MUXER, AND THAT IS THE CONSTRAINT. Concatenating MP4 bytes does not produce
- * a playable MP4 — the container carries an index that would have to be rebuilt
- * — and a real muxer is a dependency measured in hundreds of kilobytes for a
- * button. So this plays the clips into a canvas and records the canvas, which is
- * the one route the platform already provides.
+ * WHAT THIS REPLACED, because the mistake is worth recording. Asked for "one
+ * video", this file grew a canvas recorder, then a WebCodecs encoder, then an
+ * MP4 muxer — a complete re-encoding pipeline — and shipped broken seven times:
+ * an audio track that stalled the muxer, an autoplay rejection read as success,
+ * a hardcoded extension, a frame counter that made the output four times too
+ * slow on a 120Hz display, a codec level too low for the clips, and a finalize()
+ * that threw over the top of every one of those and hid it.
  *
- * WHAT THAT COSTS, and it is not hidden from the caller:
+ * All of it to avoid saving files that were already correct. The one genuinely
+ * hard part was joining several into one container, and that was the only part
+ * that was ever asked for — everything else was already done.
  *
- *   - it runs in REAL TIME. Twenty-three four-second clips take ninety seconds,
- *     because the frames only exist as they are played.
- *   - it re-encodes. The output is WebM at the canvas resolution, one generation
- *     lossier than the clips it came from.
- *   - the tab must stay visible. Backgrounded, requestAnimationFrame stops and
- *     the recording stalls — hence `onProgress`, so the UI can say so.
- *
- * VIDEO ONLY. There was an audio path and it was the bug: the clips were routed
- * through an AudioContext into the canvas stream, the context sits suspended
- * under autoplay policy, playback has to be muted for `play()` to be allowed at
- * all — so no samples ever reached the destination, and MediaRecorder given a
- * track that never delivers stalls the muxer and writes a header with nothing
- * after it. A valid file containing no video, which is the worst shape a bug can
- * take.
- *
- * Nothing is lost by removing it. A film of more than one clip is GENERATED
- * silent on purpose — see audioForSequence — and a film of exactly one is handed
- * back untouched below, sound and all.
+ * If joining is wanted again it should be a REMUX: demux each MP4 and write the
+ * existing frames into one container. Lossless, correct frame rate by
+ * construction, and it never touches a pixel. Re-encoding was the wrong shape
+ * from the first line.
  */
 
-/** Frames per second the canvas is sampled at. */
-const FPS = 30;
-
-export interface StitchProgress {
-  /** Which clip is playing, 1-based. */
-  clip: number;
-  clips: number;
-}
-
-/**
- * Play every url in order into one recording and resolve with the result.
- *
- * Rejects only if the browser cannot record at all. A clip that fails to load is
- * SKIPPED rather than fatal: the visitor has already paid for the others, and a
- * film with a gap is worth more than an error.
- */
-export async function stitchClips(
-  urls: string[],
-  options: { signal?: AbortSignal; onProgress?: (p: StitchProgress) => void } = {},
-): Promise<Blob> {
-  if (!urls.length) throw new Error('nothing to join');
-
-  /**
-   * ONE CLIP IS ALREADY THE FILM. Hand back its bytes.
-   *
-   * ONE CLIP THAT IS ALREADY MP4 IS ALREADY THE FILM. Hand back its bytes: no
-   * canvas, no encoder, no re-encode, no real-time wait.
-   *
-   * Only when it is already MP4. Anything else falls through to the encoder, so
-   * the answer to "what do I get" is MP4 whatever the clip count and whatever
-   * the provider sent.
-   */
-  if (urls.length === 1) {
-    const only = await (await fetch(urls[0]!)).blob();
-    // Passthrough ONLY if it is already MP4. Anything else goes through the
-    // encoder below, so the answer to "what do I get" is one word regardless of
-    // clip count or what the provider happened to send.
-    if (only.type.includes('mp4')) return only;
-  }
-  /**
-   * ENCODED WITH WebCodecs AND MUXED TO MP4, not recorded.
-   *
-   * MediaRecorder was the wrong tool. Whether it can write MP4 at all is up to
-   * the browser, so the container came out WebM on some machines and MP4 on
-   * others for the same code — and a .webm is a file half the world's players
-   * and every phone gallery will refuse.
-   *
-   * VideoEncoder takes frames and returns H.264 chunks, mp4-muxer puts them in
-   * an MP4 box structure, and neither asks the browser's permission about the
-   * container. The output is MP4 on anything with WebCodecs, which is every
-   * browser this app already requires for the rest of what it does.
-   */
-  const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
-
-  const first = await loadVideo(urls[0]!);
-  // Even dimensions: H.264 encodes in 16x16 macroblocks and an odd width or
-  // height is rejected outright by some encoders.
-  const width = (first.videoWidth || 1280) & ~1;
-  const height = (first.videoHeight || 720) & ~1;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('could not open a canvas to encode from');
-
-  const muxer = new Muxer({
-    target: new ArrayBufferTarget(),
-    video: { codec: 'avc', width, height },
-    fastStart: 'in-memory',
-  });
-
-  /**
-   * THE CODEC STRING IS A CEILING, NOT A LABEL.
-   *
-   * This was hardcoded `avc1.42001f` — Baseline level 3.1, which tops out at
-   * 1280x720. Handed anything larger the encoder errors, CLOSES ITSELF, and the
-   * next call fails with "cannot call flush on a closed codec": a message about
-   * the corpse rather than the cause, which is what you get for guessing a level
-   * instead of asking.
-   *
-   * So ask. isConfigSupported answers for this browser at this size, and the
-   * list runs high-profile-first down to the baseline that was there before.
-   */
-  const candidates = ['avc1.640034', 'avc1.4d0034', 'avc1.42E034', 'avc1.640028', 'avc1.42001f'];
-  let config: VideoEncoderConfig | null = null;
-  for (const codec of candidates) {
-    const attempt: VideoEncoderConfig = { codec, width, height, bitrate: 6_000_000, framerate: FPS };
-    if ((await VideoEncoder.isConfigSupported(attempt)).supported) {
-      config = attempt;
-      break;
-    }
-  }
-  if (!config) {
-    throw new Error(`no H.264 encoder here accepts ${width}x${height}`);
-  }
-
-  /**
-   * The encoder reports failures HERE, asynchronously, and closes itself. Held
-   * so the throw at the end can name what actually went wrong.
-   */
-  let encoderError: Error | null = null;
-  /**
-   * Counted separately from `drawn`, because they fail differently and the
-   * message must say which. Frames drawn but no chunks out means the ENCODER
-   * swallowed them; no frames drawn means playback never produced any.
-   */
-  let chunks = 0;
-  const encoder = new VideoEncoder({
-    output: (chunk, meta) => {
-      chunks++;
-      muxer.addVideoChunk(chunk, meta);
-    },
-    error: (e) => {
-      encoderError ??= e instanceof Error ? e : new Error(String(e));
-      console.warn('[looking-glass] encoder —', e);
-    },
-  });
-  encoder.configure(config);
-
-  let drawn = 0;
-  let lastKeyframe = -Infinity;
-  /**
-   * THE TIMELINE COMES FROM THE CLIPS' OWN CLOCK, not from ours.
-   *
-   * Two earlier versions read the time from somewhere else and both were wrong.
-   * A frame counter over a fixed 30fps assumed thirty frames were captured per
-   * second, when they are captured on requestAnimationFrame at the DISPLAY's
-   * rate — 120Hz here — so four seconds of clip became sixteen. Wall time fixed
-   * that and still drifts from what the browser plays: a stall, a slow decode or
-   * a throttled tab all stretch the file relative to the clip.
-   *
-   * `currentTime` is the position in the clip itself. Summed across clips it
-   * gives an output whose duration IS the sum of their durations — the same
-   * thing the player shows — whatever the monitor does and however the decode
-   * behaves.
-   *
-   * It also fixes the oversampling at the source. At 120Hz the same
-   * `currentTime` is read several times over, and a frame is only encoded when
-   * the clip has actually advanced, so the output carries the clip's own frames
-   * rather than duplicates of them. Duplicate timestamps would be rejected by
-   * the encoder anyway, which is the other half of why this is checked.
-   */
-  let offset = 0;
-  let clipTime = 0;
-
-  const encode = () => {
-    const at = (offset + clipTime) * 1e6;
-    const frame = new VideoFrame(canvas, { timestamp: at, duration: 1e6 / FPS });
-    // Dropped rather than queued without limit: an unbounded queue is how a long
-    // film runs the tab out of memory.
-    if (encoder.encodeQueueSize < 30) {
-      // One keyframe per second of FILM, so it can be seeked.
-      const key = at - lastKeyframe >= 1e6;
-      if (key) lastKeyframe = at;
-      encoder.encode(frame, { keyFrame: key });
-      drawn++;
-    }
-    frame.close();
-  };
-
-  try {
-    for (let i = 0; i < urls.length; i++) {
-      if (options.signal?.aborted) break;
-      options.onProgress?.({ clip: i + 1, clips: urls.length });
-      const el = i === 0 ? first : await loadVideo(urls[i]!).catch(() => null);
-      if (!el) continue;
-      await playInto(
-        el,
-        ctx,
-        width,
-        height,
-        () => {
-          // Only when the clip has moved on. See the note above.
-          if (el.currentTime <= clipTime) return;
-          clipTime = el.currentTime;
-          encode();
-        },
-        options.signal,
-      );
-      // Its own duration, so a clip that ended early does not shorten the film
-      // and one that overran does not overlap the next.
-      offset += Number.isFinite(el.duration) ? el.duration : clipTime;
-      clipTime = 0;
-      el.remove();
-    }
-  } finally {
-    first.remove();
-  }
-
-  // Never flush a codec that has already died — that throws over the top of the
-  // real error and hides it.
-  if (encoder.state === 'configured') await encoder.flush();
-  if (encoder.state !== 'closed') encoder.close();
-
-  /**
-   * EVERY CHECK BEFORE finalize(), because finalize() is a liar.
-   *
-   * The muxer builds its header from the decoder config that arrives with the
-   * first chunk. Given none — the encoder failed, or nothing was ever drawn — it
-   * throws "Cannot read properties of null (reading 'colorSpace')" from deep
-   * inside itself, which is a message about the muxer's internals and says
-   * nothing whatever about the cause. It was running BEFORE these checks, so it
-   * reliably threw over the top of the real error and buried it.
-   */
-  if (encoderError) throw encoderError;
-  if (!drawn) throw new Error('the clips would not play, so no frames were captured');
-  if (!chunks) {
-    throw new Error(`${drawn} frames were captured but the encoder returned nothing`);
-  }
-  muxer.finalize();
-  const buffer = (muxer.target as InstanceType<typeof ArrayBufferTarget>).buffer;
-  if (!buffer || buffer.byteLength < 1024) {
-    throw new Error(`${drawn} frames encoded but the muxer wrote nothing`);
-  }
-  return new Blob([buffer], { type: 'video/mp4' });
-}
-
-/**
- * What MediaRecorder will accept, preferring MP4.
- *
- * No longer used to JOIN anything — that goes through WebCodecs now, which does
- * not leave the container up to the browser. It survives for the local test,
- * whose stand-in clips have to be recorded somehow and should match what a
- * provider sends.
- *
- * Exported so the local test records its stand-in clips the same way, and so a
- * caller can ask what this browser is actually capable of rather than assume.
- */
-export function pickMime(): string {
-  for (const m of [
-    'video/mp4;codecs=avc1.42E01E',
-    'video/mp4;codecs=avc1',
-    'video/mp4',
-    'video/webm;codecs=vp9',
-    'video/webm;codecs=vp8',
-    'video/webm',
-  ]) {
-    if (MediaRecorder.isTypeSupported(m)) return m;
-  }
-  return '';
-}
-
-/** The extension the bytes actually deserve — see the .webm that held MP4. */
+/** The extension the bytes deserve, rather than one assumed in advance. */
 export function extensionFor(blob: Blob): string {
   if (blob.type.includes('mp4')) return 'mp4';
   if (blob.type.includes('webm')) return 'webm';
@@ -285,73 +31,46 @@ export function extensionFor(blob: Blob): string {
   return 'mp4';
 }
 
-function loadVideo(src: string): Promise<HTMLVideoElement> {
-  return new Promise((resolve, reject) => {
-    const el = document.createElement('video');
-    // Provider CDNs serve clips cross-origin; without this the canvas is tainted
-    // and the recording produces nothing readable.
-    el.crossOrigin = 'anonymous';
-    el.preload = 'auto';
-    /**
-     * MUTED, ALWAYS. Two reasons and both are load-bearing.
-     *
-     * A muted video is always allowed to autoplay; an unmuted one is not, and
-     * the click that started this has been through several awaits by the time
-     * playback begins, so its user-activation has expired. That rejection is
-     * what produced an empty recording once already.
-     *
-     * And the elements are IN the document now, so an unmuted join would play
-     * every clip out loud through the speakers while it recorded. There is no
-     * audio in the output either way — see the header.
-     */
-    el.muted = true;
-    el.playsInline = true;
-    /**
-     * IN THE DOCUMENT, off to one side. A detached video element plays in some
-     * browsers and not others, and this is a button whose failure mode is a file
-     * that looks fine and contains nothing.
-     */
-    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0';
-    document.body.appendChild(el);
-    el.onloadeddata = () => resolve(el);
-    el.onerror = () => {
-      el.remove();
-      reject(new Error(`could not load ${src.slice(0, 40)}`));
-    };
-    el.src = src;
-  });
+export interface SaveProgress {
+  clip: number;
+  clips: number;
 }
 
 /**
- * Draw one clip to the canvas until it ends, at the rate it plays.
+ * Save every clip, in order, untouched.
  *
- * requestAnimationFrame rather than a timer, so the canvas is sampled on the
- * same clock the browser composites on and the recording does not tear. It also
- * means a backgrounded tab stops producing frames — the reason the caller is
- * told to keep it visible.
+ * One file each. A clip that will not load is skipped rather than fatal: the
+ * others were paid for too, and a gap beats an error.
  */
-function playInto(
-  el: HTMLVideoElement,
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  onFrame: () => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  return new Promise((resolve) => {
-    let raf = 0;
-    const stop = () => {
-      cancelAnimationFrame(raf);
-      el.pause();
-      resolve();
-    };
-    const tick = () => {
-      if (signal?.aborted || el.ended) return stop();
-      ctx.drawImage(el, 0, 0, width, height);
-      onFrame();
-      raf = requestAnimationFrame(tick);
-    };
-    el.onended = stop;
-    void el.play().then(tick).catch(stop);
-  });
+export async function saveClips(
+  urls: string[],
+  baseName: string,
+  options: { onProgress?: (p: SaveProgress) => void } = {},
+): Promise<number> {
+  let saved = 0;
+  for (let i = 0; i < urls.length; i++) {
+    options.onProgress?.({ clip: i + 1, clips: urls.length });
+    let blob: Blob;
+    try {
+      blob = await (await fetch(urls[i]!)).blob();
+    } catch {
+      continue;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Numbered only when there is more than one, so the ordinary case is a file
+    // named after the place rather than after its position in a list of one.
+    const part = urls.length > 1 ? ` ${String(i + 1).padStart(2, '0')}` : '';
+    a.download = `${baseName}${part}.${extensionFor(blob)}`;
+    a.click();
+    // Revoked late: Safari drops the download if the url dies in the same tick.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    saved++;
+    // Browsers rate-limit consecutive programmatic downloads; a beat between
+    // them is the difference between four files and one.
+    if (i < urls.length - 1) await new Promise((r) => setTimeout(r, 350));
+  }
+  if (!saved) throw new Error('none of the clips could be read');
+  return saved;
 }
