@@ -41,6 +41,7 @@ import {
   chooseFilmModel,
   clampClipSeconds,
   findSpan,
+  planGapSample,
   planSample,
 } from './lib/coreSample';
 import type { FilmModelChoice } from './lib/coreSample';
@@ -895,11 +896,37 @@ export function Portal() {
   );
 
   /** Replace the queue with an evenly spaced fill, and remember the choice. */
+  /**
+   * Which fill produced the current list: a span, or a fixed gap.
+   *
+   * Null means a span. Held so the count buttons re-run whichever one is in use
+   * rather than silently switching back to a span the moment you ask for more
+   * pictures.
+   */
+  const [sampleGap, setSampleGap] = useState<number | null>(null);
+
   const fillSampleYears = useCallback((spanId: string, count: number) => {
+    setSampleGap(null);
     setSampleSpanId(spanId);
     setSampleLength(count);
     setSampleYears(planSample(findSpan(spanId), count));
   }, []);
+
+  /**
+   * Stations every `gap` years, outward from the year on the glass.
+   *
+   * From the seed rather than from an era boundary: it is the one frame pinned
+   * to a real photograph, everything else is drawn from its neighbour, and
+   * walking outward keeps the small steps nearest the evidence.
+   */
+  const fillSampleGap = useCallback(
+    (gap: number, count: number) => {
+      setSampleGap(gap);
+      setSampleLength(count);
+      setSampleYears(planGapSample(shownScene?.year ?? year, gap, count));
+    },
+    [shownScene?.year, year],
+  );
 
   /**
    * Add the station the dial is tuned to.
@@ -1812,6 +1839,8 @@ export function Portal() {
             onAddTypedYear={addTypedYear}
             onRemoveYear={removeSampleYear}
             onFill={fillSampleYears}
+            onFillGap={fillSampleGap}
+            gap={sampleGap}
             spanId={sampleSpanId}
             length={sampleLength}
             onRun={() => void requestSample()}

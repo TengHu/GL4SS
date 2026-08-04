@@ -211,6 +211,51 @@ function sampleTargets(span: SampleSpan, n: number): number[] {
  * distribution is as even as the instrument permits, and the count is always
  * the count that was asked for and quoted.
  */
+/**
+ * Fixed steps, offered beside the spans.
+ *
+ * A span answers "cover this stretch of history in N pictures" and lets the gap
+ * fall where it may — which is how a sweep ends up jumping forty-three years in
+ * one step. A gap answers the other question: "every N years, from where I am
+ * standing", and the gap is the thing that actually decides whether a frame
+ * holds. Short steps come back nearly identical to their neighbour; long ones
+ * come back as a different photograph, and no amount of prompting has changed
+ * that.
+ */
+export const SAMPLE_GAPS = [20, 50, 100] as const;
+
+/**
+ * Stations every `gap` years, growing OUTWARD FROM THE SEED in both directions.
+ *
+ * From the seed rather than from the start of an era, because the seed is the
+ * one frame pinned to a real photograph and everything else is drawn from its
+ * neighbour. Walking outward keeps the small steps nearest the evidence, where
+ * they are worth most.
+ *
+ * Alternating past and future so a count that runs out mid-way leaves a sweep
+ * centred on the seed rather than one that only goes backwards.
+ */
+export function planGapSample(seedYear: number, gap: number, count: number): number[] {
+  const seed = STATIONS[nearestStationIndex(seedYear)]!;
+  const used = new Set<number>([seed]);
+
+  for (let step = 1; used.size < count; step++) {
+    const before = used.size;
+    for (const year of [seed - step * gap, seed + step * gap]) {
+      if (used.size >= count) break;
+      if (year < MIN_YEAR || year > MAX_YEAR) continue;
+      // Snapped, because the runner keys every frame by station: an off-ladder
+      // year renders as its neighbour and shows up twice under two labels.
+      used.add(STATIONS[nearestStationIndex(year)]!);
+    }
+    // Both directions off the end of the ladder, or both snapping onto stations
+    // already taken — either way there is nothing further out to reach.
+    if (used.size === before) break;
+  }
+
+  return [...used].sort((a, b) => a - b);
+}
+
 export function planSample(span: SampleSpan, count: number): number[] {
   const lo = nearestStationIndex(span.fromYear);
   const hi = nearestStationIndex(span.toYear);

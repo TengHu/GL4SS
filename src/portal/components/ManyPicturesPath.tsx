@@ -41,7 +41,7 @@
 
 import { useState } from 'react';
 import { formatYear } from '../../lib/format';
-import { SAMPLE_LENGTHS, SAMPLE_SPANS } from '../lib/coreSample';
+import { SAMPLE_GAPS, SAMPLE_LENGTHS, SAMPLE_SPANS } from '../lib/coreSample';
 
 interface Props {
   /** The years queued, ascending. This is the real state. */
@@ -62,6 +62,10 @@ interface Props {
   onRemoveYear: (year: number) => void;
   /** Replace the list with an evenly spaced fill. */
   onFill: (spanId: string, count: number) => void;
+  /** Stations every N years outward from the seed. See planGapSample. */
+  onFillGap: (gap: number, count: number) => void;
+  /** The gap in use, or null when a span is. */
+  gap: number | null;
   spanId: string;
   length: number;
   onRun: () => void;
@@ -78,6 +82,8 @@ export function ManyPicturesPath({
   onAddTypedYear,
   onRemoveYear,
   onFill,
+  onFillGap,
+  gap,
   spanId,
   length,
   onRun,
@@ -205,11 +211,33 @@ export function ManyPicturesPath({
             {SAMPLE_SPANS.map((s) => (
               <button
                 key={s.id}
-                className={`seg-option${s.id === spanId ? ' seg-option--on' : ''}`}
+                className={`seg-option${gap === null && s.id === spanId ? ' seg-option--on' : ''}`}
                 onClick={() => onFill(s.id, length)}
                 title={s.blurb}
               >
                 {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* THE OTHER QUESTION. A span covers a stretch of history and lets the
+            gap fall where it may; a gap fixes the step and lets the stretch fall
+            where it may. The gap is the thing that decides whether a frame holds
+            — short steps come back nearly identical to their neighbour, long
+            ones come back as a different photograph — so it is worth being able
+            to say directly rather than inferring it from a span and a count. */}
+        <div className="sample-fill">
+          <span className="sample-fill-label">or every</span>
+          <div className="seg seg--wrap">
+            {SAMPLE_GAPS.map((g) => (
+              <button
+                key={g}
+                className={`seg-option${gap === g ? ' seg-option--on' : ''}`}
+                onClick={() => onFillGap(g, length)}
+                title={`${length} stations ${g} years apart, outward from the year you are on`}
+              >
+                {g} yrs
               </button>
             ))}
           </div>
@@ -224,7 +252,7 @@ export function ManyPicturesPath({
                 aria-checked={length === n}
                 tabIndex={length === n ? 0 : -1}
                 className={`seg-option${length === n ? ' seg-option--on' : ''}`}
-                onClick={() => onFill(spanId, n)}
+                onClick={() => (gap === null ? onFill(spanId, n) : onFillGap(gap, n))}
                 /* Arrows must not reach Portal's global handler, or choosing a
                    count would retune the year instead. Same lesson as
                    FilmControl learned the hard way. */
@@ -237,7 +265,8 @@ export function ManyPicturesPath({
                   e.preventDefault();
                   e.stopPropagation();
                   const next = SAMPLE_LENGTHS[(i + delta + SAMPLE_LENGTHS.length) % SAMPLE_LENGTHS.length]!;
-                  onFill(spanId, next);
+                  if (gap === null) onFill(spanId, next);
+                  else onFillGap(gap, next);
                   const group = e.currentTarget.parentElement;
                   const target = group?.children[SAMPLE_LENGTHS.indexOf(next)] as HTMLElement | undefined;
                   target?.focus();
