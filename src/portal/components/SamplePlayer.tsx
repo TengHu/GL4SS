@@ -25,6 +25,16 @@ interface Props {
   onClose: () => void;
   /** Open the film consent dialog. Absent while a film is already rendering. */
   onFilm?: () => void;
+  /**
+   * EDITING ONE STATION. Absent while anything is running.
+   *
+   * Three of these spend an image call and one is free, which is why `drop` is
+   * offered first in the row and why the others carry their price.
+   */
+  onReroll?: (i: number) => void;
+  onRetime?: (i: number, year: number) => void;
+  onDrop?: (i: number) => void;
+  onInsert?: (year: number) => void;
 }
 
 /**
@@ -62,7 +72,16 @@ function formatElapsed(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
+export function SamplePlayer({
+  state,
+  onCancel,
+  onClose,
+  onFilm,
+  onReroll,
+  onRetime,
+  onDrop,
+  onInsert,
+}: Props) {
   const running = state.status === 'running';
   const filming = state.filmStatus === 'rendering';
   const ready = useMemo(
@@ -83,6 +102,19 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
     [state.clips],
   );
   const hasFilm = clips.length > 0;
+
+  /**
+   * WHICH STATION THE EDIT ROW IS ABOUT.
+   *
+   * Indexes state.frames, not the ready ones — a failed or pending station is
+   * exactly the kind you want to re-roll or drop, and indexing the ready subset
+   * would put those out of reach.
+   */
+  const [editing, setEditing] = useState<number | null>(null);
+  const [yearDraft, setYearDraft] = useState('');
+  const [addDraft, setAddDraft] = useState('');
+  const canEdit = Boolean(onReroll && !running && !filming);
+  const target = editing === null ? undefined : state.frames[editing];
 
   /**
    * SAVE THE FILM AS ONE FILE.
@@ -407,7 +439,9 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
                   `sampler-cell sampler-cell--${f.status}` +
                   (active ? ' sampler-cell--on' : '') +
                   (f.chained === false && !f.restored ? ' sampler-cell--break' : '') +
-                  (f.drift ? ' sampler-cell--drift' : '')
+                  (f.drift ? ' sampler-cell--drift' : '') +
+                  (f.stale ? ' sampler-cell--stale' : '') +
+                  (editing === i ? ' sampler-cell--editing' : '')
                 }
                 /* QUOTED. Frames arrive as `data:image/png;base64,…`, and the
                    comma after the mime type makes an unquoted url() a CSS
@@ -422,17 +456,94 @@ export function SamplePlayer({ state, onCancel, onClose, onFilm }: Props) {
                   (f.drift ? ` — ${f.drift}` : '')
                 }
                 onClick={() => {
+                  // Selecting for edit is the second job of the same click, so a
+                  // station with no picture — failed, pending — is still reachable.
+                  if (canEdit) {
+                    setEditing((cur) => (cur === i ? null : i));
+                    setYearDraft(String(f.year));
+                  }
                   if (readyIndex < 0) return;
                   setPlaying(false);
                   take(() => readyIndex);
                 }}
-                disabled={readyIndex < 0}
               >
                 <span className="sampler-cell-year">{formatYear(f.year)}</span>
               </button>
             );
           })}
         </div>
+
+        {/* THE EDIT ROW. One station at a time, under the strip rather than on
+            the cell — a cell is 90px wide and four controls do not fit in it,
+            and a row that appears in a fixed place is easier to reach than one
+            that moves with the selection. */}
+        {canEdit && target && editing !== null && (
+          <div className="sampler-edit">
+            <span className="sampler-edit-year">{formatYear(target.year)}</span>
+
+            <button className="ghost-btn" onClick={() => onReroll?.(editing)}>
+              ⟳ re-roll<span className="sampler-edit-cost">1 image</span>
+            </button>
+
+            <span className="sampler-edit-field">
+              ⇢ year
+              <input
+                type="number"
+                value={yearDraft}
+                onChange={(e) => setYearDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  const y = Number(yearDraft);
+                  if (Number.isFinite(y) && y !== target.year) onRetime?.(editing, y);
+                }}
+                aria-label="Move this station to another year"
+              />
+              <span className="sampler-edit-cost">1 image</span>
+            </span>
+
+            {/* First of the three that change anything, because it is the only
+                one that is free — and a frame that is wrong and cannot be fixed
+                is better gone than kept. */}
+            <button
+              className="ghost-btn"
+              onClick={() => {
+                onDrop?.(editing);
+                setEditing(null);
+              }}
+            >
+              ✕ remove<span className="sampler-edit-cost">free</span>
+            </button>
+
+            <span className="sampler-edit-field">
+              + add
+              <input
+                type="number"
+                placeholder="year"
+                value={addDraft}
+                onChange={(e) => setAddDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  const y = Number(addDraft);
+                  if (Number.isFinite(y) && addDraft.trim()) {
+                    onInsert?.(y);
+                    setAddDraft('');
+                  }
+                }}
+                aria-label="Add a station at this year"
+              />
+              <span className="sampler-edit-cost">1 image</span>
+            </span>
+
+            {/* Said only when it is true, and it is the reason nothing
+                regenerates on its own. */}
+            {state.frames.some((f) => f.stale) && (
+              <span className="sampler-edit-warn">
+                ⚠ {state.frames.filter((f) => f.stale).length} frame(s) were cut from a
+                picture that has since changed
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="sampler-status" aria-live="polite">
           {filming ? (

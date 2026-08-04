@@ -1946,6 +1946,13 @@ export function Portal() {
              money and `reopen` brings it back. Only `clear()` discards, and
              nothing in the UI calls it: the session ending is discard enough. */
           onClose={() => setSamplerOpen(false)}
+          /* EDITING ONE STATION. Three of these spend an image call and `onDrop`
+             is free, which is why the row labels each with its price rather than
+             treating them alike. Nothing here regenerates a neighbour. */
+          onReroll={(i) => void sampler.reroll(i)}
+          onRetime={(i, year) => void sampler.retime(i, year)}
+          onDrop={(i) => sampler.drop(i)}
+          onInsert={(year) => void sampler.insert(year)}
         />
       )}
 

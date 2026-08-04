@@ -275,6 +275,14 @@ export interface SampleFrame {
   drift?: string;
   /** True when the drift check actually ran on this frame. */
   driftChecked?: boolean;
+  /**
+   * This frame was cut from a station that has since been re-rendered.
+   *
+   * It is not wrong, it is inconsistent: it was drawn from a picture that no
+   * longer exists. Marked rather than silently re-rendered, because re-rendering
+   * is more money and whether the inconsistency matters is the visitor's call.
+   */
+  stale?: boolean;
 }
 
 /**
@@ -718,8 +726,32 @@ function buildTransitionPrompt(
 // THE RUNNER
 // ============================================================================
 
+/**
+ * WHAT A STATION NEEDS THAT IS NOT THE STATION.
+ *
+ * Established once per sweep and reused: the config and request, the resolved
+ * image model, the standpoint read off the seed, and the three closures that
+ * decide what a station is cut from and planned against. Held so that a single
+ * frame can be re-rendered later without re-running everything that produced
+ * the context it needs.
+ */
+interface RunContext {
+  config: SampleConfig;
+  request: SampleRequest;
+  phase: string;
+  model: string;
+  camera?: StandpointCamera;
+  standpoint: string;
+  standpointCamera: string;
+  cutSource: (i: number) => { url: string; year: number } | undefined;
+  referenceForPlanner: (i: number) => { url: string; year: number } | undefined;
+  planAt: (i: number, findings: string[]) => Promise<SceneDirection>;
+}
+
 export class CoreSampleRunner {
   private state: CoreSampleState = IDLE;
+  /** Set by start(); see RunContext. Null before the first sweep. */
+  private run: RunContext | null = null;
   private listeners = new Set<() => void>();
   private abort: AbortController | null = null;
   /**
@@ -1232,6 +1264,23 @@ export class CoreSampleRunner {
        * them and only afterwards fill in behind. Interleaving keeps the picture
        * on screen adjacent to the one they started from.
        */
+      /**
+       * Captured here because this is the first point where everything a station
+       * needs exists: the standpoint has been read and the closures are defined.
+       */
+      this.run = {
+        config,
+        request,
+        phase,
+        model,
+        camera,
+        standpoint,
+        standpointCamera,
+        cutSource,
+        referenceForPlanner,
+        planAt,
+      };
+
       const order: number[] = [];
       for (let d = 0; d <= this.state.frames.length; d++) {
         if (d === 0) order.push(anchor);
@@ -1246,374 +1295,10 @@ export class CoreSampleRunner {
 
       for (const i of order) {
         if (abort.signal.aborted) break;
-        const frame = this.state.frames[i];
-        if (!frame) continue;
-        if (frame.status === 'ready') continue; // the restored seed
-
+        const f = this.state.frames[i];
+        if (!f || f.status === 'ready') continue; // the restored seed
         this.emit({ cursor: i });
-        this.patchFrame(i, { status: 'directing' });
-
-        /**
-         * THE SEGMENTER RUNS FIRST NOW, and the planner reads its answer.
-         *
-         * The order used to be the other way round, with the planner running
-         * several stations AHEAD of the cursor — the lookahead that took roughly
-         * four minutes of text latency out of a 24-frame sweep. That is gone,
-         * and knowingly: the planner's job has changed from describing a year to
-         * writing edits to a specific photograph, and it cannot do that before
-         * something has looked at the photograph.
-         *
-         * What it buys is the whole point of the change. "In 1943 Rome is
-         * occupied, troops in the streets, sandbags at the monuments" is a brief
-         * for a scene, and the model composed that scene — a street-level war
-         * photograph owing nothing to the aerial it was handed. The same facts as
-         * "the asphalt road: unpaved earth; the yellow crane: open ground" point
-         * at the picture rather than at the year, and leave the year nothing to
-         * summon.
-         */
-        const source = cutSource(i);
-        let masked: string | null = null;
-        let reference: string | null = null;
-        let anachronisms = 0;
-        let absent = 0;
-        /**
-         * THE ANACHRONISM CUT IS THE DEFAULT, and `window.__noCut = true` sends
-         * the source whole instead.
-         *
-         * Two variables moved at once and only one has been isolated. The runs
-         * that drifted used the full cut AND a four-hundred-word prompt; the run
-         * that held its vantage used a clean source AND the ninety-word one. So
-         * the improvement may have come from either, and the untried combination
-         * — full cut, short prompt — is the cell that separates them.
-         *
-         * Sending the source whole is what reintroduced the crowd: the 1700
-         * Colosseum came back with the 2010 queue standing where it had stood,
-         * re-costumed. That is the failure the cut exists for, and the reason it
-         * is the default rather than the alternative.
-         *
-         * NO CATEGORY LIST. A version of this asked specifically for people,
-         * animals and vehicles, which is the lookup table this file's own header
-         * rejects: "every earlier design tried to classify objects and then
-         * decide policy per class; each one turned into a lookup table that
-         * generalised to nothing." The open-vocabulary pass reasons about dates
-         * and names whatever it finds, and that is what it goes back to.
-         */
-        /**
-         * RAW. The neighbouring frame goes over untouched, and no anachronism
-         * pass runs at all.
-         *
-         * The erasure is what a sweep frame is built on and it is switched off
-         * here on purpose, to see what the picture alone can carry. It costs the
-         * crowd — the people come through into the next century re-costumed,
-         * which is the failure the cut-out was invented for — and it saves a text
-         * call per frame and every hole the model would otherwise compose into.
-         *
-         * `window.__cut = true` puts the cut-out back.
-         */
-        let findings: string[] = [];
-        const useCut = (window as unknown as { __cut?: boolean }).__cut === true;
-        if (source && !useCut) {
-          /**
-           * THE LABELS, NOT THE BOXES.
-           *
-           * The same call as ever — open vocabulary, reasoning about dates — but
-           * its answer is used as TEXT rather than as a mask. Nothing is erased,
-           * so the reference keeps every pixel that was holding the camera, and
-           * the planner gets a grounded list of what a viewer of this picture
-           * would point at.
-           */
-          const items = await segmentAnachronisms(
-            config.apiKey, source.url, source.year, frame.year, request.location, config.models.text,
-            { signal: abort.signal },
-          );
-          if (abort.signal.aborted) break;
-          findings = items.map((a) => `${a.label} (${a.change})`);
-          anachronisms = items.length;
-          absent = items.filter((a) => a.change === 'absent').length;
-          reference = source.url;
-          console.info(
-            `[looking-glass] ${frame.year} from ${source.year}: ${items.length} findings ` +
-              `(${absent} absent) · RAW frame + an edit list`,
-          );
-        } else if (source) {
-          const items = await segmentAnachronisms(
-            config.apiKey,
-            source.url,
-            source.year,
-            frame.year,
-            request.location,
-            config.models.text,
-            { signal: abort.signal },
-          );
-          if (abort.signal.aborted) break;
-          // The labels feed the planner here too, so the switch compares the
-          // ATTACHMENT and nothing else: both branches get the same edit list.
-          findings = items.map((a) => `${a.label} (${a.change})`);
-          if (items.length) {
-            try {
-              masked = await compositeCutout(source.url, items, camera);
-            } catch (err) {
-              // A tainted canvas or an unreadable source costs this frame its
-              // cut-out, not the sweep: it falls through to the unmasked path.
-              console.warn(
-                `[looking-glass] could not cut ${source.year} for ${frame.year} — rendering ` +
-                  `without it. ${err instanceof Error ? err.message : String(err)}`,
-              );
-            }
-          }
-          /**
-           * NOTHING TO ERASE MEANS SEND IT WHOLE, NOT SEND NOTHING.
-           *
-           * This is the bug that produced a ground-level postcard when a 2008
-           * aerial was asked for 1987. `if (items.length)` guarded the composite,
-           * and no composite meant no attachment — so the shorter the step, the
-           * more likely the source was discarded. Exactly backwards: a step over
-           * which nothing changed is the step whose source is MOST reusable, and
-           * a 900-year jump kept its reference while a 21-year one threw it away.
-           *
-           * Both of the places that already described this behaviour agreed with
-           * the fix and neither was implemented: compositeCutout is documented to
-           * return null because "the seed is already the right picture for this
-           * year and should go as-is", and the segmentation failure warns that
-           * "this frame keeps the whole seed photograph". It did not keep it.
-           *
-           * Covers the failure route too. segmentAnachronisms returns [] both
-           * when it genuinely finds nothing and when the call fails, and the
-           * answer is the same either way: the attached view is better evidence
-           * of where the camera stands than any paragraph, and losing the vantage
-           * is a worse outcome than a surviving anachronism.
-           */
-          reference = masked ?? source.url;
-          anachronisms = items.length;
-          absent = items.filter((a) => a.change === 'absent').length;
-          console.info(
-            `[looking-glass] ${frame.year} from ${source.year}: ${anachronisms} anachronisms ` +
-              `(${absent} absent) · attached ` +
-              `${masked ? 'cut-out + the uncut neighbour for the camera' : 'the whole source'}`,
-          );
-        }
-
-        /**
-         * NO PHOTOGRAPH IS ATTACHED. A sweep frame is drawn, not edited.
-         *
-         * The seed's contribution arrives as information — `standpoint` for the
-         * vantage and the permanent fabric, `direction.standing` for what stood
-         * here in this year, and the diagram for the camera — all of it written
-         * or computed by steps that READ the photograph rather than repaint it.
-         * See ReferenceKind in promptcraft for what the attachment used to do.
-         */
-        let direction: SceneDirection;
-        try {
-          direction = await planAt(i, findings);
-        } catch (err) {
-          if (abort.signal.aborted) break;
-          this.patchFrame(i, { status: 'error', error: explainFailure(err).title });
-          continue;
-        }
-        if (abort.signal.aborted) break;
-        this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
-
-        /**
-         * THE SWEEP HAS ITS OWN PROMPT NOW — see buildSweepPrompts.
-         *
-         * It used to assemble DEFAULT_IMAGE_TEMPLATE, which is built to invent a
-         * photograph out of nothing, and then suppress the parts of it that
-         * fought the attachment. Three of those parts were never suppressed and
-         * each produced a reported failure: the viewpoint clause walked the
-         * camera down to eye level, the subject block drew a second Colosseum
-         * into the erased region, and the biome block describes terrain the
-         * attachment shows. Suppression is an exception list, and it grows.
-         *
-         * Nothing on the lever's path changed. buildCoreSamplePrompts is still
-         * what pullLever calls, and it is untouched.
-         */
-        const sweepOpts = {
-          location: request.location,
-          year: frame.year,
-          styleSuffix: config.styleOverride,
-          periodProcess: config.periodProcess,
-          phase,
-          // Computed from the seed's own tilt and field of view — the one camera
-          // fact the model can verify against the canvas instead of inferring
-          // from metres. See SweepPromptOpts.horizonFromTop.
-          horizonFromTop: cameraIsUsable(camera)
-            ? horizonFraction(camera.hfovDeg, camera.tiltDeg, 16 / 9)
-            : undefined,
-          /**
-           * WITH A PICTURE ATTACHED, ONLY THE CAMERA SENTENCE.
-           *
-           * The standpoint's other two paragraphs place the landmark in the
-           * frame and describe it in full — written for an observer who would
-           * never see a photograph, which every frame now does. Sending both is
-           * how the Colosseum got drawn twice: once reproduced from the
-           * attachment, once composed from the frame map.
-           *
-           * The unattached frame still gets all three. That is the case those
-           * paragraphs exist for and the only one where nothing else says where
-           * anything is.
-           */
-          standpoint: reference ? standpointCamera : standpoint,
-        };
-        const prompts = buildSweepPrompts(
-          {
-            ...sweepOpts,
-            // Both keyed on `masked`, NOT on the attachment. An uncut source has
-            // no grey regions and no grid, and its clause is `wholeSourceYear`'s
-            // — describing holes in a picture that has none is how promptcraft's
-            // own rule about naming absent things gets broken.
-            cutout: Boolean(masked),
-            // The uncut neighbour rides along as a second reference, for the
-            // camera only. See SweepPromptOpts.cameraReferenceYear.
-            cameraReferenceYear: masked && source ? source.year : undefined,
-            // Whether a grid was PAINTED, not whether one was wanted — the clause
-            // must not describe lines the compositor decided not to draw.
-            cameraGrid: Boolean(masked) && cameraIsUsable(camera),
-            wholeSourceYear: !masked && source ? source.year : undefined,
-          },
-          direction,
-        );
-        /**
-         * The attachment can be refused as an input image like any other, and
-         * the clause above TALKS ABOUT IT. Retrying with those words after it has
-         * been dropped would leave the model reading instructions about a
-         * picture it was never given — the lesson the stills path learned once.
-         */
-        const promptsNoDiagram = reference
-          ? buildSweepPrompts(sweepOpts, direction)
-          : prompts;
-
-        // See SweepDebugEntry. Recorded BEFORE the render, so a frame that fails
-        // or is moderated still leaves behind what it was asked to be.
-        sweepDebug()[frame.year] = {
-          from: source?.year,
-          anachronisms,
-          absent,
-          attached: masked ? 'cut-out' : reference ? 'whole source' : 'nothing',
-          cutout: reference ?? undefined,
-          prompt: prompts[0]!,
-          promptFallback: promptsNoDiagram[0]!,
-        };
-
-        try {
-          const { url, anchored } = await renderStill(
-            config.apiKey,
-            {
-              model,
-              prompts,
-              /**
-               * TWO, WHEN THERE IS A CUT-OUT: the cut-out first because it is
-               * the authority on what is present, then the uncut neighbour for
-               * the camera. Every provider in the catalog takes at least three.
-               */
-              references: masked && source ? [masked, source.url] : reference ? [reference] : undefined,
-              unanchoredPrompts: promptsNoDiagram,
-            },
-            {
-              signal: abort.signal,
-              /**
-               * A REFUSED ATTACHMENT WAS SILENT ON THIS PATH, and it is the one
-               * thing that invalidates every other measurement.
-               *
-               * renderStill degrades by design: refused reference, retry with
-               * unanchoredPrompts, return a frame. It reports which happened in
-               * `anchored`, and the lever passes an onDegrade handler to catch
-               * it. The sweep destructured `{ url }` and passed no handler, so a
-               * run whose every frame was drawn from prose alone was
-               * indistinguishable from one anchored to a photograph — and the
-               * cut-outs, the standpoint, the prompt rewrite and the drift
-               * numbers were all being read as though the picture had been sent.
-               */
-              onDegrade: (note) => console.warn(`[looking-glass] ${frame.year}: ${note}`),
-            },
-          );
-          if (abort.signal.aborted) break;
-          console.info(
-            `[looking-glass] ${frame.year} reference ` +
-              `${anchored ? 'ACCEPTED' : 'REFUSED — this frame was drawn from prose alone'}`,
-          );
-          /**
-           * TRUE WHEN THIS FRAME WAS ACTUALLY CUT FROM ANOTHER, which is what
-           * the player's break marker is asking about.
-           *
-           * Hardcoded false since the sweep stopped editing photographs, which
-           * flagged every frame in the strip as unanchored — a warning that
-           * fired on the healthy path and so meant nothing. A frame with no
-           * attachment genuinely is unanchored: it was drawn from prose alone,
-           * and that is the seam the marker exists to show.
-           *
-           * `anchored`, not `reference`. Its own doc says this is false when "the
-           * provider refused the input image" — and it was set from whether one
-           * was OFFERED, which is a different question and always true. The strip
-           * has been reporting every frame as chained regardless of whether the
-           * attachment survived.
-           */
-          this.patchFrame(i, { status: 'ready', url, chained: anchored });
-          const debugEntry = sweepDebug()[frame.year];
-          if (debugEntry) {
-            debugEntry.url = url;
-            debugEntry.anchored = anchored;
-          }
-
-          /**
-           * NOW CHECK WHETHER IT IS ACTUALLY THE SAME CAMERA.
-           *
-           * After the patch, deliberately: the picture is paid for and on screen
-           * either way, and a measurement is not a reason to make the visitor
-           * wait for it. Only when the seed gave usable numbers — with nothing to
-           * compare against there is no question to ask, and a sweep whose
-           * standpoint failed should not pay for a call that cannot answer.
-           */
-          if (cameraIsUsable(camera)) {
-            void planStandpoint(
-              config.apiKey,
-              request.location,
-              request.coordinates,
-              url,
-              frame.year,
-              { earliest: frame.year, latest: frame.year },
-              config.models.text,
-              { signal: abort.signal },
-            )
-              .then((sp) => {
-                if (abort.signal.aborted) return;
-                if (!cameraIsUsable(sp.camera)) {
-                  console.warn(
-                    `[looking-glass] ${frame.year} not measured — the produced frame gave no ` +
-                      `usable camera numbers.`,
-                  );
-                  return;
-                }
-                const drift = measureDrift(camera, sp.camera);
-                this.patchFrame(i, { driftChecked: true, drift });
-                /**
-                 * BOTH OUTCOMES SPEAK. Logging only the failure made silence
-                 * mean two different things — "the camera held" and "the check
-                 * never ran" — and a diagnostic that cannot distinguish those is
-                 * not a diagnostic. This is the same silence that hid a rejected
-                 * camera for an entire session.
-                 */
-                console.info(
-                  `[looking-glass] ${frame.year} on ${model} — camera: ` +
-                    `${sp.camera.eyeHeightM.toFixed(0)}m / tilt ${sp.camera.tiltDeg.toFixed(0)}° / ` +
-                    `fov ${sp.camera.hfovDeg.toFixed(0)}° vs seed ` +
-                    `${camera.eyeHeightM.toFixed(0)}m / ${camera.tiltDeg.toFixed(0)}° / ` +
-                    `${camera.hfovDeg.toFixed(0)}° — ${drift ?? 'held'}`,
-                );
-              })
-              // A measurement that fails costs the measurement, never the frame.
-              .catch((err) => {
-                console.warn(
-                  `[looking-glass] ${frame.year} drift check failed — ` +
-                    `${err instanceof Error ? err.message : String(err)}`,
-                );
-              });
-          }
-        } catch (err) {
-          if (abort.signal.aborted) break;
-          // A failed frame costs only itself. Nothing downstream was drawn from
-          // it, so there is no chain to re-anchor across the gap.
-          this.patchFrame(i, { status: 'error', error: explainFailure(err).title });
-        }
+        await this.renderStation(i, abort);
       }
     } finally {
       if (this.abort === abort) this.abort = null;
@@ -1622,4 +1307,491 @@ export class CoreSampleRunner {
       }
     }
   }
+  /**
+   * RENDER ONE STATION — the body of the sweep loop, callable on its own.
+   *
+   * It was 370 lines inlined in start(), which meant a sweep could only ever
+   * be run whole: one drifted or hallucinated frame and the choice was keep it
+   * or pay for the entire ladder again. Everything the strip can now do to a
+   * single frame — re-roll it, move it to another year, insert one — is this
+   * method with a different index, and a failed station can finally be retried
+   * without re-running its neighbours.
+   *
+   * Reads `this.run`, which start() fills in once: the config, the request,
+   * the resolved model, the standpoint and the three closures that decide what
+   * a station is cut from and planned against. Those depend on the sweep, not
+   * on the station, so they are established once and reused.
+   */
+  /**
+   * EDIT ONE STATION. Four operations, three of which spend.
+   *
+   * A sweep used to be all-or-nothing: one drifted or hallucinated frame and the
+   * choice was keep it or pay for the whole ladder again. These are all
+   * renderStation with a different index, which is what the extraction bought.
+   *
+   * None of them runs automatically, and none of them touches a neighbour. A
+   * station drawn FROM one that is re-rendered is marked `stale` instead: it was
+   * cut from a picture that no longer exists, and re-rendering it is another
+   * image call that the visitor may not want to make.
+   */
+  private markDownstreamStale(i: number): void {
+    const anchor = this.anchorIndex();
+    // Outward from the seed: the stations this one fed are the ones further
+    // from the anchor than it is, in the same direction.
+    const step = i >= anchor ? 1 : -1;
+    const frames = this.state.frames.slice();
+    for (let j = i + step; j >= 0 && j < frames.length; j += step) {
+      const f = frames[j];
+      if (!f || f.status !== 'ready') break;
+      frames[j] = { ...f, stale: true };
+    }
+    this.emit({ frames });
+  }
+
+  private anchorIndex(): number {
+    const year = this.run?.request.anchorYear;
+    if (year === undefined) return 0;
+    const i = this.state.frames.findIndex((f) => f.year === year);
+    return i < 0 ? 0 : i;
+  }
+
+  /** Render this station again, unchanged. One image call plus its two text calls. */
+  async reroll(i: number): Promise<void> {
+    await this.renderOne(i);
+  }
+
+  /** Move this station to another year and render it there. Same cost as a re-roll. */
+  async retime(i: number, year: number): Promise<void> {
+    const frames = this.state.frames.slice();
+    const f = frames[i];
+    if (!f) return;
+    frames[i] = { ...f, year, status: 'pending', url: undefined, narrative: undefined, error: undefined, drift: undefined, stale: undefined };
+    this.emit({ frames });
+    await this.renderOne(i);
+  }
+
+  /**
+   * Drop this station. Free, and instant.
+   *
+   * The chain re-links around it without being told to: cutSource walks outward
+   * to the first station that landed, so the frames either side simply become
+   * each other's neighbours. A frame that is wrong and cannot be fixed is better
+   * gone than kept.
+   */
+  drop(i: number): void {
+    const frames = this.state.frames.slice();
+    if (!frames[i]) return;
+    frames.splice(i, 1);
+    this.emit({ frames, done: frames.filter((f) => f.status === 'ready').length });
+  }
+
+  /**
+   * Add a station at `year` and render it. Same cost as a re-roll.
+   *
+   * Slotted into ladder order, which is what makes its source correct: cutSource
+   * takes the nearest finished frame toward the seed, so a station inserted
+   * between two finished ones cuts from whichever is nearer the anchor —
+   * precisely as it would have in the original run.
+   */
+  async insert(year: number): Promise<void> {
+    if (this.state.frames.some((f) => f.year === year)) return;
+    const frames = this.state.frames.slice();
+    const at = frames.findIndex((f) => f.year > year);
+    const i = at < 0 ? frames.length : at;
+    frames.splice(i, 0, { year, status: 'pending' });
+    this.emit({ frames });
+    await this.renderOne(i);
+  }
+
+  /** Shared by the three that render: one station, its own abort, stale marks after. */
+  private async renderOne(i: number): Promise<void> {
+    if (!this.run || this.state.status === 'running') return;
+    const abort = new AbortController();
+    this.abort = abort;
+    this.emit({ status: 'running', cursor: i });
+    try {
+      await this.renderStation(i, abort);
+      if (!abort.signal.aborted) this.markDownstreamStale(i);
+    } finally {
+      if (this.abort === abort) this.abort = null;
+      this.emit({
+        status: abort.signal.aborted ? 'cancelled' : 'done',
+        done: this.state.frames.filter((f) => f.status === 'ready').length,
+      });
+    }
+  }
+
+  private async renderStation(i: number, abort: AbortController): Promise<void> {
+    const run = this.run;
+    if (!run) return;
+    const { config, request, phase, model, camera, standpoint, standpointCamera } = run;
+    const { cutSource, planAt } = run;
+    const frame = this.state.frames[i];
+    if (!frame || abort.signal.aborted) return;
+
+      this.patchFrame(i, { status: 'directing' });
+
+      /**
+       * THE SEGMENTER RUNS FIRST NOW, and the planner reads its answer.
+       *
+       * The order used to be the other way round, with the planner running
+       * several stations AHEAD of the cursor — the lookahead that took roughly
+       * four minutes of text latency out of a 24-frame sweep. That is gone,
+       * and knowingly: the planner's job has changed from describing a year to
+       * writing edits to a specific photograph, and it cannot do that before
+       * something has looked at the photograph.
+       *
+       * What it buys is the whole point of the change. "In 1943 Rome is
+       * occupied, troops in the streets, sandbags at the monuments" is a brief
+       * for a scene, and the model composed that scene — a street-level war
+       * photograph owing nothing to the aerial it was handed. The same facts as
+       * "the asphalt road: unpaved earth; the yellow crane: open ground" point
+       * at the picture rather than at the year, and leave the year nothing to
+       * summon.
+       */
+      const source = cutSource(i);
+      let masked: string | null = null;
+      let reference: string | null = null;
+      let anachronisms = 0;
+      let absent = 0;
+      /**
+       * THE ANACHRONISM CUT IS THE DEFAULT, and `window.__noCut = true` sends
+       * the source whole instead.
+       *
+       * Two variables moved at once and only one has been isolated. The runs
+       * that drifted used the full cut AND a four-hundred-word prompt; the run
+       * that held its vantage used a clean source AND the ninety-word one. So
+       * the improvement may have come from either, and the untried combination
+       * — full cut, short prompt — is the cell that separates them.
+       *
+       * Sending the source whole is what reintroduced the crowd: the 1700
+       * Colosseum came back with the 2010 queue standing where it had stood,
+       * re-costumed. That is the failure the cut exists for, and the reason it
+       * is the default rather than the alternative.
+       *
+       * NO CATEGORY LIST. A version of this asked specifically for people,
+       * animals and vehicles, which is the lookup table this file's own header
+       * rejects: "every earlier design tried to classify objects and then
+       * decide policy per class; each one turned into a lookup table that
+       * generalised to nothing." The open-vocabulary pass reasons about dates
+       * and names whatever it finds, and that is what it goes back to.
+       */
+      /**
+       * RAW. The neighbouring frame goes over untouched, and no anachronism
+       * pass runs at all.
+       *
+       * The erasure is what a sweep frame is built on and it is switched off
+       * here on purpose, to see what the picture alone can carry. It costs the
+       * crowd — the people come through into the next century re-costumed,
+       * which is the failure the cut-out was invented for — and it saves a text
+       * call per frame and every hole the model would otherwise compose into.
+       *
+       * `window.__cut = true` puts the cut-out back.
+       */
+      let findings: string[] = [];
+      const useCut = (window as unknown as { __cut?: boolean }).__cut === true;
+      if (source && !useCut) {
+        /**
+         * THE LABELS, NOT THE BOXES.
+         *
+         * The same call as ever — open vocabulary, reasoning about dates — but
+         * its answer is used as TEXT rather than as a mask. Nothing is erased,
+         * so the reference keeps every pixel that was holding the camera, and
+         * the planner gets a grounded list of what a viewer of this picture
+         * would point at.
+         */
+        const items = await segmentAnachronisms(
+          config.apiKey, source.url, source.year, frame.year, request.location, config.models.text,
+          { signal: abort.signal },
+        );
+        if (abort.signal.aborted) return;
+        findings = items.map((a) => `${a.label} (${a.change})`);
+        anachronisms = items.length;
+        absent = items.filter((a) => a.change === 'absent').length;
+        reference = source.url;
+        console.info(
+          `[looking-glass] ${frame.year} from ${source.year}: ${items.length} findings ` +
+            `(${absent} absent) · RAW frame + an edit list`,
+        );
+      } else if (source) {
+        const items = await segmentAnachronisms(
+          config.apiKey,
+          source.url,
+          source.year,
+          frame.year,
+          request.location,
+          config.models.text,
+          { signal: abort.signal },
+        );
+        if (abort.signal.aborted) return;
+        // The labels feed the planner here too, so the switch compares the
+        // ATTACHMENT and nothing else: both branches get the same edit list.
+        findings = items.map((a) => `${a.label} (${a.change})`);
+        if (items.length) {
+          try {
+            masked = await compositeCutout(source.url, items, camera);
+          } catch (err) {
+            // A tainted canvas or an unreadable source costs this frame its
+            // cut-out, not the sweep: it falls through to the unmasked path.
+            console.warn(
+              `[looking-glass] could not cut ${source.year} for ${frame.year} — rendering ` +
+                `without it. ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+        /**
+         * NOTHING TO ERASE MEANS SEND IT WHOLE, NOT SEND NOTHING.
+         *
+         * This is the bug that produced a ground-level postcard when a 2008
+         * aerial was asked for 1987. `if (items.length)` guarded the composite,
+         * and no composite meant no attachment — so the shorter the step, the
+         * more likely the source was discarded. Exactly backwards: a step over
+         * which nothing changed is the step whose source is MOST reusable, and
+         * a 900-year jump kept its reference while a 21-year one threw it away.
+         *
+         * Both of the places that already described this behaviour agreed with
+         * the fix and neither was implemented: compositeCutout is documented to
+         * return null because "the seed is already the right picture for this
+         * year and should go as-is", and the segmentation failure warns that
+         * "this frame keeps the whole seed photograph". It did not keep it.
+         *
+         * Covers the failure route too. segmentAnachronisms returns [] both
+         * when it genuinely finds nothing and when the call fails, and the
+         * answer is the same either way: the attached view is better evidence
+         * of where the camera stands than any paragraph, and losing the vantage
+         * is a worse outcome than a surviving anachronism.
+         */
+        reference = masked ?? source.url;
+        anachronisms = items.length;
+        absent = items.filter((a) => a.change === 'absent').length;
+        console.info(
+          `[looking-glass] ${frame.year} from ${source.year}: ${anachronisms} anachronisms ` +
+            `(${absent} absent) · attached ` +
+            `${masked ? 'cut-out + the uncut neighbour for the camera' : 'the whole source'}`,
+        );
+      }
+
+      /**
+       * NO PHOTOGRAPH IS ATTACHED. A sweep frame is drawn, not edited.
+       *
+       * The seed's contribution arrives as information — `standpoint` for the
+       * vantage and the permanent fabric, `direction.standing` for what stood
+       * here in this year, and the diagram for the camera — all of it written
+       * or computed by steps that READ the photograph rather than repaint it.
+       * See ReferenceKind in promptcraft for what the attachment used to do.
+       */
+      let direction: SceneDirection;
+      try {
+        direction = await planAt(i, findings);
+      } catch (err) {
+        if (abort.signal.aborted) return;
+        this.patchFrame(i, { status: 'error', error: explainFailure(err).title });
+        return;
+      }
+      if (abort.signal.aborted) return;
+      this.patchFrame(i, { status: 'rendering', narrative: direction.narrative });
+
+      /**
+       * THE SWEEP HAS ITS OWN PROMPT NOW — see buildSweepPrompts.
+       *
+       * It used to assemble DEFAULT_IMAGE_TEMPLATE, which is built to invent a
+       * photograph out of nothing, and then suppress the parts of it that
+       * fought the attachment. Three of those parts were never suppressed and
+       * each produced a reported failure: the viewpoint clause walked the
+       * camera down to eye level, the subject block drew a second Colosseum
+       * into the erased region, and the biome block describes terrain the
+       * attachment shows. Suppression is an exception list, and it grows.
+       *
+       * Nothing on the lever's path changed. buildCoreSamplePrompts is still
+       * what pullLever calls, and it is untouched.
+       */
+      const sweepOpts = {
+        location: request.location,
+        year: frame.year,
+        styleSuffix: config.styleOverride,
+        periodProcess: config.periodProcess,
+        phase,
+        // Computed from the seed's own tilt and field of view — the one camera
+        // fact the model can verify against the canvas instead of inferring
+        // from metres. See SweepPromptOpts.horizonFromTop.
+        horizonFromTop: cameraIsUsable(camera)
+          ? horizonFraction(camera.hfovDeg, camera.tiltDeg, 16 / 9)
+          : undefined,
+        /**
+         * WITH A PICTURE ATTACHED, ONLY THE CAMERA SENTENCE.
+         *
+         * The standpoint's other two paragraphs place the landmark in the
+         * frame and describe it in full — written for an observer who would
+         * never see a photograph, which every frame now does. Sending both is
+         * how the Colosseum got drawn twice: once reproduced from the
+         * attachment, once composed from the frame map.
+         *
+         * The unattached frame still gets all three. That is the case those
+         * paragraphs exist for and the only one where nothing else says where
+         * anything is.
+         */
+        standpoint: reference ? standpointCamera : standpoint,
+      };
+      const prompts = buildSweepPrompts(
+        {
+          ...sweepOpts,
+          // Both keyed on `masked`, NOT on the attachment. An uncut source has
+          // no grey regions and no grid, and its clause is `wholeSourceYear`'s
+          // — describing holes in a picture that has none is how promptcraft's
+          // own rule about naming absent things gets broken.
+          cutout: Boolean(masked),
+          // The uncut neighbour rides along as a second reference, for the
+          // camera only. See SweepPromptOpts.cameraReferenceYear.
+          cameraReferenceYear: masked && source ? source.year : undefined,
+          // Whether a grid was PAINTED, not whether one was wanted — the clause
+          // must not describe lines the compositor decided not to draw.
+          cameraGrid: Boolean(masked) && cameraIsUsable(camera),
+          wholeSourceYear: !masked && source ? source.year : undefined,
+        },
+        direction,
+      );
+      /**
+       * The attachment can be refused as an input image like any other, and
+       * the clause above TALKS ABOUT IT. Retrying with those words after it has
+       * been dropped would leave the model reading instructions about a
+       * picture it was never given — the lesson the stills path learned once.
+       */
+      const promptsNoDiagram = reference
+        ? buildSweepPrompts(sweepOpts, direction)
+        : prompts;
+
+      // See SweepDebugEntry. Recorded BEFORE the render, so a frame that fails
+      // or is moderated still leaves behind what it was asked to be.
+      sweepDebug()[frame.year] = {
+        from: source?.year,
+        anachronisms,
+        absent,
+        attached: masked ? 'cut-out' : reference ? 'whole source' : 'nothing',
+        cutout: reference ?? undefined,
+        prompt: prompts[0]!,
+        promptFallback: promptsNoDiagram[0]!,
+      };
+
+      try {
+        const { url, anchored } = await renderStill(
+          config.apiKey,
+          {
+            model,
+            prompts,
+            /**
+             * TWO, WHEN THERE IS A CUT-OUT: the cut-out first because it is
+             * the authority on what is present, then the uncut neighbour for
+             * the camera. Every provider in the catalog takes at least three.
+             */
+            references: masked && source ? [masked, source.url] : reference ? [reference] : undefined,
+            unanchoredPrompts: promptsNoDiagram,
+          },
+          {
+            signal: abort.signal,
+            /**
+             * A REFUSED ATTACHMENT WAS SILENT ON THIS PATH, and it is the one
+             * thing that invalidates every other measurement.
+             *
+             * renderStill degrades by design: refused reference, retry with
+             * unanchoredPrompts, return a frame. It reports which happened in
+             * `anchored`, and the lever passes an onDegrade handler to catch
+             * it. The sweep destructured `{ url }` and passed no handler, so a
+             * run whose every frame was drawn from prose alone was
+             * indistinguishable from one anchored to a photograph — and the
+             * cut-outs, the standpoint, the prompt rewrite and the drift
+             * numbers were all being read as though the picture had been sent.
+             */
+            onDegrade: (note) => console.warn(`[looking-glass] ${frame.year}: ${note}`),
+          },
+        );
+        if (abort.signal.aborted) return;
+        console.info(
+          `[looking-glass] ${frame.year} reference ` +
+            `${anchored ? 'ACCEPTED' : 'REFUSED — this frame was drawn from prose alone'}`,
+        );
+        /**
+         * TRUE WHEN THIS FRAME WAS ACTUALLY CUT FROM ANOTHER, which is what
+         * the player's break marker is asking about.
+         *
+         * Hardcoded false since the sweep stopped editing photographs, which
+         * flagged every frame in the strip as unanchored — a warning that
+         * fired on the healthy path and so meant nothing. A frame with no
+         * attachment genuinely is unanchored: it was drawn from prose alone,
+         * and that is the seam the marker exists to show.
+         *
+         * `anchored`, not `reference`. Its own doc says this is false when "the
+         * provider refused the input image" — and it was set from whether one
+         * was OFFERED, which is a different question and always true. The strip
+         * has been reporting every frame as chained regardless of whether the
+         * attachment survived.
+         */
+        this.patchFrame(i, { status: 'ready', url, chained: anchored });
+        const debugEntry = sweepDebug()[frame.year];
+        if (debugEntry) {
+          debugEntry.url = url;
+          debugEntry.anchored = anchored;
+        }
+
+        /**
+         * NOW CHECK WHETHER IT IS ACTUALLY THE SAME CAMERA.
+         *
+         * After the patch, deliberately: the picture is paid for and on screen
+         * either way, and a measurement is not a reason to make the visitor
+         * wait for it. Only when the seed gave usable numbers — with nothing to
+         * compare against there is no question to ask, and a sweep whose
+         * standpoint failed should not pay for a call that cannot answer.
+         */
+        if (cameraIsUsable(camera)) {
+          void planStandpoint(
+            config.apiKey,
+            request.location,
+            request.coordinates,
+            url,
+            frame.year,
+            { earliest: frame.year, latest: frame.year },
+            config.models.text,
+            { signal: abort.signal },
+          )
+            .then((sp) => {
+              if (abort.signal.aborted) return;
+              if (!cameraIsUsable(sp.camera)) {
+                console.warn(
+                  `[looking-glass] ${frame.year} not measured — the produced frame gave no ` +
+                    `usable camera numbers.`,
+                );
+                return;
+              }
+              const drift = measureDrift(camera, sp.camera);
+              this.patchFrame(i, { driftChecked: true, drift });
+              /**
+               * BOTH OUTCOMES SPEAK. Logging only the failure made silence
+               * mean two different things — "the camera held" and "the check
+               * never ran" — and a diagnostic that cannot distinguish those is
+               * not a diagnostic. This is the same silence that hid a rejected
+               * camera for an entire session.
+               */
+              console.info(
+                `[looking-glass] ${frame.year} on ${model} — camera: ` +
+                  `${sp.camera.eyeHeightM.toFixed(0)}m / tilt ${sp.camera.tiltDeg.toFixed(0)}° / ` +
+                  `fov ${sp.camera.hfovDeg.toFixed(0)}° vs seed ` +
+                  `${camera.eyeHeightM.toFixed(0)}m / ${camera.tiltDeg.toFixed(0)}° / ` +
+                  `${camera.hfovDeg.toFixed(0)}° — ${drift ?? 'held'}`,
+              );
+            })
+            // A measurement that fails costs the measurement, never the frame.
+            .catch((err) => {
+              console.warn(
+                `[looking-glass] ${frame.year} drift check failed — ` +
+                  `${err instanceof Error ? err.message : String(err)}`,
+              );
+            });
+        }
+      } catch (err) {
+        if (abort.signal.aborted) return;
+        // A failed frame costs only itself. Nothing downstream was drawn from
+        // it, so there is no chain to re-anchor across the gap.
+        this.patchFrame(i, { status: 'error', error: explainFailure(err).title });
+      }
+  }
+
 }

@@ -5821,6 +5821,65 @@ body {
    Amber because unlike a seam it is nobody's decision — it is a measurement. */
 .sampler-cell--drift { border-bottom: 2px solid #e0b24a; }
 
+/* Cut from a picture that has since been re-rendered. Dimmed rather than
+   coloured: it is not a defect, it is a frame whose source no longer exists, and
+   a third border on a 90px cell would be noise. */
+.sampler-cell--stale { opacity: 0.45; }
+
+.sampler-cell--editing {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* One station's controls, under the strip rather than on the cell: four of them
+   do not fit in 90px, and a row that stays in one place is easier to reach than
+   one that moves with the selection. */
+.sampler-edit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  border-top: 1px solid var(--rule-shade);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+.sampler-edit-year {
+  color: var(--ink-dim, #b7c3cf);
+  letter-spacing: 0.08em;
+}
+
+.sampler-edit-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sampler-edit input {
+  width: 68px;
+  padding: 3px 6px;
+  border: 1px solid var(--chrome);
+  border-radius: 2px;
+  background: rgba(8, 11, 15, 0.66);
+  color: var(--ink-dim, #b7c3cf);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* The price, always beside the thing that charges it. */
+.sampler-edit-cost {
+  margin-left: 5px;
+  opacity: 0.55;
+  font-size: 9px;
+}
+
+.sampler-edit-warn {
+  margin-left: auto;
+  color: #e0b24a;
+}
+
 /* Sits in the status line beside the clip count, so it appears where the thing
    it saves is already being described. Quiet until there is a film to save. */
 .sampler-save-film {
