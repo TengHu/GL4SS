@@ -106,17 +106,44 @@ export async function stitchClips(
     fastStart: 'in-memory',
   });
 
+  /**
+   * THE CODEC STRING IS A CEILING, NOT A LABEL.
+   *
+   * This was hardcoded `avc1.42001f` — Baseline level 3.1, which tops out at
+   * 1280x720. Handed anything larger the encoder errors, CLOSES ITSELF, and the
+   * next call fails with "cannot call flush on a closed codec": a message about
+   * the corpse rather than the cause, which is what you get for guessing a level
+   * instead of asking.
+   *
+   * So ask. isConfigSupported answers for this browser at this size, and the
+   * list runs high-profile-first down to the baseline that was there before.
+   */
+  const candidates = ['avc1.640034', 'avc1.4d0034', 'avc1.42E034', 'avc1.640028', 'avc1.42001f'];
+  let config: VideoEncoderConfig | null = null;
+  for (const codec of candidates) {
+    const attempt: VideoEncoderConfig = { codec, width, height, bitrate: 6_000_000, framerate: FPS };
+    if ((await VideoEncoder.isConfigSupported(attempt)).supported) {
+      config = attempt;
+      break;
+    }
+  }
+  if (!config) {
+    throw new Error(`no H.264 encoder here accepts ${width}x${height}`);
+  }
+
+  /**
+   * The encoder reports failures HERE, asynchronously, and closes itself. Held
+   * so the throw at the end can name what actually went wrong.
+   */
+  let encoderError: Error | null = null;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-    error: (e) => console.warn('[looking-glass] encoder —', e),
+    error: (e) => {
+      encoderError ??= e instanceof Error ? e : new Error(String(e));
+      console.warn('[looking-glass] encoder —', e);
+    },
   });
-  encoder.configure({
-    codec: 'avc1.42001f',
-    width,
-    height,
-    bitrate: 6_000_000,
-    framerate: FPS,
-  });
+  encoder.configure(config);
 
   let drawn = 0;
   /**
@@ -132,9 +159,14 @@ export async function stitchClips(
       duration: 1e6 / FPS,
     });
     // Keyframe every second: a film with no keyframes cannot be seeked.
-    encoder.encode(frame, { keyFrame: drawn % FPS === 0 });
+    // Dropped rather than queued without limit: frames arrive on the display
+    // clock and the encoder drains on its own, and an unbounded queue is how a
+    // long film runs the tab out of memory.
+    if (encoder.encodeQueueSize < 30) {
+      encoder.encode(frame, { keyFrame: drawn % FPS === 0 });
+      drawn++;
+    }
     frame.close();
-    drawn++;
   };
 
   try {
@@ -150,10 +182,13 @@ export async function stitchClips(
     first.remove();
   }
 
-  await encoder.flush();
-  encoder.close();
+  // Never flush a codec that has already died — that throws over the top of the
+  // real error and hides it.
+  if (encoder.state === 'configured') await encoder.flush();
+  if (encoder.state !== 'closed') encoder.close();
   muxer.finalize();
 
+  if (encoderError) throw encoderError;
   if (!drawn) throw new Error('the clips would not play, so nothing was encoded');
   const buffer = (muxer.target as InstanceType<typeof ArrayBufferTarget>).buffer;
   if (!buffer || buffer.byteLength < 1024) {
