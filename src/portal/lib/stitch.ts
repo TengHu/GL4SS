@@ -136,8 +136,17 @@ export async function stitchClips(
    * so the throw at the end can name what actually went wrong.
    */
   let encoderError: Error | null = null;
+  /**
+   * Counted separately from `drawn`, because they fail differently and the
+   * message must say which. Frames drawn but no chunks out means the ENCODER
+   * swallowed them; no frames drawn means playback never produced any.
+   */
+  let chunks = 0;
   const encoder = new VideoEncoder({
-    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    output: (chunk, meta) => {
+      chunks++;
+      muxer.addVideoChunk(chunk, meta);
+    },
     error: (e) => {
       encoderError ??= e instanceof Error ? e : new Error(String(e));
       console.warn('[looking-glass] encoder —', e);
@@ -231,7 +240,10 @@ export async function stitchClips(
    * reliably threw over the top of the real error and buried it.
    */
   if (encoderError) throw encoderError;
-  if (!drawn) throw new Error('the clips would not play, so nothing was encoded');
+  if (!drawn) throw new Error('the clips would not play, so no frames were captured');
+  if (!chunks) {
+    throw new Error(`${drawn} frames were captured but the encoder returned nothing`);
+  }
   muxer.finalize();
   const buffer = (muxer.target as InstanceType<typeof ArrayBufferTarget>).buffer;
   if (!buffer || buffer.byteLength < 1024) {
