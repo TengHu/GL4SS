@@ -87,6 +87,11 @@ forward. Measurement still says the image model drifts the camera anyway — alw
 than the machinery here can correct. That is written down rather than papered over:
 **[Known weaknesses](docs/multi-image.md#known-weaknesses)**.
 
+**⚙️ TWO SETTINGS FOR A SWEEP** — pick **Nano Banana Pro** for the stills; it reads a long prompt and an
+attached neighbour frame better than anything else here. And keep the year gap small — span ÷ frames is
+the whole ballgame, and a step longer than a lifetime makes the film jump rather than move. When it does
+jump, the fix is more stations or a narrower span, not another model.
+
 Two long write-ups, if you want the reasoning and not just the result:
 [**the seed image**](docs/seed-image.md) — how the first picture gets made ·
 [**multi-image generation**](docs/multi-image.md) — how a sweep tries to hold one viewpoint
