@@ -11,8 +11,9 @@ The end card points at `github.com/TengHu/GL4SS` and credits the upstream fork
 show `GL4SS.ai` — that is upstream's domain, and sending a viral video's traffic
 there would hand the attention to the wrong repo.
 
-Silent on purpose: X and LinkedIn autoplay muted, so everything that has to be
-said is on screen.
+Everything that has to be said is on screen, because X and LinkedIn autoplay
+muted. The music is a bed for the people who unmute, not a carrier — the cut
+reads exactly the same with the sound off.
 
 ## Commands
 
@@ -22,6 +23,7 @@ npm i                      # install
 npm run dev                # preview in Remotion Studio
 npx remotion render LookingGlass out/gl4ss-30s.mp4 \
   --codec=h264 --image-format=png --crf=16
+./add-music.sh             # lay the music bed over the render
 ```
 
 `cut-source.sh` takes the path to the raw capture as an optional argument; it
@@ -42,6 +44,19 @@ gitignored — they are derived, and the script is the source of truth.
 | 526–580 | the wait | ×75 | the film rendering |
 | 580–808 | payoff | **real time** | one uncut pass: 1700 → 1810 → 1915 → 2015, with the vision line over it |
 | 808–900 | end card | — | what it cost, the repo, the credit |
+
+## The music
+
+**SIMPLE2**, one of the theme pieces bundled with iMovie, trimmed to length with
+a short fade at each end and sat at 85%. Apple's licence covers using it in your
+own productions, including commercially; redistributing the track on its own is
+what it forbids, so the mp4 is fine to post and the audio is not committed here.
+
+It is real recorded music. An earlier pass synthesised a bed from oscillators,
+and it sounded like what it was.
+
+`./add-music.sh [TRACK]` swaps it — BRIGHT, MODERN, NEON, NEWS, PLAYFUL,
+SIMPLE2, TRAVEL.
 
 ## Why the rate is on screen
 
