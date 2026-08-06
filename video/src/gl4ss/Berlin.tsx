@@ -127,7 +127,15 @@ const Hook: React.FC = () => (
   </AbsoluteFill>
 );
 
-/** The claim, over the square that just came down. */
+/**
+ * The claim, over the square that just came down.
+ *
+ * The subtitle is the four station years and nothing else. It used to read
+ * "one building stands in all four", which was false: Weinhaus Huth is in the
+ * 1972 and 2022 frames, but the 1946 frame shows Haus Vaterland instead, and
+ * the vantage moves between all three. Stating the years is the only claim
+ * here the footage actually supports.
+ */
 const Title: React.FC = () => {
   const frame = useCurrentFrame();
 
@@ -184,7 +192,7 @@ const Title: React.FC = () => {
             }),
           }}
         >
-          one building stands in all four
+          1928 · 1946 · 1972 · 2022
         </Interactive.Div>
       </AbsoluteFill>
     </AbsoluteFill>
