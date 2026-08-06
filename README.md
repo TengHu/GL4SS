@@ -39,10 +39,16 @@
 </p>
 
 <!--
-  The 31-second walkthrough is not committed — it is ~28 MB and rebuildable from video/.
-  To embed it: drag video/out/gl4ss-launch-30s.mp4 into any GitHub issue comment, copy the
-  https://github.com/user-attachments/assets/... URL it returns, and paste it on its own line here.
+  The 31-second walkthrough. Not committed — it is ~28 MB and rebuildable from video/ —
+  so it lives as a GitHub asset. A bare user-attachments URL on its own line renders as
+  an inline player; wrapping it in markdown or HTML does not.
+
+  To replace it: drag the mp4 into a comment box (this fork has Issues disabled, so use a
+  commit comment), copy the URL it inserts, and swap it in below. The upload happens on
+  drop — the comment never has to be submitted.
 -->
+
+https://github.com/user-attachments/assets/7c05b5aa-1cc5-4eea-ac6c-a83209915152
 
 ![WebGL](https://img.shields.io/badge/wormhole-raw%20WebGL-b48bff?style=flat-square)
 ![backend](https://img.shields.io/badge/backend-NONE-62e6c9?style=flat-square)
