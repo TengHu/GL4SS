@@ -53,6 +53,41 @@
     margin: 0 0 18px;
   }
 
+  /* The film sits above the disclaimer: show the thing, then qualify it.
+     Both rules opt out of the year-chip chrome that the still figures use —
+     the base figure/figcaption pair is positioned for a label sitting ON the
+     image, which is wrong for a caption that belongs under a video. */
+  .film {
+    position: static;
+    margin: 34px 0 0;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    background: none;
+  }
+  .film video {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    background: #000;
+    border: 1px solid rgba(255,255,255,0.09);
+    box-shadow: 0 30px 80px -34px rgba(0,0,0,0.95);
+  }
+  .film-cap {
+    position: static;
+    padding: 0;
+    border: 0;
+    text-shadow: none;
+    font-family: var(--body);
+    font-weight: 400;
+    letter-spacing: normal;
+    margin: 12px 2px 0;
+    color: var(--ink-faint);
+    font-size: 15px;
+    max-width: 66ch;
+  }
+
   /* The disclaimer is up front on purpose — see the note in the README. */
   .candour {
     border-left: 2px solid var(--accent);
@@ -174,6 +209,22 @@
       Every picture below is the same place as the one beside it, from the same
       position, in a different year. Nothing moved but the date.
     </p>
+
+    <figure class="film">
+      <video
+        src="rome.mp4"
+        poster="img/rome-poster.jpg"
+        width="1280" height="720"
+        autoplay muted loop playsinline
+        preload="metadata"
+        controls></video>
+      <figcaption class="film-cap">
+        One run, start to finish — a pin on the Colosseum, the lever, and the
+        four frames below rendered into a film. The waits are compressed and
+        labelled with the rate; the two moments that matter are left at real
+        speed.
+      </figcaption>
+    </figure>
 
     <p class="candour">
       <strong>This is not a record of the past.</strong> Nothing here was looked
