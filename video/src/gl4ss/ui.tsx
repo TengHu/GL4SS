@@ -11,6 +11,24 @@ import { SCREEN, theme } from "./theme";
 
 const EASE = Easing.bezier(0.16, 1, 0.3, 1);
 
+/**
+ * Where the recording sits on the 1920x1080 canvas.
+ *
+ * A context rather than a constant because each screen capture has its own
+ * aspect: the launch cut's window is 1.937:1 and the Golden Gate one is 1.888:1,
+ * and forcing both into one bezel would stretch one of them. Everything that
+ * hangs off the screen — the caption under it, the badge and clock above it —
+ * reads its geometry from here, so a composition sets the shape once.
+ */
+export const ScreenContext = React.createContext<{
+  readonly width: number;
+  readonly height: number;
+  readonly left: number;
+  readonly top: number;
+}>(SCREEN);
+
+const useScreen = () => React.useContext(ScreenContext);
+
 /** Fades a scene-local overlay in at the head and out at the tail. */
 const useHold = (inFrames = 7, outFrames = 7) => {
   const frame = useCurrentFrame();
@@ -38,14 +56,17 @@ export const Backdrop: React.FC = () => (
 /** The browser recording, seated in a bezel so it reads as a screen. */
 export const ScreenFrame: React.FC<{ children: React.ReactNode }> = ({
   children,
-}) => (
+}) => {
+  const screen = useScreen();
+
+  return (
   <AbsoluteFill
     name="ScreenFrame"
     style={{
-      left: SCREEN.left,
-      top: SCREEN.top,
-      width: SCREEN.width,
-      height: SCREEN.height,
+      left: screen.left,
+      top: screen.top,
+      width: screen.width,
+      height: screen.height,
       borderRadius: 14,
       overflow: "hidden",
       border: "1px solid rgba(255,209,102,0.16)",
@@ -55,7 +76,8 @@ export const ScreenFrame: React.FC<{ children: React.ReactNode }> = ({
   >
     {children}
   </AbsoluteFill>
-);
+  );
+};
 
 /** One line of on-screen narration, sitting under the screen. */
 export const Caption: React.FC<{ text: string; sub?: string }> = ({
@@ -64,6 +86,7 @@ export const Caption: React.FC<{ text: string; sub?: string }> = ({
 }) => {
   const frame = useCurrentFrame();
   const opacity = useHold();
+  const screen = useScreen();
 
   return (
     <Interactive.Div
@@ -72,7 +95,7 @@ export const Caption: React.FC<{ text: string; sub?: string }> = ({
         position: "absolute",
         left: 0,
         right: 0,
-        top: SCREEN.top + SCREEN.height + 14,
+        top: screen.top + screen.height + 14,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -120,6 +143,7 @@ export const Caption: React.FC<{ text: string; sub?: string }> = ({
  */
 export const SpeedBadge: React.FC<{ speed: number }> = ({ speed }) => {
   const opacity = useHold();
+  const screen = useScreen();
   const realTime = speed === 1;
   const label = realTime
     ? "REAL TIME"
@@ -130,7 +154,7 @@ export const SpeedBadge: React.FC<{ speed: number }> = ({ speed }) => {
       name="SpeedBadge"
       style={{
         position: "absolute",
-        right: SCREEN.left,
+        right: screen.left,
         top: 18,
         display: "flex",
         alignItems: "center",
@@ -160,13 +184,14 @@ export const Clock: React.FC<{ label: string; value: string }> = ({
   value,
 }) => {
   const opacity = useHold();
+  const screen = useScreen();
 
   return (
     <Interactive.Div
       name="Clock"
       style={{
         position: "absolute",
-        left: SCREEN.left,
+        left: screen.left,
         top: 18,
         display: "flex",
         alignItems: "baseline",

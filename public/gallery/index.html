@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THE LOOKING GLASS — what it makes</title>
+<meta name="description" content="One spot, several years, one camera. Finished frames from THE LOOKING GLASS — no key needed to look.">
+<meta property="og:title" content="THE LOOKING GLASS — what it makes">
+<meta property="og:description" content="One spot, several years, one camera. Rome, Berlin and San Francisco, without moving.">
+<meta property="og:image" content="img/berlin-1946.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;700&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04050a;
+    --ink: #f2f5f8;
+    --ink-dim: #c2cdd8;
+    --ink-faint: #8794a2;
+    --accent: #ffd166;
+    --display: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+    --body: 'Spectral', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image:
+      radial-gradient(120% 70% at 50% 0%, rgba(255,209,102,0.10) 0%, rgba(255,209,102,0.03) 40%, rgba(4,5,10,0) 72%);
+    background-repeat: no-repeat;
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
+
+  header { padding: 84px 0 8px; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(34px, 6.4vw, 68px);
+    line-height: 1.04;
+    letter-spacing: -0.01em;
+    margin: 0 0 22px;
+  }
+  h1 .sub { display: block; color: var(--accent); }
+  .lede {
+    font-size: clamp(17px, 2.2vw, 21px);
+    color: var(--ink-dim);
+    max-width: 60ch;
+    margin: 0 0 18px;
+  }
+
+  /* The disclaimer is up front on purpose — see the note in the README. */
+  .candour {
+    border-left: 2px solid var(--accent);
+    padding: 2px 0 2px 18px;
+    margin: 30px 0 0;
+    max-width: 62ch;
+    color: var(--ink-faint);
+    font-size: 16px;
+  }
+  .candour strong { color: var(--ink-dim); font-weight: 400; font-style: italic; }
+
+  section { padding: 64px 0 0; }
+  .place {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 16px;
+    border-top: 1px solid rgba(255,255,255,0.10);
+    padding-top: 22px;
+    margin-bottom: 22px;
+  }
+  .place h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(24px, 3.4vw, 34px);
+    letter-spacing: 0.01em;
+    margin: 0;
+  }
+  .place .years {
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .place p {
+    flex-basis: 100%;
+    margin: 4px 0 0;
+    color: var(--ink-faint);
+    font-size: 16px;
+    max-width: 62ch;
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+
+  figure {
+    position: relative;
+    margin: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0b0d14;
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+  figure img { display: block; width: 100%; height: auto; }
+  figcaption {
+    position: absolute;
+    left: 14px;
+    bottom: 12px;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: clamp(15px, 2vw, 20px);
+    letter-spacing: 0.05em;
+    color: #fff;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.8);
+    padding-left: 10px;
+    border-left: 3px solid var(--accent);
+  }
+
+  .cta {
+    margin: 78px 0 0;
+    border-top: 1px solid rgba(255,255,255,0.10);
+    padding-top: 34px;
+  }
+  .cta h2 {
+    font-family: var(--display);
+    font-size: clamp(22px, 3vw, 30px);
+    margin: 0 0 12px;
+  }
+  .cta p { color: var(--ink-dim); max-width: 62ch; margin: 0 0 16px; }
+  .cta a.button {
+    display: inline-block;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: 0.02em;
+    color: var(--bg);
+    background: var(--accent);
+    text-decoration: none;
+    padding: 13px 22px;
+    border-radius: 8px;
+  }
+  .cta .caveat {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    margin-top: 16px;
+    text-transform: uppercase;
+  }
+
+  footer {
+    padding: 54px 0 74px;
+    color: var(--ink-faint);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+  }
+  footer a { color: var(--ink-dim); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <h1>One spot.<span class="sub">Several centuries.</span></h1>
+    <p class="lede">
+      Every picture below is the same place as the one beside it, from the same
+      position, in a different year. Nothing moved but the date.
+    </p>
+
+    <p class="candour">
+      <strong>This is not a record of the past.</strong> Nothing here was looked
+      up. Each frame is a machine's best guess at a place it never saw, built
+      out of whatever happened to survive and out of how the past has been
+      pictured ever since. Treat it as how we imagine 1810 looked, not as how
+      1810 looked.
+    </p>
+  </header>
+
+  <section>
+    <div class="place">
+      <h2>Rome — the Colosseum</h2>
+      <span class="years">1700 · 1810 · 1915 · 2015</span>
+      <p>
+        Four frames, one camera. The cypress on the right survives three of
+        them, which is the easiest way to check that the viewpoint held.
+      </p>
+    </div>
+    <div class="grid">
+      <figure><img src="img/rome-1700.jpg" width="1600" height="900" alt="The Colosseum in 1700, overgrown, with a dirt road and figures walking"><figcaption>1700</figcaption></figure>
+      <figure><img src="img/rome-1810.jpg" width="1600" height="900" loading="lazy" alt="The Colosseum in 1810, horse carriages on a paved road"><figcaption>1810</figcaption></figure>
+      <figure><img src="img/rome-1915.jpg" width="1600" height="900" loading="lazy" alt="The Colosseum in 1915, crowds and carriages"><figcaption>1915</figcaption></figure>
+      <figure><img src="img/rome-2015.jpg" width="1600" height="900" loading="lazy" alt="The Colosseum in 2015, scaffolding, tourists and modern railings"><figcaption>2015</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="place">
+      <h2>Berlin — Potsdamer Platz</h2>
+      <span class="years">1928 · 1946 · 1972 · 2022</span>
+      <p>
+        The widest swing of anything here — the busiest square in Europe, then
+        rubble, then the ground the Wall ran through, then glass.
+        <em>Honestly:</em> the camera does not hold across these four. The
+        vantage moves between them. It is the best illustration on this page of
+        both what the thing can do and where it breaks.
+      </p>
+    </div>
+    <div class="grid">
+      <figure><img src="img/berlin-1928.jpg" width="1600" height="900" loading="lazy" alt="Potsdamer Platz in 1928, crowds, a horse cart and an advertising column"><figcaption>1928</figcaption></figure>
+      <figure><img src="img/berlin-1946.jpg" width="1600" height="900" loading="lazy" alt="Potsdamer Platz in 1946, rubble and gutted buildings"><figcaption>1946</figcaption></figure>
+      <figure><img src="img/berlin-1972.jpg" width="1600" height="900" loading="lazy" alt="Potsdamer Platz in 1972, empty ground and barbed wire"><figcaption>1972</figcaption></figure>
+      <figure><img src="img/berlin-2022.jpg" width="1600" height="900" loading="lazy" alt="Potsdamer Platz in 2022, glass towers and bike racks"><figcaption>2022</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="place">
+      <h2>San Francisco — Fort Point</h2>
+      <span class="years">1913 · 2013</span>
+      <p>
+        The strait, the shoreline and the headlands are the same in both. The
+        bridge is the only thing that arrives.
+      </p>
+    </div>
+    <div class="grid">
+      <figure><img src="img/sf-1913.jpg" width="1600" height="900" loading="lazy" alt="Fort Point in 1913, black and white, an empty strait with no bridge"><figcaption>1913</figcaption></figure>
+      <figure><img src="img/sf-2013.jpg" width="1600" height="900" loading="lazy" alt="Fort Point in 2013, the Golden Gate Bridge spanning the strait"><figcaption>2013</figcaption></figure>
+    </div>
+  </section>
+
+  <div class="cta">
+    <h2>Point it somewhere yourself</h2>
+    <p>
+      Drop a pin anywhere on Earth, dial a year between the Great Dying and
+      3050, and pull the lever. One page, no backend, no account — it runs in
+      your browser and talks to the model provider directly.
+    </p>
+    <a class="button" href="https://github.com/TengHu/GL4SS">github.com/TengHu/GL4SS</a>
+    <p class="caveat">
+      You bring your own API key · nothing is generated until you pull the lever
+    </p>
+  </div>
+
+  <footer>
+    A fork of <a href="https://github.com/elder-plinius/GL4SS">elder-plinius/GL4SS</a>.
+    The dial, the lever and the single-frame engine are his; the sweep across
+    time and the film are what this fork adds.
+  </footer>
+
+</div>
+
+</body>
+</html>

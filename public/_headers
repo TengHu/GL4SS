@@ -39,3 +39,12 @@
 # deploy would leave visitors on an old bundle.
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
+
+/gallery/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# The gallery's stills are content, not build output, so they are not
+# fingerprinted. A day is long enough to be fast and short enough that
+# replacing one is not a support problem.
+/gallery/img/*
+  Cache-Control: public, max-age=86400

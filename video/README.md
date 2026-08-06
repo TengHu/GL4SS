@@ -1,3 +1,15 @@
+# The launch cuts
+
+Two videos, same visual language, cut from two screen recordings:
+
+| | | |
+|---|---|---|
+| `LookingGlass` | 30.9 s | **the launch post** — Rome, four stations, one film |
+| `GoldenGate` | 23.4 s | **follow-up** — San Francisco, 1913 → 2013 |
+| `Berlin` | 23.9 s | **follow-up** — Potsdamer Platz, 1928 → 2022 |
+
+---
+
 # The launch cut
 
 A 30-second, 1920×1080 silent cut of one end-to-end run of THE LOOKING GLASS —
@@ -99,3 +111,109 @@ from the Triassic to the next millennium — never makes it on screen.
 Change any of these in `src/gl4ss/theme.ts`, which is also where the scene
 timings, the palette lifted from `portal.css`, and the elapsed-clock anchors
 live.
+
+---
+
+# The follow-up cut — Golden Gate
+
+```console
+./cut-goldengate.sh
+npx remotion render GoldenGate out/gg-raw.mp4 \
+  --codec=h264 --image-format=png --crf=16
+./add-music.sh SIMPLE2 out/gg-raw.mp4 out/gl4ss-goldengate-23s.mp4
+```
+
+23.4 s, same fonts, same badges, same end card, same music. Shorter than the
+launch cut on purpose — a follow-up is watched by people who already know what
+the thing is, so it re-explains nothing.
+
+| Frames | Scene | Rate | On screen |
+|---|---|---|---|
+| 0–78 | cold open | **backwards** | the bridge dissolves out of the strait |
+| 78–135 | title | — | *same instrument. new pin. / the bridge isn't there yet* |
+| 135–225 | map | ×4.3 | the pin, and the Street View seed |
+| 225–267 | lever | **real time** | committing the year |
+| 267–327 | develop | ×15 | the wormhole |
+| 327–381 | seed frame | ×3.3 | 2013 lands, drawn from the photograph |
+| 381–588 | payoff | **real time** | the film forwards: 1913 → 2013 |
+| 588–702 | end card | — | what it cost |
+
+## Why the cold open runs backwards
+
+The forward pass is the payoff, and playing it twice in twenty-three seconds
+would be the same clip twice. Reversed, the opening is its own beat — the bridge
+dissolves out of the one view of San Francisco everybody already holds in their
+head — and frame 0 is the finished bridge, which is what a muted autoplaying
+timeline needs as a poster.
+
+## Two things cropped out, deliberately
+
+The `BLEED` crop in `cut-goldengate.sh` is not just a 16:9 reframe. It starts
+below the app's corner label and stops before the right edge, because:
+
+- **The corner label reads the DIAL's year, not the film's.** Over the 1913
+  picture it says `2013 AD`. That is a UI artifact, but on a posted video it
+  would read as a false caption, so the video draws its own year chips instead.
+- **A park sign in the 1913 frame carries garbled model text** — *GOLDEN PARSTOR
+  AREA*. Invisible on a phone, obvious to anyone who zooms, and exactly the
+  detail a reply would be built around.
+
+The future stations rendered in that session are not used at all, and the end
+card states the reach as past-only — *back to 252 million years ago* — rather
+than the launch cut's `252 million years ago → 3050 AD`.
+
+---
+
+# The follow-up cut — Potsdamer Platz
+
+```console
+./cut-berlin.sh
+npx remotion render Berlin out/bl-raw.mp4 \
+  --codec=h264 --image-format=png --crf=16
+./add-music.sh SIMPLE2 out/bl-raw.mp4 out/gl4ss-berlin-24s.mp4
+```
+
+23.9 s. The strongest of the three, because Potsdamer Platz has four genuinely
+different states inside a century and the sweep landed all four on one camera:
+
+| Frames | Scene | Rate | On screen |
+|---|---|---|---|
+| 0–75 | cold open | real time | 1928 collapsing into rubble |
+| 75–132 | title | — | *one corner. four Berlins. / one building stands in all four* |
+| 132–210 | map | ×4.8 | Berlin down to the Platz, picking the vantage |
+| 210–249 | lever | **real time** | committing 2022 |
+| 249–309 | develop | ×11 | the wormhole |
+| 309–603 | payoff | **real time** | 1946 → 1972 → 2022, uncut |
+| 603–717 | end card | — | what it cost |
+
+## The film looks broken until it isn't
+
+Watched from the middle of the recording, the film cuts between eras with no
+transition and reads as a failure. It is not: playback there is looping over the
+clips that had finished while the rest were still rendering. The bar says so —
+*rendering 2 of 3 clips · pending*.
+
+By 510 s it reads **4 of 4 frames · 3 clips** and the same loop runs clean,
+holding one camera through all four stations. Both cuts come from after that
+point. **Anything cut from before it would be showing a progress bar as if it
+were a result.**
+
+## The two cuts split the arc rather than repeat it
+
+The cold open spends 1928 → rubble. The payoff picks up at the rubble and runs
+to 2022. No frame appears twice, and between them they cover the whole sweep —
+which is why this one does not need the reversed-hook trick the Golden Gate cut
+uses.
+
+## The anchor
+
+Weinhaus Huth is the one building in shot in every station, so the camera has
+something to hold onto that is genuinely present in 1928, 1946, 1972 and 2022.
+The title claims exactly that and nothing more — *one building stands in all
+four* is checkable against the video itself, unlike any claim about what else
+did or did not survive.
+
+The `BLEED` crop is pushed right to drop a generated `Achtung!` prop sign that
+sits half in frame at the left edge, and starts below the app's corner label for
+the same reason as the Golden Gate cut — that label reads the dial's year, not
+the film's.

@@ -60,6 +60,24 @@ frame as a short **film with sound**.
 
 ---
 
+## ⚠️ WHAT THIS IS NOT
+
+**It is not a record of the past.** Nothing is looked up — there is no retrieval,
+no archive, no backend to hold one. Every frame is a model's best guess at a
+place it never saw, assembled out of whatever happened to survive and out of how
+the past has been depicted ever since.
+
+So read a frame as *how 1810 has been imagined*, not as *how 1810 looked*. Where
+the pictures are checkable they are often wrong in the details, and the further
+back you go the more of it is invention.
+
+What it does try to be honest about is the **viewpoint**: each frame is edited
+from the one beside it rather than composed fresh, so you are at least looking at
+the same spot the whole way. Even that only half works — see
+[Known weaknesses](docs/multi-image.md#known-weaknesses).
+
+---
+
 ## 🧩 WHAT THIS FORK ADDS
 
 Upstream develops **one** picture: one place, one year, one lever pull. This fork turns that single

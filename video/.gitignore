@@ -9,4 +9,4 @@ out
 # The clips in public/ are cut out of the raw FocuSee capture by cut-source.sh.
 # They are derived, ~40 MB, and regenerable — the script is the source of truth.
 public/*.mp4
-public/title_bg.png
+public/*.png
