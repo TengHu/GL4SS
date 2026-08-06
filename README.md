@@ -33,6 +33,11 @@
   Four frames · 5 min 27 s of real time · nobody wrote a prompt.</em>
 </p>
 
+<p align="center">
+  <strong><a href="https://gl4ss.nielglass.workers.dev/gallery/">→ See what it makes</a></strong><br>
+  <sub>Finished frames from Rome, Berlin and San Francisco. No key, nothing to set up.</sub>
+</p>
+
 <!--
   The 31-second walkthrough is not committed — it is ~28 MB and rebuildable from video/.
   To embed it: drag video/out/gl4ss-launch-30s.mp4 into any GitHub issue comment, copy the
